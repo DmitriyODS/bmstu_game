@@ -66,9 +66,9 @@
                         </td>
                         <td class="text-sm">{{ team.registered_at.strftime('%d.%m %H:%M') }}</td>
                         <td>
-                            <form method="POST" action="{{ url_for('admin.team_delete', team_id=team.id) }}"
-                                  onsubmit="return confirm('Удалить команду?')">
-                                <button class="btn btn-xs btn-error btn-outline">
+                            <form method="POST" action="{{ url_for('admin.team_delete', team_id=team.id) }}">
+                                <button type="button" class="btn btn-xs btn-error btn-outline"
+                                        onclick="confirmAndSubmit(this.closest('form'), 'Удалить команду?')">
                                     <span class="material-symbols-outlined icon-sm">delete</span>
                                 </button>
                             </form>

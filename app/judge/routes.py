@@ -149,4 +149,5 @@ def _emit_scores(socketio, quiz):
     for team in teams:
         total = sum(a.score for a in team.answers if a.score)
         scores.append({'team_id': team.id, 'team_name': team.name, 'score': total})
-    socketio.emit('scores_updated', {'scores': scores}, room=quiz.id)
+    from app.sockets.utils import broadcast
+    broadcast('scores_updated', {'scores': scores}, quiz.id)

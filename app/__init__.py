@@ -69,8 +69,41 @@ def create_app():
 def _init_db(app):
     from app.models import db, User
     import os
+    from sqlalchemy import text
 
     db.create_all()
+
+    # Apply SQL migrations in order
+    with db.engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                filename VARCHAR(256) PRIMARY KEY,
+                applied_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.commit()
+
+        migrations_dir = os.path.join(os.path.dirname(__file__), '..', 'migrations')
+        for filename in sorted(os.listdir(migrations_dir)):
+            if not filename.endswith('.sql'):
+                continue
+            row = conn.execute(
+                text("SELECT 1 FROM schema_migrations WHERE filename = :f"),
+                {'f': filename}
+            ).fetchone()
+            if row:
+                continue
+            with open(os.path.join(migrations_dir, filename), 'r') as f:
+                sql = f.read()
+            for stmt in sql.split(';'):
+                stmt = stmt.strip()
+                if stmt:
+                    conn.execute(text(stmt))
+            conn.execute(
+                text("INSERT INTO schema_migrations (filename) VALUES (:f)"),
+                {'f': filename}
+            )
+            conn.commit()
 
     # Create default admin if not exists
     admin = User.query.filter_by(username='admin').first()

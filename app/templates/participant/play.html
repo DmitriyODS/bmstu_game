@@ -97,7 +97,14 @@
             </div>
         </div>
 
-        <div id="answer-area" class="mb-4"></div>
+        <div id="waiting-timer" class="mb-4">
+            <div class="alert">
+                <span class="material-symbols-outlined icon-sm">hourglass_empty</span>
+                <span>Ожидайте запуска таймера...</span>
+            </div>
+        </div>
+
+        <div id="answer-area" class="mb-4 hidden"></div>
 
         <div id="answer-submitted" class="hidden">
             <div class="alert alert-success">
@@ -158,6 +165,7 @@ const TEAM_ID = '{{ team.id if team else "" }}';
 const TEAM_NAME = '{{ team.name if team else "" }}';
 let currentQuestion = null;
 let timerExpired = false;
+let timerStarted = false;
 
 const socket = io('/participant');
 
@@ -176,6 +184,12 @@ socket.on('screen_changed', (data) => {
 
     if (data.screen === 'question' && data.question) {
         loadQuestion(data.question);
+        if (data.timer_active) {
+            showAnswerArea();
+            if (data.timer_remaining) {
+                document.getElementById('timer').textContent = data.timer_remaining;
+            }
+        }
     }
 
     if (data.screen === 'question_answer' && data.question) {
@@ -191,6 +205,21 @@ socket.on('screen_changed', (data) => {
     }
 });
 
+socket.on('timer_started', () => {
+    showAnswerArea();
+});
+
+socket.on('timer_started', (data) => {
+    const el = document.getElementById('timer');
+    if (el) {
+        el.textContent = data.seconds;
+        el.className = 'text-3xl font-bold font-mono text-primary';
+    }
+});
+socket.on('timer_paused', (data) => {
+    const el = document.getElementById('timer');
+    if (el) el.textContent = data.remaining;
+});
 socket.on('timer_tick', (data) => {
     const el = document.getElementById('timer');
     if (el) {
@@ -199,6 +228,7 @@ socket.on('timer_tick', (data) => {
     }
     if (data.remaining === 0) {
         timerExpired = true;
+        document.getElementById('waiting-timer').classList.add('hidden');
         document.getElementById('timer-expired').classList.remove('hidden');
         document.getElementById('answer-area').classList.add('opacity-50', 'pointer-events-none');
     }
@@ -206,6 +236,7 @@ socket.on('timer_tick', (data) => {
 
 socket.on('timer_stopped', () => {
     timerExpired = true;
+    document.getElementById('waiting-timer')?.classList.add('hidden');
     document.getElementById('timer-expired')?.classList.remove('hidden');
     document.getElementById('answer-area')?.classList.add('opacity-50', 'pointer-events-none');
 });
@@ -213,12 +244,23 @@ socket.on('timer_stopped', () => {
 socket.on('registration_opened', () => location.reload());
 socket.on('registration_closed', () => location.reload());
 socket.on('team_registered', () => {});
+socket.on('quiz_ended', () => location.reload());
+socket.on('quiz_activated', () => location.reload());
+
+function showAnswerArea() {
+    timerStarted = true;
+    document.getElementById('waiting-timer').classList.add('hidden');
+    document.getElementById('answer-area').classList.remove('hidden');
+}
 
 function loadQuestion(q) {
     currentQuestion = q;
     timerExpired = false;
+    timerStarted = false;
     document.getElementById('answer-submitted').classList.add('hidden');
     document.getElementById('timer-expired').classList.add('hidden');
+    document.getElementById('waiting-timer').classList.remove('hidden');
+    document.getElementById('answer-area').classList.add('hidden');
     document.getElementById('answer-area').classList.remove('opacity-50', 'pointer-events-none');
     document.getElementById('timer').textContent = q.time_seconds;
     document.getElementById('q-meta').textContent = `${q.points} балл(ов)`;
@@ -361,7 +403,7 @@ function submitText() {
 }
 
 async function submitAnswer(answerData) {
-    if (timerExpired || !currentQuestion) return;
+    if (!timerStarted || timerExpired || !currentQuestion) return;
     const res = await fetch('/play/submit', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},

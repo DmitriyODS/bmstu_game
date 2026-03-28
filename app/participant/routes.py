@@ -64,10 +64,8 @@ def register():
             if new_name and new_name != team.name:
                 team.name = new_name
                 db.session.commit()
-                from app import socketio
-                socketio.emit('team_name_updated',
-                              {'team_id': team.id, 'name': team.name},
-                              room=quiz_id)
+                from app.sockets.utils import broadcast
+                broadcast('team_name_updated', {'team_id': team.id, 'name': team.name}, quiz_id)
         return redirect(url_for('participant.play_quiz', quiz_id=quiz_id))
 
     name = request.form.get('name', '').strip()
@@ -82,10 +80,8 @@ def register():
 
     session['team_id'] = team.id
 
-    from app import socketio
-    socketio.emit('team_registered',
-                  {'team_id': team.id, 'name': team.name},
-                  room=quiz_id)
+    from app.sockets.utils import broadcast
+    broadcast('team_registered', {'team_id': team.id, 'name': team.name}, quiz_id)
 
     resp = redirect(url_for('participant.play_quiz', quiz_id=quiz_id))
     resp.set_cookie('session_token', token, max_age=60*60*24*30)
@@ -145,9 +141,9 @@ def submit_answer():
 
     db.session.commit()
 
-    from app import socketio
-    socketio.emit('answer_submitted',
-                  {'team_id': team.id, 'question_id': question_id},
-                  room=team.quiz_id)
+    from app.sockets.utils import broadcast
+    broadcast('answer_submitted',
+              {'team_id': team.id, 'team_name': team.name, 'question_id': question_id},
+              team.quiz_id)
 
     return jsonify({'ok': True, 'is_correct': answer.is_correct, 'score': answer.score})

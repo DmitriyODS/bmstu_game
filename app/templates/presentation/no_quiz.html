@@ -1,10 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="min-h-screen flex items-center justify-center p-4" style="background:#0a0f1e; color:#fff">
+<div class="min-h-screen flex items-center justify-center p-4" style="background:#ffffff; color:#111827">
     <div class="text-center">
         <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-20 w-auto mx-auto mb-6 opacity-90">
-        <h1 class="text-5xl sm:text-6xl font-bold mb-4">Бауманка.Квиз</h1>
-        <p class="text-xl sm:text-2xl opacity-60">Квиз ещё не запущен</p>
+        <h1 class="text-5xl sm:text-6xl font-bold mb-4" style="color:#111827">Бауманка.Квиз</h1>
+        <p class="text-xl sm:text-2xl" style="color:#94a3b8">Квиз ещё не запущен</p>
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+const socket = io('/presentation');
+socket.on('quiz_activated', () => location.reload());
+</script>
 {% endblock %}

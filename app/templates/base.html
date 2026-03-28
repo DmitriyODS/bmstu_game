@@ -13,25 +13,65 @@
 
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
-<div class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full px-4 sm:px-0">
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full px-4 sm:px-0">
     {% for category, message in messages %}
-    <div class="alert {% if category == 'error' %}alert-error{% elif category == 'success' %}alert-success{% elif category == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-lg">
-        <span class="material-symbols-outlined icon-sm">{% if category == 'error' %}error{% elif category == 'success' %}check_circle{% elif category == 'warning' %}warning{% else %}info{% endif %}</span>
-        <span>{{ message }}</span>
+    <div class="alert {% if category == 'error' %}alert-error{% elif category == 'success' %}alert-success{% elif category == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-lg flex items-start gap-2">
+        <span class="material-symbols-outlined icon-sm shrink-0">{% if category == 'error' %}error{% elif category == 'success' %}check_circle{% elif category == 'warning' %}warning{% else %}info{% endif %}</span>
+        <span class="flex-1">{{ message }}</span>
+        <button onclick="this.closest('.alert').remove()" class="btn btn-ghost btn-xs btn-circle shrink-0 -mr-1 -mt-1">
+            <span class="material-symbols-outlined" style="font-size:16px">close</span>
+        </button>
     </div>
     {% endfor %}
 </div>
 <script>
-setTimeout(() => {
-    document.querySelectorAll('.alert').forEach(el => el.remove());
-}, 4000);
+(function() {
+    var toasts = document.querySelectorAll('#toast-container .alert');
+    toasts.forEach(function(el) {
+        setTimeout(function() { if (el.parentNode) el.remove(); }, 6000);
+    });
+})();
 </script>
 {% endif %}
 {% endwith %}
 
 {% block content %}{% endblock %}
 
+<dialog id="confirm-modal" class="modal">
+    <div class="modal-box">
+        <p id="confirm-modal-message" class="text-base mb-4"></p>
+        <div class="modal-action mt-0">
+            <button id="confirm-modal-cancel" class="btn">Отмена</button>
+            <button id="confirm-modal-ok" class="btn btn-error">Удалить</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+function confirmModal(message) {
+    return new Promise(resolve => {
+        const modal = document.getElementById('confirm-modal');
+        document.getElementById('confirm-modal-message').textContent = message;
+        const okBtn = document.getElementById('confirm-modal-ok');
+        const cancelBtn = document.getElementById('confirm-modal-cancel');
+        function cleanup() {
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            modal.close();
+        }
+        function onOk() { cleanup(); resolve(true); }
+        function onCancel() { cleanup(); resolve(false); }
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.showModal();
+    });
+}
+async function confirmAndSubmit(form, message) {
+    if (await confirmModal(message)) form.submit();
+}
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

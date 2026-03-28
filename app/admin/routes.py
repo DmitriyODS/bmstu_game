@@ -1,6 +1,8 @@
 import os
 import uuid
 import io
+import json
+import re
 from flask import (render_template, redirect, url_for, request, flash,
                    jsonify, send_file, current_app)
 from flask_login import current_user
@@ -74,6 +76,19 @@ def quiz_delete(quiz_id):
     return redirect(url_for('admin.quizzes'))
 
 
+@admin_bp.route('/quizzes/<quiz_id>/deactivate', methods=['POST'])
+@admin_required
+def quiz_deactivate(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    quiz.is_active = False
+    quiz.status = 'finished'
+    db.session.commit()
+    from app.sockets.utils import broadcast
+    broadcast('quiz_ended', {}, quiz.id)
+    flash('Квиз деактивирован', 'success')
+    return redirect(url_for('admin.quizzes'))
+
+
 @admin_bp.route('/quizzes/<quiz_id>/activate', methods=['POST'])
 @admin_required
 def quiz_activate(quiz_id):
@@ -96,6 +111,8 @@ def quiz_activate(quiz_id):
         gs.timer_seconds = None
         gs.registration_open = False
     db.session.commit()
+    from app.sockets.utils import broadcast_all
+    broadcast_all('quiz_activated', {'quiz_id': quiz_id})
     flash('Квиз активирован', 'success')
     return redirect(url_for('admin.quiz_control', quiz_id=quiz_id))
 
@@ -120,28 +137,41 @@ def quiz_control(quiz_id):
 def tour_create(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
     max_order = db.session.query(db.func.max(Tour.order)).filter_by(quiz_id=quiz_id).scalar() or -1
-    title = request.json.get('title', f'Тур {max_order + 2}')
+    count = Tour.query.filter_by(quiz_id=quiz_id).count()
+    title = request.json.get('title', f'Тур {count + 1}')
     tour = Tour(quiz_id=quiz_id, title=title, order=max_order + 1)
     db.session.add(tour)
     db.session.commit()
     return jsonify({'id': tour.id, 'title': tour.title, 'order': tour.order})
 
 
-@admin_bp.route('/tours/<tour_id>', methods=['PUT', 'DELETE'])
+@admin_bp.route('/tours/<tour_id>', methods=['GET', 'PUT', 'DELETE'])
 @admin_required
 def tour_update(tour_id):
     tour = Tour.query.get_or_404(tour_id)
     if request.method == 'DELETE':
+        q_ids = [q.id for q in tour.questions]
+        if q_ids:
+            # Null out GameState references to questions/tour being deleted
+            gs = GameState.query.filter_by(quiz_id=tour.quiz_id).first()
+            if gs:
+                if gs.current_tour_id == tour_id:
+                    gs.current_tour_id = None
+                if gs.current_question_id in q_ids:
+                    gs.current_question_id = None
+            # Delete TeamAnswers referencing these questions
+            TeamAnswer.query.filter(TeamAnswer.question_id.in_(q_ids)).delete(synchronize_session=False)
         db.session.delete(tour)
         db.session.commit()
         return jsonify({'ok': True})
+    if request.method == 'GET':
+        return jsonify(_tour_dict(tour))
     data = request.json
-    if 'title' in data:
-        tour.title = data['title']
-    if 'order' in data:
-        tour.order = data['order']
+    for field in ('title', 'order', 'sound_mid_seconds'):
+        if field in data:
+            setattr(tour, field, data[field])
     db.session.commit()
-    return jsonify({'id': tour.id, 'title': tour.title, 'order': tour.order})
+    return jsonify(_tour_dict(tour))
 
 
 @admin_bp.route('/tours/<tour_id>/reorder', methods=['POST'])
@@ -177,6 +207,35 @@ def tour_upload_splash(tour_id):
     return jsonify({'path': path})
 
 
+# Tour sound upload
+@admin_bp.route('/tours/<tour_id>/upload-sound', methods=['POST'])
+@admin_required
+def tour_upload_sound(tour_id):
+    tour = Tour.query.get_or_404(tour_id)
+    sound_type = request.form.get('type', 'sound_start')  # sound_start | sound_mid | sound_end
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'No file'}), 400
+    filename = secure_filename(f.filename)
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    if ext not in ('mp3', 'wav', 'ogg', 'm4a'):
+        return jsonify({'error': 'Invalid audio type'}), 400
+    unique_name = f"{uuid.uuid4()}.{ext}"
+    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads',
+                               tour.quiz_id, 'audio')
+    os.makedirs(upload_dir, exist_ok=True)
+    f.save(os.path.join(upload_dir, unique_name))
+    path = f'/static/uploads/{tour.quiz_id}/audio/{unique_name}'
+    field_map = {
+        'sound_start': 'sound_start_path',
+        'sound_mid': 'sound_mid_path',
+        'sound_end': 'sound_end_path',
+    }
+    setattr(tour, field_map.get(sound_type, 'sound_start_path'), path)
+    db.session.commit()
+    return jsonify({'path': path})
+
+
 # ── Questions API ──────────────────────────────────────────────────────────────
 
 @admin_bp.route('/tours/<tour_id>/questions', methods=['POST'])
@@ -204,6 +263,12 @@ def question_create(tour_id):
 def question_update(question_id):
     q = Question.query.get_or_404(question_id)
     if request.method == 'DELETE':
+        # Null out GameState reference if this is the current question
+        gs = GameState.query.filter_by(current_question_id=question_id).first()
+        if gs:
+            gs.current_question_id = None
+        # Delete TeamAnswers referencing this question
+        TeamAnswer.query.filter_by(question_id=question_id).delete(synchronize_session=False)
         db.session.delete(q)
         db.session.commit()
         return jsonify({'ok': True})
@@ -211,7 +276,7 @@ def question_update(question_id):
         return jsonify(_question_dict(q))
     data = request.json or {}
     for field in ('question_type', 'answer_type', 'text', 'time_seconds', 'points',
-                  'auto_check', 'correct_answer', 'sound_mid_seconds', 'order'):
+                  'auto_check', 'correct_answer', 'order'):
         if field in data:
             setattr(q, field, data[field])
     db.session.commit()
@@ -260,9 +325,6 @@ def question_upload(question_id):
     field_map = {
         'image': 'image_path',
         'audio': 'audio_path',
-        'sound_start': 'sound_start_path',
-        'sound_mid': 'sound_mid_path',
-        'sound_end': 'sound_end_path',
     }
     setattr(q, field_map.get(file_type, 'image_path'), path)
     db.session.commit()
@@ -517,6 +579,113 @@ def export_excel(quiz_id):
     )
 
 
+# ── JSON Export / Import ────────────────────────────────────────────────────────
+
+@admin_bp.route('/quizzes/<quiz_id>/export-json')
+@admin_required
+def quiz_export_json(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    data = {
+        'title': quiz.title,
+        'description': quiz.description,
+        'tours': [],
+    }
+    for tour in quiz.tours:
+        tour_data = {
+            'title': tour.title,
+            'order': tour.order,
+            'questions': [],
+        }
+        for q in tour.questions:
+            tour_data['questions'].append({
+                'order': q.order,
+                'question_type': q.question_type,
+                'answer_type': q.answer_type,
+                'text': q.text,
+                'time_seconds': q.time_seconds,
+                'points': q.points,
+                'auto_check': q.auto_check,
+                'correct_answer': q.correct_answer,
+                'sound_mid_seconds': q.sound_mid_seconds,
+                'answer_options': [
+                    {'text': o.text, 'is_correct': o.is_correct, 'order': o.order}
+                    for o in q.answer_options
+                ],
+                'matching_items': [
+                    {'left_text': m.left_text, 'right_text': m.right_text, 'order': m.order}
+                    for m in q.matching_items
+                ],
+            })
+        data['tours'].append(tour_data)
+    buf = io.BytesIO(json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8'))
+    buf.seek(0)
+    safe_title = re.sub(r'[\\/:*?"<>|]', '_', quiz.title).strip() or quiz_id
+    return send_file(buf, mimetype='application/json', as_attachment=True,
+                     download_name=f'{safe_title}.json')
+
+
+@admin_bp.route('/quizzes/import-json', methods=['POST'])
+@admin_required
+def quiz_import_json():
+    f = request.files.get('file')
+    if not f or not f.filename.endswith('.json'):
+        flash('Выберите файл .json', 'error')
+        return redirect(url_for('admin.quizzes'))
+    try:
+        data = json.loads(f.read().decode('utf-8'))
+    except Exception:
+        flash('Не удалось прочитать файл', 'error')
+        return redirect(url_for('admin.quizzes'))
+
+    quiz = Quiz(
+        title=data.get('title', 'Импортированный квиз'),
+        description=data.get('description'),
+    )
+    db.session.add(quiz)
+    db.session.flush()
+
+    for tour_data in data.get('tours', []):
+        tour = Tour(
+            quiz_id=quiz.id,
+            title=tour_data.get('title', 'Тур'),
+            order=tour_data.get('order', 0),
+        )
+        db.session.add(tour)
+        db.session.flush()
+        for q_data in tour_data.get('questions', []):
+            q = Question(
+                tour_id=tour.id,
+                order=q_data.get('order', 0),
+                question_type=q_data.get('question_type', 'text'),
+                answer_type=q_data.get('answer_type', 'short_text'),
+                text=q_data.get('text'),
+                time_seconds=q_data.get('time_seconds', 60),
+                points=q_data.get('points', 1),
+                auto_check=q_data.get('auto_check', False),
+                correct_answer=q_data.get('correct_answer'),
+            )
+            db.session.add(q)
+            db.session.flush()
+            for o_data in q_data.get('answer_options', []):
+                db.session.add(AnswerOption(
+                    question_id=q.id,
+                    text=o_data.get('text', ''),
+                    is_correct=o_data.get('is_correct', False),
+                    order=o_data.get('order', 0),
+                ))
+            for m_data in q_data.get('matching_items', []):
+                db.session.add(MatchingItem(
+                    question_id=q.id,
+                    left_text=m_data.get('left_text', ''),
+                    right_text=m_data.get('right_text', ''),
+                    order=m_data.get('order', 0),
+                ))
+
+    db.session.commit()
+    flash(f'Квиз «{quiz.title}» импортирован', 'success')
+    return redirect(url_for('admin.quiz_edit', quiz_id=quiz.id))
+
+
 # ── QR API ─────────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/api/qr/<quiz_id>')
@@ -531,7 +700,20 @@ def qr_code(quiz_id):
     return send_file(buf, mimetype='image/png')
 
 
-# ── Helper ─────────────────────────────────────────────────────────────────────
+# ── Helpers ─────────────────────────────────────────────────────────────────────
+
+def _tour_dict(tour):
+    return {
+        'id': tour.id,
+        'title': tour.title,
+        'order': tour.order,
+        'splash_image': tour.splash_image,
+        'sound_start_path': tour.sound_start_path,
+        'sound_mid_path': tour.sound_mid_path,
+        'sound_mid_seconds': tour.sound_mid_seconds,
+        'sound_end_path': tour.sound_end_path,
+    }
+
 
 def _question_dict(q):
     return {
@@ -547,10 +729,6 @@ def _question_dict(q):
         'points': q.points,
         'auto_check': q.auto_check,
         'correct_answer': q.correct_answer,
-        'sound_start_path': q.sound_start_path,
-        'sound_mid_path': q.sound_mid_path,
-        'sound_mid_seconds': q.sound_mid_seconds,
-        'sound_end_path': q.sound_end_path,
         'answer_options': [
             {'id': o.id, 'text': o.text, 'is_correct': o.is_correct, 'order': o.order}
             for o in q.answer_options

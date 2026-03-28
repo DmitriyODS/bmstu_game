@@ -51,6 +51,10 @@ class Tour(db.Model):
     title = db.Column(db.String(256), nullable=False)
     order = db.Column(db.Integer, nullable=False, default=0)
     splash_image = db.Column(db.String(512))
+    sound_start_path = db.Column(db.String(512))
+    sound_mid_path = db.Column(db.String(512))
+    sound_mid_seconds = db.Column(db.Integer)
+    sound_end_path = db.Column(db.String(512))
 
     questions = db.relationship('Question', backref='tour', cascade='all, delete-orphan',
                                  order_by='Question.order')
@@ -71,10 +75,6 @@ class Question(db.Model):
     points = db.Column(db.Integer, nullable=False, default=1)
     auto_check = db.Column(db.Boolean, nullable=False, default=False)
     correct_answer = db.Column(db.Text)
-    sound_start_path = db.Column(db.String(512))
-    sound_mid_path = db.Column(db.String(512))
-    sound_mid_seconds = db.Column(db.Integer)
-    sound_end_path = db.Column(db.String(512))
 
     answer_options = db.relationship('AnswerOption', backref='question',
                                       cascade='all, delete-orphan',

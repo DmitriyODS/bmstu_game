@@ -44,10 +44,11 @@
                 {% for judge in judges %}
                 <div class="flex justify-between items-center p-2 bg-base-200 rounded">
                     <span>{{ judge.username }}</span>
-                    <form method="POST" onsubmit="return confirm('Удалить судью?')">
+                    <form method="POST">
                         <input type="hidden" name="action" value="delete_judge">
                         <input type="hidden" name="judge_id" value="{{ judge.id }}">
-                        <button class="btn btn-xs btn-error btn-outline">
+                        <button type="button" class="btn btn-xs btn-error btn-outline"
+                                onclick="confirmAndSubmit(this.closest('form'), 'Удалить судью?')">
                             <span class="material-symbols-outlined icon-sm">delete</span>
                             Удалить
                         </button>

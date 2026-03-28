@@ -1,13 +1,6 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Конструктор: {{ quiz.title }}{% endblock %}
 
-{% block head %}
-<style>
-.tour-item.drag-over { border: 2px dashed oklch(var(--p)); }
-.question-item.drag-over { border: 2px dashed oklch(var(--p)); }
-</style>
-{% endblock %}
-
 {% block admin_content %}
 <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
     <div>
@@ -35,96 +28,146 @@
     </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Левая панель: туры -->
-    <div class="lg:col-span-1">
-        <div class="card bg-base-100 shadow">
-            <div class="card-body p-4">
-                <div class="flex justify-between items-center mb-3">
-                    <h2 class="font-bold">Туры</h2>
-                    <button onclick="addTour()" class="btn btn-xs btn-primary">
-                        <span class="material-symbols-outlined icon-sm">add</span>
-                        Тур
-                    </button>
-                </div>
-                <ul id="tours-list" class="flex flex-col gap-1">
-                    {% for tour in quiz.tours %}
-                    <li class="tour-item" data-tour-id="{{ tour.id }}" draggable="true">
-                        <div class="flex items-center gap-2 p-2 rounded hover:bg-base-200 cursor-pointer group"
-                             onclick="selectTour('{{ tour.id }}', '{{ tour.title|e }}')">
-                            <span class="material-symbols-outlined text-base-content/30 cursor-grab" style="font-size:16px">drag_indicator</span>
-                            <span class="flex-1 text-sm font-medium tour-name-{{ tour.id }}">{{ tour.title }}</span>
-                            <button onclick="event.stopPropagation(); deleteTour('{{ tour.id }}')"
-                                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">
-                                <span class="material-symbols-outlined" style="font-size:14px">close</span>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Левая панель: список туров и вопросов -->
+    <div class="lg:col-span-1 flex flex-col gap-2">
+        <div id="tours-list" class="flex flex-col gap-2">
+            {% for tour in quiz.tours %}
+            <div class="card bg-base-100 shadow-sm tour-card" data-tour-id="{{ tour.id }}">
+                <div class="card-body p-3">
+                    <!-- Tour header -->
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
+                        <span class="flex-1 font-semibold text-sm tour-name-{{ tour.id }}">{{ tour.title }}</span>
+                        <button onclick="addQuestion('{{ tour.id }}')" class="btn btn-xs btn-primary" title="Добавить вопрос">
+                            <span class="material-symbols-outlined icon-sm">add</span>
+                        </button>
+                        <button onclick="selectTour('{{ tour.id }}')" class="btn btn-xs btn-ghost" title="Настройки тура">
+                            <span class="material-symbols-outlined icon-sm">settings</span>
+                        </button>
+                        <button onclick="deleteTour('{{ tour.id }}')" class="btn btn-xs btn-ghost text-error" title="Удалить тур">
+                            <span class="material-symbols-outlined icon-sm">delete</span>
+                        </button>
+                    </div>
+                    <!-- Questions list -->
+                    <ul class="flex flex-col gap-1 mt-1 questions-list" id="questions-{{ tour.id }}">
+                        {% for q in tour.questions %}
+                        <li class="question-item flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer group"
+                            data-q-id="{{ q.id }}" onclick="selectQuestion('{{ q.id }}')" draggable="true">
+                            <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:14px">drag_indicator</span>
+                            <span class="material-symbols-outlined text-base-content/50 shrink-0" style="font-size:14px">{{ {'text':'text_fields','text_image':'image','image_only':'image','audio':'music_note'}.get(q.question_type,'text_fields') }}</span>
+                            <span class="flex-1 text-xs truncate q-label-{{ q.id }}">{{ (q.text or '(без текста)')[:40] }}</span>
+                            <button onclick="event.stopPropagation(); deleteQuestion('{{ q.id }}')"
+                                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error shrink-0">
+                                <span class="material-symbols-outlined" style="font-size:12px">close</span>
                             </button>
-                        </div>
-                        <ul class="ml-4 flex flex-col gap-1" id="questions-{{ tour.id }}">
-                            {% for q in tour.questions %}
-                            <li class="question-item" data-q-id="{{ q.id }}" draggable="true">
-                                <div class="flex items-center gap-1 p-1 rounded hover:bg-base-300 cursor-pointer group text-sm"
-                                     onclick="selectQuestion('{{ q.id }}')">
-                                    <span class="material-symbols-outlined text-base-content/30 cursor-grab" style="font-size:14px">drag_indicator</span>
-                                    <span class="flex-1 truncate text-xs">
-                                        <span class="material-symbols-outlined" style="font-size:12px">{{ {'text':'text_fields','text_image':'image','image_only':'image','audio':'music_note'}.get(q.question_type,'text_fields') }}</span>
-                                        {{ (q.text or '(без текста)')[:30] }}
-                                    </span>
-                                    <button onclick="event.stopPropagation(); deleteQuestion('{{ q.id }}')"
-                                            class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">
-                                        <span class="material-symbols-outlined" style="font-size:12px">close</span>
-                                    </button>
-                                </div>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                    </li>
-                    {% endfor %}
-                </ul>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
             </div>
+            {% endfor %}
         </div>
+        <button onclick="addTour()" class="btn btn-outline btn-sm w-full">
+            <span class="material-symbols-outlined icon-sm">add</span>
+            Добавить тур
+        </button>
     </div>
 
     <!-- Правая панель: редактор -->
-    <div class="lg:col-span-2" id="editor-panel">
+    <div class="lg:col-span-2">
         <div class="card bg-base-100 shadow">
-            <div class="card-body">
+            <div class="card-body p-4 sm:p-6">
+
+                <!-- Placeholder -->
+                <div id="editor-placeholder" class="text-center text-base-content/40 py-16">
+                    <span class="material-symbols-outlined icon-2xl mb-3 block">touch_app</span>
+                    <p>Выберите тур или вопрос</p>
+                </div>
+
                 <!-- Tour editor -->
                 <div id="tour-editor" class="hidden">
-                    <h2 class="font-bold text-lg mb-4">Редактировать тур</h2>
-                    <input type="text" id="tour-title-input" class="input input-bordered w-full mb-4" placeholder="Название тура">
-                    <div class="mb-4">
-                        <label class="label"><span class="label-text">Картинка заставки тура</span></label>
+                    <h2 class="font-bold text-lg mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined icon-md text-primary">folder</span>
+                        <span id="tour-editor-title">Настройки тура</span>
+                    </h2>
+
+                    <div class="form-control mb-4">
+                        <label class="label"><span class="label-text font-medium">Название тура</span></label>
+                        <div class="flex gap-2">
+                            <input type="text" id="tour-title-input" class="input input-bordered flex-1">
+                            <button onclick="saveTourTitle()" class="btn btn-primary">
+                                <span class="material-symbols-outlined icon-sm">save</span>
+                                Сохранить
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-control mb-4">
+                        <label class="label"><span class="label-text font-medium">Заставка тура</span></label>
                         <input type="file" id="tour-splash-input" accept="image/*" class="file-input file-input-bordered w-full">
                         <div id="tour-splash-preview" class="mt-2"></div>
                     </div>
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="saveTour()" class="btn btn-primary btn-sm">
-                            <span class="material-symbols-outlined icon-sm">save</span>
-                            Сохранить
-                        </button>
-                        <button onclick="addQuestion()" class="btn btn-outline btn-sm">
+
+                    <div class="divider text-sm">
+                        <span class="material-symbols-outlined icon-sm">volume_up</span>
+                        Звуки тура
+                    </div>
+                    <p class="text-xs text-base-content/50 mb-3">Звуки применяются ко всем вопросам этого тура</p>
+
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <label class="label-text font-medium text-sm">Старт вопроса</label>
+                            <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
+                                   onchange="uploadTourSound(this, 'sound_start')">
+                            <div id="tour-sound-start-preview" class="mt-2"></div>
+                        </div>
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <label class="label-text font-medium text-sm">Предупреждение</label>
+                            <div class="flex items-center gap-2 mt-2">
+                                <input type="number" id="tour-sound-mid-secs" class="input input-bordered input-sm w-28" placeholder="секунд до конца" min="1">
+                                <span class="text-xs text-base-content/50">сек. до конца</span>
+                            </div>
+                            <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
+                                   onchange="uploadTourSound(this, 'sound_mid')">
+                            <div id="tour-sound-mid-preview" class="mt-2"></div>
+                        </div>
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <label class="label-text font-medium text-sm">Конец времени</label>
+                            <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
+                                   onchange="uploadTourSound(this, 'sound_end')">
+                            <div id="tour-sound-end-preview" class="mt-2"></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button onclick="addQuestion(currentTourId)" class="btn btn-outline btn-sm">
                             <span class="material-symbols-outlined icon-sm">add</span>
-                            Вопрос
+                            Добавить вопрос в этот тур
                         </button>
                     </div>
                 </div>
 
                 <!-- Question editor -->
                 <div id="question-editor" class="hidden">
-                    <h2 class="font-bold text-lg mb-4">Редактировать вопрос</h2>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                        <div class="form-control">
+                    <h2 class="font-bold text-lg mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined icon-md text-secondary">help</span>
+                        Вопрос
+                    </h2>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                        <div class="form-control col-span-2">
                             <label class="label"><span class="label-text">Тип вопроса</span></label>
-                            <select id="q-type" class="select select-bordered" onchange="onQTypeChange()">
+                            <select id="q-type" class="select select-bordered select-sm" onchange="onQTypeChange()">
                                 <option value="text">Текст</option>
                                 <option value="text_image">Текст + картинка</option>
                                 <option value="image_only">Только картинка</option>
                                 <option value="audio">Аудио</option>
                             </select>
                         </div>
-                        <div class="form-control">
+                        <div class="form-control col-span-2">
                             <label class="label"><span class="label-text">Тип ответа</span></label>
-                            <select id="q-answer-type" class="select select-bordered" onchange="onAnswerTypeChange()">
+                            <select id="q-answer-type" class="select select-bordered select-sm" onchange="onAnswerTypeChange()">
                                 <option value="single_choice">Один вариант</option>
                                 <option value="multiple_choice">Несколько вариантов</option>
                                 <option value="short_text">Короткий текст</option>
@@ -134,11 +177,11 @@
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Время (сек)</span></label>
-                            <input type="number" id="q-time" class="input input-bordered" value="60" min="5" max="600">
+                            <input type="number" id="q-time" class="input input-bordered input-sm" value="60" min="5" max="600">
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Баллы</span></label>
-                            <input type="number" id="q-points" class="input input-bordered" value="1" min="0">
+                            <input type="number" id="q-points" class="input input-bordered input-sm" value="1" min="0">
                         </div>
                     </div>
 
@@ -154,12 +197,11 @@
                     </div>
 
                     <div id="q-audio-block" class="mb-4 hidden">
-                        <label class="label"><span class="label-text">Аудиофайл</span></label>
+                        <label class="label"><span class="label-text">Аудиофайл вопроса</span></label>
                         <input type="file" id="q-audio-input" accept="audio/*" class="file-input file-input-bordered w-full">
                         <div id="q-audio-preview" class="mt-2"></div>
                     </div>
 
-                    <!-- Answer options -->
                     <div id="q-options-block" class="mb-4 hidden">
                         <div class="flex justify-between items-center mb-2">
                             <label class="label-text font-medium">Варианты ответа</label>
@@ -171,7 +213,6 @@
                         <div id="options-list" class="flex flex-col gap-2"></div>
                     </div>
 
-                    <!-- Matching -->
                     <div id="q-matching-block" class="mb-4 hidden">
                         <div class="flex justify-between items-center mb-2">
                             <label class="label-text font-medium">Пары для сопоставления</label>
@@ -183,62 +224,19 @@
                         <div id="matching-list" class="flex flex-col gap-2"></div>
                     </div>
 
-                    <!-- Correct answer for manual check display -->
                     <div id="q-correct-block" class="mb-4 hidden">
-                        <label class="label"><span class="label-text">Правильный ответ (для показа судьям)</span></label>
+                        <label class="label"><span class="label-text">Правильный ответ (для судей)</span></label>
                         <input type="text" id="q-correct" class="input input-bordered w-full">
                     </div>
 
-                    <!-- Sounds -->
-                    <div class="collapse collapse-arrow bg-base-200 mb-4">
-                        <input type="checkbox">
-                        <div class="collapse-title font-medium flex items-center gap-2">
-                            <span class="material-symbols-outlined icon-sm">volume_up</span>
-                            Звуки
-                        </div>
-                        <div class="collapse-content">
-                            <div class="grid grid-cols-1 gap-3 mt-2">
-                                <div>
-                                    <label class="label-text text-sm">Старт вопроса</label>
-                                    <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-1"
-                                           onchange="uploadSound(this, 'sound_start')">
-                                    <div id="sound-start-preview" class="mt-1"></div>
-                                </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <div>
-                                        <label class="label-text text-sm">Предупреждение (за N сек)</label>
-                                        <input type="number" id="q-sound-mid-secs" class="input input-bordered input-sm w-full mt-1" placeholder="секунд до конца">
-                                    </div>
-                                    <div>
-                                        <label class="label-text text-sm">Аудио предупреждения</label>
-                                        <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-1"
-                                               onchange="uploadSound(this, 'sound_mid')">
-                                        <div id="sound-mid-preview" class="mt-1"></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="label-text text-sm">Конец времени</label>
-                                    <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-1"
-                                           onchange="uploadSound(this, 'sound_end')">
-                                    <div id="sound-end-preview" class="mt-1"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 pt-2 border-t border-base-200">
                         <button onclick="saveQuestion()" class="btn btn-primary btn-sm">
                             <span class="material-symbols-outlined icon-sm">save</span>
-                            Сохранить
+                            Сохранить вопрос
                         </button>
                     </div>
                 </div>
 
-                <!-- Placeholder -->
-                <div id="editor-placeholder" class="text-center text-base-content/50 py-16">
-                    <span class="material-symbols-outlined icon-2xl mb-4 block">arrow_back</span>
-                    <p class="text-lg">Выберите тур или вопрос для редактирования</p>
-                </div>
             </div>
         </div>
     </div>
@@ -251,68 +249,85 @@ const QUIZ_ID = '{{ quiz.id }}';
 let currentTourId = null;
 let currentQuestionId = null;
 
-// ── Tour ───────────────────────────────────────────────────────
+// ── Tour ────────────────────────────────────────────────────────
+
 async function addTour() {
     const res = await fetch(`/admin/quizzes/${QUIZ_ID}/tours`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({})
     });
     const tour = await res.json();
-    const li = createTourLi(tour);
-    document.getElementById('tours-list').appendChild(li);
-    selectTour(tour.id, tour.title);
+    const card = createTourCard(tour);
+    document.getElementById('tours-list').appendChild(card);
+    selectTour(tour.id);
 }
 
-function createTourLi(tour) {
-    const li = document.createElement('li');
-    li.className = 'tour-item';
-    li.dataset.tourId = tour.id;
-    li.draggable = true;
-    li.innerHTML = `
-        <div class="flex items-center gap-2 p-2 rounded hover:bg-base-200 cursor-pointer group"
-             onclick="selectTour('${tour.id}', '${tour.title.replace(/'/g,"\\'")}')">
-            <span class="material-symbols-outlined text-base-content/30 cursor-grab" style="font-size:16px">drag_indicator</span>
-            <span class="flex-1 text-sm font-medium tour-name-${tour.id}">${tour.title}</span>
-            <button onclick="event.stopPropagation(); deleteTour('${tour.id}')"
-                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">
-                <span class="material-symbols-outlined" style="font-size:14px">close</span>
-            </button>
-        </div>
-        <ul class="ml-4 flex flex-col gap-1" id="questions-${tour.id}"></ul>`;
-    return li;
+function createTourCard(tour) {
+    const div = document.createElement('div');
+    div.className = 'card bg-base-100 shadow-sm tour-card';
+    div.dataset.tourId = tour.id;
+    div.innerHTML = `
+        <div class="card-body p-3">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
+                <span class="flex-1 font-semibold text-sm tour-name-${tour.id}">${escHtml(tour.title)}</span>
+                <button onclick="addQuestion('${tour.id}')" class="btn btn-xs btn-primary" title="Добавить вопрос">
+                    <span class="material-symbols-outlined icon-sm">add</span>
+                </button>
+                <button onclick="selectTour('${tour.id}')" class="btn btn-xs btn-ghost" title="Настройки тура">
+                    <span class="material-symbols-outlined icon-sm">settings</span>
+                </button>
+                <button onclick="deleteTour('${tour.id}')" class="btn btn-xs btn-ghost text-error" title="Удалить тур">
+                    <span class="material-symbols-outlined icon-sm">delete</span>
+                </button>
+            </div>
+            <ul class="flex flex-col gap-1 mt-1 questions-list" id="questions-${tour.id}"></ul>
+        </div>`;
+    return div;
 }
 
-function selectTour(tourId, tourTitle) {
+async function selectTour(tourId) {
     currentTourId = tourId;
     currentQuestionId = null;
-    document.getElementById('editor-placeholder').classList.add('hidden');
-    document.getElementById('question-editor').classList.add('hidden');
-    document.getElementById('tour-editor').classList.remove('hidden');
-    document.getElementById('tour-title-input').value = tourTitle;
-    document.getElementById('tour-splash-preview').innerHTML = '';
+    highlightActive(null, tourId);
+
+    const res = await fetch(`/admin/tours/${tourId}`);
+    const tour = await res.json();
+
+    showPanel('tour-editor');
+    document.getElementById('tour-editor-title').textContent = tour.title;
+    document.getElementById('tour-title-input').value = tour.title;
+    document.getElementById('tour-sound-mid-secs').value = tour.sound_mid_seconds || '';
+
+    document.getElementById('tour-splash-preview').innerHTML =
+        tour.splash_image ? `<img src="${tour.splash_image}" class="max-h-32 rounded mt-1">` : '';
+    document.getElementById('tour-sound-start-preview').innerHTML =
+        tour.sound_start_path ? `<audio controls src="${tour.sound_start_path}" class="w-full mt-1"></audio>` : '';
+    document.getElementById('tour-sound-mid-preview').innerHTML =
+        tour.sound_mid_path ? `<audio controls src="${tour.sound_mid_path}" class="w-full mt-1"></audio>` : '';
+    document.getElementById('tour-sound-end-preview').innerHTML =
+        tour.sound_end_path ? `<audio controls src="${tour.sound_end_path}" class="w-full mt-1"></audio>` : '';
 }
 
-async function saveTour() {
+async function saveTourTitle() {
     if (!currentTourId) return;
     const title = document.getElementById('tour-title-input').value.trim();
+    const midSecs = parseInt(document.getElementById('tour-sound-mid-secs').value) || null;
     if (!title) return;
     await fetch(`/admin/tours/${currentTourId}`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({title})
+        body: JSON.stringify({title, sound_mid_seconds: midSecs})
     });
-    const nameEl = document.querySelector(`.tour-name-${currentTourId}`);
-    if (nameEl) nameEl.textContent = title;
+    document.querySelectorAll(`.tour-name-${currentTourId}`).forEach(el => el.textContent = title);
+    document.getElementById('tour-editor-title').textContent = title;
     showToast('Тур сохранён');
 }
 
 async function deleteTour(tourId) {
-    if (!confirm('Удалить тур со всеми вопросами?')) return;
+    if (!await confirmModal('Удалить тур со всеми вопросами?')) return;
     await fetch(`/admin/tours/${tourId}`, {method: 'DELETE'});
     document.querySelector(`[data-tour-id="${tourId}"]`).remove();
-    if (currentTourId === tourId) {
-        currentTourId = null;
-        showPlaceholder();
-    }
+    if (currentTourId === tourId) { currentTourId = null; showPanel('placeholder'); }
 }
 
 async function uploadTourSplash() {
@@ -322,24 +337,42 @@ async function uploadTourSplash() {
     fd.append('file', input.files[0]);
     const res = await fetch(`/admin/tours/${currentTourId}/upload-splash`, {method: 'POST', body: fd});
     const data = await res.json();
+    if (data.path)
+        document.getElementById('tour-splash-preview').innerHTML = `<img src="${data.path}" class="max-h-32 rounded mt-1">`;
+}
+
+async function uploadTourSound(input, soundType) {
+    if (!input.files[0] || !currentTourId) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('type', soundType);
+    const midSecs = parseInt(document.getElementById('tour-sound-mid-secs').value) || null;
+    // Save mid_seconds together with sound upload
+    if (soundType === 'sound_mid' && midSecs) {
+        await fetch(`/admin/tours/${currentTourId}`, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sound_mid_seconds: midSecs})
+        });
+    }
+    const res = await fetch(`/admin/tours/${currentTourId}/upload-sound`, {method: 'POST', body: fd});
+    const data = await res.json();
     if (data.path) {
-        document.getElementById('tour-splash-preview').innerHTML =
-            `<img src="${data.path}" class="max-h-32 rounded mt-2">`;
+        const previewId = {sound_start:'tour-sound-start-preview', sound_mid:'tour-sound-mid-preview', sound_end:'tour-sound-end-preview'}[soundType];
+        document.getElementById(previewId).innerHTML = `<audio controls src="${data.path}" class="w-full mt-1"></audio>`;
     }
 }
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('tour-splash-input')?.addEventListener('change', uploadTourSplash);
-});
 
-// ── Question ───────────────────────────────────────────────────
-async function addQuestion() {
-    if (!currentTourId) return;
-    const res = await fetch(`/admin/tours/${currentTourId}/questions`, {
+// ── Question ────────────────────────────────────────────────────
+
+async function addQuestion(tourId) {
+    if (!tourId) return;
+    currentTourId = tourId;
+    const res = await fetch(`/admin/tours/${tourId}/questions`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({question_type: 'text', answer_type: 'short_text'})
     });
     const q = await res.json();
-    appendQuestionToList(currentTourId, q);
+    appendQuestionToList(tourId, q);
     selectQuestion(q.id);
 }
 
@@ -347,52 +380,46 @@ function appendQuestionToList(tourId, q) {
     const ul = document.getElementById(`questions-${tourId}`);
     if (!ul) return;
     const li = document.createElement('li');
-    li.className = 'question-item';
+    li.className = 'question-item flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer group';
     li.dataset.qId = q.id;
     li.draggable = true;
+    li.onclick = () => selectQuestion(q.id);
     const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note'};
     li.innerHTML = `
-        <div class="flex items-center gap-1 p-1 rounded hover:bg-base-300 cursor-pointer group text-sm"
-             onclick="selectQuestion('${q.id}')">
-            <span class="material-symbols-outlined text-base-content/30 cursor-grab" style="font-size:14px">drag_indicator</span>
-            <span class="flex-1 truncate text-xs q-label-${q.id}">
-                <span class="material-symbols-outlined" style="font-size:12px">${iconMap[q.question_type]||'text_fields'}</span>
-                ${(q.text||'(без текста)').substring(0,30)}
-            </span>
-            <button onclick="event.stopPropagation(); deleteQuestion('${q.id}')"
-                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">
-                <span class="material-symbols-outlined" style="font-size:12px">close</span>
-            </button>
-        </div>`;
+        <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:14px">drag_indicator</span>
+        <span class="material-symbols-outlined text-base-content/50 shrink-0" style="font-size:14px">${iconMap[q.question_type]||'text_fields'}</span>
+        <span class="flex-1 text-xs truncate q-label-${q.id}">${escHtml((q.text||'(без текста)').substring(0,40))}</span>
+        <button onclick="event.stopPropagation(); deleteQuestion('${q.id}')"
+                class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error shrink-0">
+            <span class="material-symbols-outlined" style="font-size:12px">close</span>
+        </button>`;
     ul.appendChild(li);
 }
 
 async function selectQuestion(qId) {
     currentQuestionId = qId;
+    highlightActive(qId, null);
+
     const res = await fetch(`/admin/questions/${qId}`);
     const q = await res.json();
-    document.getElementById('editor-placeholder').classList.add('hidden');
-    document.getElementById('tour-editor').classList.add('hidden');
-    document.getElementById('question-editor').classList.remove('hidden');
+    currentTourId = q.tour_id;
 
+    showPanel('question-editor');
     document.getElementById('q-type').value = q.question_type;
     document.getElementById('q-answer-type').value = q.answer_type;
     document.getElementById('q-time').value = q.time_seconds;
     document.getElementById('q-points').value = q.points;
     document.getElementById('q-text').value = q.text || '';
     document.getElementById('q-correct').value = q.correct_answer || '';
-    document.getElementById('q-sound-mid-secs').value = q.sound_mid_seconds || '';
 
     document.getElementById('q-image-preview').innerHTML =
         q.image_path ? `<img src="${q.image_path}" class="max-h-32 rounded">` : '';
     document.getElementById('q-audio-preview').innerHTML =
         q.audio_path ? `<audio controls src="${q.audio_path}" class="w-full mt-1"></audio>` : '';
-    document.getElementById('sound-start-preview').innerHTML =
-        q.sound_start_path ? `<audio controls src="${q.sound_start_path}" class="w-full"></audio>` : '';
-    document.getElementById('sound-mid-preview').innerHTML =
-        q.sound_mid_path ? `<audio controls src="${q.sound_mid_path}" class="w-full"></audio>` : '';
-    document.getElementById('sound-end-preview').innerHTML =
-        q.sound_end_path ? `<audio controls src="${q.sound_end_path}" class="w-full"></audio>` : '';
+
+    // Reset file inputs
+    document.getElementById('q-image-input').value = '';
+    document.getElementById('q-audio-input').value = '';
 
     onQTypeChange();
     onAnswerTypeChange();
@@ -418,16 +445,11 @@ async function loadOptions(q) {
     const matchList = document.getElementById('matching-list');
     optsList.innerHTML = '';
     matchList.innerHTML = '';
-
     if (['single_choice','multiple_choice'].includes(q.answer_type)) {
-        for (const opt of q.answer_options) {
-            optsList.appendChild(createOptionEl(opt, q.answer_type));
-        }
+        for (const opt of q.answer_options) optsList.appendChild(createOptionEl(opt, q.answer_type));
     }
     if (q.answer_type === 'matching') {
-        for (const m of q.matching_items) {
-            matchList.appendChild(createMatchingEl(m));
-        }
+        for (const m of q.matching_items) matchList.appendChild(createMatchingEl(m));
     }
 }
 
@@ -438,8 +460,8 @@ function createOptionEl(opt, answerType) {
     const inputType = answerType === 'single_choice' ? 'radio' : 'checkbox';
     div.innerHTML = `
         <input type="${inputType}" name="correct_opt" ${opt.is_correct ? 'checked' : ''}
-               onchange="updateOption('${opt.id}', null, this.checked)" class="checkbox">
-        <input type="text" value="${opt.text}" class="input input-bordered input-sm flex-1"
+               onchange="updateOption('${opt.id}', null, this.checked)" class="checkbox checkbox-sm">
+        <input type="text" value="${escHtml(opt.text)}" class="input input-bordered input-sm flex-1"
                onblur="updateOption('${opt.id}', this.value, null)">
         <button onclick="deleteOption('${opt.id}', this)" class="btn btn-xs btn-ghost text-error">
             <span class="material-symbols-outlined" style="font-size:14px">close</span>
@@ -452,10 +474,10 @@ function createMatchingEl(m) {
     div.className = 'flex items-center gap-2';
     div.dataset.matchId = m.id;
     div.innerHTML = `
-        <input type="text" value="${m.left_text}" placeholder="Левый" class="input input-bordered input-sm flex-1"
+        <input type="text" value="${escHtml(m.left_text)}" placeholder="Левый" class="input input-bordered input-sm flex-1"
                onblur="updateMatching('${m.id}', this.value, null)">
-        <span class="material-symbols-outlined text-base-content/40" style="font-size:16px">arrow_forward</span>
-        <input type="text" value="${m.right_text}" placeholder="Правый" class="input input-bordered input-sm flex-1"
+        <span class="material-symbols-outlined text-base-content/40 shrink-0" style="font-size:16px">arrow_forward</span>
+        <input type="text" value="${escHtml(m.right_text)}" placeholder="Правый" class="input input-bordered input-sm flex-1"
                onblur="updateMatching('${m.id}', null, this.value)">
         <button onclick="deleteMatching('${m.id}', this)" class="btn btn-xs btn-ghost text-error">
             <span class="material-symbols-outlined" style="font-size:14px">close</span>
@@ -470,18 +492,14 @@ async function addOption() {
         body: JSON.stringify({text: 'Вариант', is_correct: false})
     });
     const opt = await res.json();
-    const answerType = document.getElementById('q-answer-type').value;
-    document.getElementById('options-list').appendChild(createOptionEl(opt, answerType));
+    document.getElementById('options-list').appendChild(createOptionEl(opt, document.getElementById('q-answer-type').value));
 }
 
 async function updateOption(optId, text, isCorrect) {
     const body = {};
     if (text !== null) body.text = text;
     if (isCorrect !== null) body.is_correct = isCorrect;
-    await fetch(`/admin/options/${optId}`, {
-        method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body)
-    });
+    await fetch(`/admin/options/${optId}`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
 }
 
 async function deleteOption(optId, btn) {
@@ -503,10 +521,7 @@ async function updateMatching(mId, leftText, rightText) {
     const body = {};
     if (leftText !== null) body.left_text = leftText;
     if (rightText !== null) body.right_text = rightText;
-    await fetch(`/admin/matching/${mId}`, {
-        method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body)
-    });
+    await fetch(`/admin/matching/${mId}`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
 }
 
 async function deleteMatching(mId, btn) {
@@ -523,7 +538,6 @@ async function saveQuestion() {
         time_seconds: parseInt(document.getElementById('q-time').value),
         points: parseInt(document.getElementById('q-points').value),
         correct_answer: document.getElementById('q-correct').value,
-        sound_mid_seconds: parseInt(document.getElementById('q-sound-mid-secs').value) || null,
         auto_check: ['single_choice','multiple_choice'].includes(document.getElementById('q-answer-type').value),
     };
     await fetch(`/admin/questions/${currentQuestionId}`, {
@@ -533,23 +547,22 @@ async function saveQuestion() {
     const label = document.querySelector(`.q-label-${currentQuestionId}`);
     if (label) {
         const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note'};
-        const iconName = iconMap[body.question_type] || 'text_fields';
-        label.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px">${iconName}</span> ${(body.text||'(без текста)').substring(0,30)}`;
+        const icon = iconMap[body.question_type] || 'text_fields';
+        label.closest('li').querySelector('.material-symbols-outlined:nth-child(2)').textContent = icon;
+        label.textContent = (body.text || '(без текста)').substring(0, 40);
     }
-
     const imgInput = document.getElementById('q-image-input');
     if (imgInput.files[0]) await uploadQuestionFile(imgInput.files[0], 'image');
     const audInput = document.getElementById('q-audio-input');
     if (audInput.files[0]) await uploadQuestionFile(audInput.files[0], 'audio');
-
     showToast('Вопрос сохранён');
 }
 
 async function deleteQuestion(qId) {
-    if (!confirm('Удалить вопрос?')) return;
+    if (!await confirmModal('Удалить вопрос?')) return;
     await fetch(`/admin/questions/${qId}`, {method: 'DELETE'});
     document.querySelector(`[data-q-id="${qId}"]`).remove();
-    if (currentQuestionId === qId) { currentQuestionId = null; showPlaceholder(); }
+    if (currentQuestionId === qId) { currentQuestionId = null; showPanel('placeholder'); }
 }
 
 async function uploadQuestionFile(file, type) {
@@ -564,31 +577,37 @@ async function uploadQuestionFile(file, type) {
         document.getElementById('q-audio-preview').innerHTML = `<audio controls src="${data.path}" class="w-full mt-1"></audio>`;
 }
 
-async function uploadSound(input, soundType) {
-    if (!input.files[0] || !currentQuestionId) return;
-    const fd = new FormData();
-    fd.append('file', input.files[0]);
-    fd.append('type', soundType);
-    const res = await fetch(`/admin/questions/${currentQuestionId}/upload`, {method: 'POST', body: fd});
-    const data = await res.json();
-    if (data.path) {
-        document.getElementById(`${soundType}-preview`).innerHTML =
-            `<audio controls src="${data.path}" class="w-full"></audio>`;
-    }
+// ── UI helpers ──────────────────────────────────────────────────
+
+function showPanel(panel) {
+    document.getElementById('editor-placeholder').classList.toggle('hidden', panel !== 'placeholder');
+    document.getElementById('tour-editor').classList.toggle('hidden', panel !== 'tour-editor');
+    document.getElementById('question-editor').classList.toggle('hidden', panel !== 'question-editor');
 }
 
-function showPlaceholder() {
-    document.getElementById('editor-placeholder').classList.remove('hidden');
-    document.getElementById('tour-editor').classList.add('hidden');
-    document.getElementById('question-editor').classList.add('hidden');
+function highlightActive(qId, tourId) {
+    document.querySelectorAll('.question-item').forEach(el => el.classList.remove('bg-primary/10'));
+    document.querySelectorAll('.tour-card').forEach(el => el.classList.remove('ring-2', 'ring-primary'));
+    if (qId) document.querySelector(`[data-q-id="${qId}"]`)?.classList.add('bg-primary/10');
+    if (tourId) document.querySelector(`[data-tour-id="${tourId}"]`)?.classList.add('ring-2', 'ring-primary');
 }
 
 function showToast(msg) {
     const div = document.createElement('div');
-    div.className = 'toast toast-end';
-    div.innerHTML = `<div class="alert alert-success"><span>${msg}</span></div>`;
+    div.className = 'toast toast-end z-50';
+    div.innerHTML = `<div class="alert alert-success text-sm"><span>${msg}</span></div>`;
     document.body.appendChild(div);
     setTimeout(() => div.remove(), 2500);
 }
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ─────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('tour-splash-input').addEventListener('change', uploadTourSplash);
+});
 </script>
 {% endblock %}

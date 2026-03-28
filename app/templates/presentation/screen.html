@@ -3,23 +3,269 @@
 
 {% block head %}
 <style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { overflow: hidden; background: #fff; }
+
 #pres-app {
-    background: #0a0f1e;
-    color: #fff;
-    min-height: 100vh;
+    width: 100vw;
+    height: 100vh;
+    background: #ffffff;
+    color: #111827;
+    font-family: inherit;
+    position: relative;
+    overflow: hidden;
 }
-.screen-section {
-    min-height: 100vh;
-    display: flex;
+
+/* ── Base screen ── */
+.pres-screen {
+    position: absolute;
+    inset: 0;
+    display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
+    padding: 3.5rem;
 }
-.pres-card {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.12);
+.pres-screen.active { display: flex; }
+
+/* ── Card ── */
+.p-card {
+    background: #f1f5f9;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 1.25rem;
+}
+
+/* ── QUESTION ── */
+#screen-question {
+    justify-content: flex-start;
+    padding: 2.25rem 3.5rem 8.5rem;
+    align-items: stretch;
+}
+.q-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+#q-meta-pres {
+    font-size: 1.4rem;
+    color: #64748b;
+    font-weight: 600;
+}
+#timer-pres {
+    font-size: clamp(4.5rem, 9vw, 7.5rem);
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    color: #f59e0b;
+    line-height: 1;
+    min-width: 3ch;
+    text-align: right;
+}
+#q-text-pres {
+    font-size: clamp(2rem, 4.2vw, 3.5rem);
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.25;
+    margin-bottom: 2rem;
+}
+#q-image-pres img {
+    max-height: 32vh;
+    max-width: 100%;
     border-radius: 1rem;
+    object-fit: contain;
+    margin-bottom: 1.75rem;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+#q-options-pres {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+.opt-tile {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #ffffff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1.25rem 1.75rem;
+    font-size: clamp(1.2rem, 2.2vw, 1.65rem);
+    font-weight: 700;
+    color: #111827;
+    min-height: 5.5rem;
+}
+.opt-letter {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #94a3b8;
+    min-width: 1.8rem;
+}
+
+/* ── QUESTION ANSWER ── */
+#screen-question_answer { text-align: center; }
+#q-text-answer-pres {
+    font-size: clamp(1.2rem, 2.2vw, 1.6rem);
+    color: #64748b;
+    margin-bottom: 1.25rem;
+    max-width: 72vw;
+    line-height: 1.4;
+}
+.answer-label {
+    font-size: clamp(1.4rem, 2.8vw, 2rem);
+    font-weight: 700;
+    color: #f59e0b;
+    margin-bottom: 1rem;
+}
+#correct-answer-pres {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 900;
+    color: #111827;
+}
+#correct-options-pres {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    width: 100%;
+    max-width: 75vw;
+    margin-top: 2rem;
+}
+
+/* ── REGISTRATION ── */
+#screen-registration {
+    padding: 3rem 4rem;
+    align-items: stretch;
+}
+.reg-layout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 5rem;
+    align-items: start;
+    width: 100%;
+    max-width: 1200px;
+    margin: auto;
+}
+#teams-list {
+    max-height: 60vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+.team-reg-card {
+    background: #f1f5f9;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 0.85rem;
+    padding: 0.8rem 1.25rem;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+/* ── TEAMS GRID ── */
+#all-teams-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+    width: 100%;
+    max-width: 1100px;
+}
+
+/* ── RESULTS ── */
+.results-list {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: 72vh;
+    overflow-y: auto;
+}
+.result-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 1rem;
+    padding: 1.1rem 2rem;
+    font-size: clamp(1.3rem, 2.5vw, 1.75rem);
+    font-weight: 600;
+    color: #111827;
+}
+
+/* ── TOUR SPLASH ── */
+#screen-tour_splash { position: absolute; }
+#tour-splash-bg {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.12;
+    z-index: 0;
+}
+#screen-tour_splash > .tour-splash-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+}
+
+/* ── WAITING ── */
+.pres-spinner {
+    width: 5rem; height: 5rem;
+    border: 5px solid #e2e8f0;
+    border-top-color: #006CDC;
+    border-radius: 50%;
+    animation: spin 0.85s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── ANSWERS PANEL ── */
+#answers-panel {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    z-index: 50;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(16px);
+    border-top: 2px solid #e2e8f0;
+    padding: 0.85rem 2.5rem 1rem;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+}
+#answers-panel.visible { transform: translateY(0); }
+.ap-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 0.55rem;
+}
+.ap-label {
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: #94a3b8;
+}
+.ap-count { font-size: 1.35rem; font-weight: 900; color: #16a34a; }
+.ap-total { font-size: 0.95rem; color: #94a3b8; }
+#answers-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.answered-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+    border-radius: 2rem;
+    padding: 0.2rem 0.8rem 0.2rem 0.55rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #166534;
+    animation: chipIn 0.3s cubic-bezier(.4,0,.2,1);
+}
+.chip-check { font-size: 14px; color: #16a34a; }
+@keyframes chipIn {
+    from { opacity: 0; transform: scale(0.65) translateY(6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 </style>
 {% endblock %}
@@ -28,32 +274,43 @@
 <div id="pres-app">
 
     <!-- SPLASH -->
-    <div id="screen-splash" class="screen-section text-center">
-        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-20 w-auto mx-auto mb-8 opacity-90">
-        <h1 class="text-5xl sm:text-6xl font-bold mb-6">{{ quiz.title }}</h1>
+    <div id="screen-splash" class="pres-screen text-center">
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt=""
+             style="height:5.5rem;margin-bottom:2.5rem;opacity:0.9;">
+        <h1 style="font-size:clamp(3rem,7vw,5.5rem);font-weight:900;color:#111827;line-height:1.1;margin-bottom:1.5rem;">
+            {{ quiz.title }}
+        </h1>
         {% if quiz.description %}
-        <p class="text-xl sm:text-2xl opacity-70">{{ quiz.description }}</p>
+        <p style="font-size:clamp(1.25rem,2.5vw,1.9rem);color:#64748b;max-width:60vw;">
+            {{ quiz.description }}
+        </p>
         {% endif %}
     </div>
 
     <!-- REGISTRATION -->
-    <div id="screen-registration" class="hidden screen-section">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 w-full max-w-6xl">
-            <div class="text-center">
-                <h2 class="text-3xl sm:text-4xl font-bold mb-6">Регистрация</h2>
-                <p class="text-lg sm:text-xl mb-4 opacity-70">Сканируйте QR-код для участия</p>
-                <div class="inline-block bg-white p-3 rounded-2xl">
-                    <img src="/api/qr/{{ quiz.id }}" class="w-48 sm:w-64 h-48 sm:h-64" alt="QR">
+    <div id="screen-registration" class="pres-screen" style="display:none">
+        <div class="reg-layout">
+            <div style="text-align:center;flex-shrink:0;">
+                <p style="font-size:1.4rem;font-weight:700;color:#64748b;margin-bottom:1.5rem;">
+                    Сканируйте для участия
+                </p>
+                <div style="background:#fff;border:2px solid #e2e8f0;padding:1rem;border-radius:1.5rem;display:inline-block;">
+                    <img src="/api/qr/{{ quiz.id }}" style="width:280px;height:280px;" alt="QR">
                 </div>
-                <p class="mt-4 text-base sm:text-lg opacity-60">/play/{{ quiz.id }}</p>
+                <p style="margin-top:1rem;font-size:1.2rem;color:#94a3b8;font-family:monospace;">
+                    /play/{{ quiz.id }}
+                </p>
             </div>
             <div>
-                <h3 class="text-xl sm:text-2xl font-bold mb-4">
-                    Команды (<span id="teams-count">{{ teams|length }}</span>)
+                <h3 style="font-size:clamp(1.75rem,3vw,2.5rem);font-weight:800;color:#111827;margin-bottom:1.25rem;">
+                    Команды
+                    <span style="color:#94a3b8;font-weight:500;font-size:0.8em;">
+                        (<span id="teams-count">{{ teams|length }}</span>)
+                    </span>
                 </h3>
-                <div id="teams-list" class="flex flex-col gap-2 max-h-96 overflow-y-auto">
+                <div id="teams-list">
                     {% for team in teams %}
-                    <div class="pres-card px-4 py-2 text-base sm:text-lg" id="team-{{ team.id }}">{{ team.name }}</div>
+                    <div class="team-reg-card" id="team-{{ team.id }}">{{ team.name }}</div>
                     {% endfor %}
                 </div>
             </div>
@@ -61,68 +318,82 @@
     </div>
 
     <!-- TEAMS -->
-    <div id="screen-teams" class="hidden screen-section">
-        <h2 class="text-3xl sm:text-4xl font-bold mb-8">Команды</h2>
-        <div id="all-teams-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-4 w-full max-w-5xl">
+    <div id="screen-teams" class="pres-screen" style="display:none">
+        <h2 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;color:#111827;margin-bottom:2rem;">Команды</h2>
+        <div id="all-teams-grid">
             {% for team in teams %}
-            <div class="pres-card px-6 py-4 text-xl sm:text-2xl text-center font-medium">{{ team.name }}</div>
+            <div class="p-card" style="padding:1.1rem 1.75rem;font-size:1.5rem;font-weight:700;text-align:center;color:#1e293b;">
+                {{ team.name }}
+            </div>
             {% endfor %}
         </div>
     </div>
 
     <!-- TOUR SPLASH -->
-    <div id="screen-tour_splash" class="hidden screen-section text-center" style="position:relative; overflow:hidden;">
-        <div id="tour-splash-bg" class="absolute inset-0 bg-cover bg-center opacity-20" style="display:none; z-index:0"></div>
-        <div style="position:relative; z-index:1">
-            <p class="text-xl sm:text-2xl opacity-60 mb-4">Тур</p>
-            <h2 class="text-6xl sm:text-7xl font-bold mb-6" id="tour-title">Тур</h2>
+    <div id="screen-tour_splash" class="pres-screen text-center" style="display:none;">
+        <div id="tour-splash-bg"></div>
+        <div class="tour-splash-content">
+            <p style="font-size:clamp(1.1rem,2vw,1.5rem);font-weight:700;color:#94a3b8;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:0.75rem;">
+                Тур
+            </p>
+            <h2 id="tour-title" style="font-size:clamp(4rem,10vw,8rem);font-weight:900;color:#111827;line-height:1.05;">
+                —
+            </h2>
         </div>
     </div>
 
     <!-- QUESTION -->
-    <div id="screen-question" class="hidden screen-section w-full">
-        <div class="w-full max-w-5xl">
-            <div class="flex justify-between items-start mb-6">
-                <div class="text-lg sm:text-xl opacity-60" id="q-meta-pres"></div>
-                <div class="text-7xl sm:text-8xl font-bold font-mono" id="timer-pres" style="color:#fbbf24">--</div>
-            </div>
-            <div id="q-image-pres" class="mb-6 text-center"></div>
-            <div id="q-audio-pres" class="mb-4"></div>
-            <h2 class="text-3xl sm:text-4xl font-bold mb-8" id="q-text-pres"></h2>
-            <div id="q-options-pres" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+    <div id="screen-question" class="pres-screen" style="display:none">
+        <div class="q-topbar">
+            <div id="q-meta-pres"></div>
+            <div id="timer-pres">--</div>
         </div>
+        <div id="q-image-pres"></div>
+        <div id="q-audio-pres"></div>
+        <p id="q-text-pres"></p>
+        <div id="q-options-pres"></div>
     </div>
 
     <!-- QUESTION ANSWER -->
-    <div id="screen-question_answer" class="hidden screen-section text-center w-full max-w-4xl">
-        <div class="mb-6 opacity-60 text-lg sm:text-xl" id="q-text-answer-pres"></div>
-        <div class="text-2xl sm:text-3xl font-bold mb-4" style="color:#fbbf24">Правильный ответ:</div>
-        <div class="text-4xl sm:text-5xl font-bold" id="correct-answer-pres"></div>
-        <div id="correct-options-pres" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 w-full max-w-3xl"></div>
+    <div id="screen-question_answer" class="pres-screen" style="display:none">
+        <p id="q-text-answer-pres"></p>
+        <div class="answer-label">Правильный ответ:</div>
+        <div id="correct-answer-pres"></div>
+        <div id="correct-options-pres"></div>
     </div>
 
     <!-- WAITING -->
-    <div id="screen-waiting" class="hidden screen-section text-center">
-        <div class="loading loading-spinner loading-lg mb-6" style="color:#006CDC"></div>
-        <p class="text-3xl sm:text-4xl opacity-60">Ожидайте...</p>
+    <div id="screen-waiting" class="pres-screen text-center" style="display:none">
+        <div class="pres-spinner" style="margin-bottom:2rem;"></div>
+        <p style="font-size:clamp(2rem,4vw,3rem);font-weight:600;color:#94a3b8;">Ожидайте...</p>
     </div>
 
     <!-- TOUR RESULTS -->
-    <div id="screen-tour_results" class="hidden screen-section w-full max-w-3xl">
-        <h2 class="text-3xl sm:text-4xl font-bold text-center mb-8 flex items-center justify-center gap-3">
-            <span class="material-symbols-outlined icon-xl" style="color:#fbbf24">bar_chart</span>
+    <div id="screen-tour_results" class="pres-screen" style="display:none">
+        <h2 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;color:#111827;margin-bottom:2rem;display:flex;align-items:center;gap:0.75rem;">
+            <span class="material-symbols-outlined" style="font-size:2.5rem;color:#f59e0b;">bar_chart</span>
             Итоги тура
         </h2>
-        <div id="tour-results-pres" class="flex flex-col gap-3"></div>
+        <div id="tour-results-pres" class="results-list"></div>
     </div>
 
     <!-- GAME RESULTS -->
-    <div id="screen-game_results" class="hidden screen-section w-full max-w-3xl">
-        <h2 class="text-4xl sm:text-5xl font-bold text-center mb-8 flex items-center justify-center gap-3">
-            <span class="material-symbols-outlined icon-xl fill-1" style="color:#fbbf24">emoji_events</span>
+    <div id="screen-game_results" class="pres-screen" style="display:none">
+        <h2 style="font-size:clamp(2.5rem,5vw,3.75rem);font-weight:900;color:#111827;margin-bottom:2rem;display:flex;align-items:center;gap:0.75rem;">
+            <span class="material-symbols-outlined fill-1" style="font-size:3rem;color:#f59e0b;">emoji_events</span>
             Итоги игры
         </h2>
-        <div id="game-results-pres" class="flex flex-col gap-3"></div>
+        <div id="game-results-pres" class="results-list"></div>
+    </div>
+
+    <!-- ANSWERS PANEL -->
+    <div id="answers-panel">
+        <div class="ap-header">
+            <span class="ap-label">Ответили</span>
+            <span class="ap-count" id="answers-panel-count">0</span>
+            <span class="ap-total">/ <span id="answers-panel-total">{{ teams|length }}</span></span>
+        </div>
+        <div id="answers-chips"></div>
     </div>
 
 </div>
@@ -133,103 +404,119 @@
 const QUIZ_ID = '{{ quiz.id }}';
 const socket = io('/presentation');
 
+// ── Screen ─────────────────────────────────────────────────────────────────────
 function showScreen(name) {
-    document.querySelectorAll('[id^="screen-"]').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.pres-screen').forEach(el => {
+        el.classList.remove('active');
+        el.style.display = 'none';
+    });
     const el = document.getElementById(`screen-${name}`);
-    if (el) el.classList.remove('hidden');
+    if (el) { el.style.display = 'flex'; el.classList.add('active'); }
+    document.getElementById('answers-panel').classList.toggle('visible', name === 'question');
 }
 
+function resetAnswersPanel() {
+    document.getElementById('answers-chips').innerHTML = '';
+    document.getElementById('answers-panel-count').textContent = '0';
+}
+
+// ── Sockets ────────────────────────────────────────────────────────────────────
 socket.on('screen_changed', (data) => {
     showScreen(data.screen);
 
     if (data.screen === 'tour_splash' && data.tour) {
         document.getElementById('tour-title').textContent = data.tour.title;
         const bg = document.getElementById('tour-splash-bg');
-        if (data.tour.splash_image) {
-            bg.style.backgroundImage = `url('${data.tour.splash_image}')`;
-            bg.style.display = '';
-        } else {
-            bg.style.display = 'none';
-        }
+        bg.style.display = data.tour.splash_image ? '' : 'none';
+        if (data.tour.splash_image) bg.style.backgroundImage = `url('${data.tour.splash_image}')`;
     }
-
     if (data.screen === 'question' && data.question) {
         loadQuestion(data.question);
+        resetAnswersPanel();
+        if (data.timer_active && data.timer_remaining != null) updateTimer(data.timer_remaining);
     }
-
-    if (data.screen === 'question_answer' && data.question) {
-        showAnswer(data.question);
-    }
-
+    if (data.screen === 'question_answer' && data.question) showAnswer(data.question);
     if (data.screen === 'teams' && data.teams) {
-        const grid = document.getElementById('all-teams-grid');
-        grid.innerHTML = data.teams.map(t =>
-            `<div class="pres-card px-6 py-4 text-xl sm:text-2xl text-center font-medium">${t.name}</div>`
+        document.getElementById('all-teams-grid').innerHTML = data.teams.map(t =>
+            `<div class="p-card" style="padding:1.1rem 1.75rem;font-size:1.5rem;font-weight:700;text-align:center;color:#1e293b;">${t.name}</div>`
         ).join('');
     }
-
     if (data.screen === 'tour_results' && data.scores) renderResults('tour-results-pres', data.scores);
     if (data.screen === 'game_results' && data.scores) renderResults('game-results-pres', data.scores);
 });
 
 socket.on('team_registered', (data) => {
     const list = document.getElementById('teams-list');
-    if (list) {
-        const div = document.createElement('div');
-        div.className = 'pres-card px-4 py-2 text-lg';
-        div.id = `team-${data.team_id}`;
-        div.textContent = data.name;
-        list.appendChild(div);
-        const countEl = document.getElementById('teams-count');
-        if (countEl) countEl.textContent = parseInt(countEl.textContent || '0') + 1;
-    }
+    if (!list) return;
+    const div = document.createElement('div');
+    div.className = 'team-reg-card';
+    div.id = `team-${data.team_id}`;
+    div.textContent = data.name;
+    list.appendChild(div);
+    const c = document.getElementById('teams-count');
+    if (c) c.textContent = parseInt(c.textContent || '0') + 1;
 });
-
 socket.on('team_name_updated', (data) => {
     const el = document.getElementById(`team-${data.team_id}`);
     if (el) el.textContent = data.name;
 });
 
-socket.on('timer_tick', (data) => {
-    const el = document.getElementById('timer-pres');
-    if (el) {
-        el.textContent = data.remaining;
-        el.style.color = data.remaining <= 10 ? '#ef4444' : '#fbbf24';
-    }
-});
-
+socket.on('timer_tick', (data) => updateTimer(data.remaining));
+socket.on('timer_started', (data) => updateTimer(data.seconds));
+socket.on('timer_paused', (data) => updateTimer(data.remaining));
 socket.on('timer_stopped', () => {
     const el = document.getElementById('timer-pres');
     if (el) { el.textContent = '0'; el.style.color = '#ef4444'; }
 });
+socket.on('play_sound', (data) => new Audio(data.path).play().catch(() => {}));
+socket.on('scores_updated', () => {});
 
-socket.on('play_sound', (data) => {
-    new Audio(data.path).play().catch(() => {});
+socket.on('answer_submitted', (data) => {
+    const chips = document.getElementById('answers-chips');
+    if (chips.querySelector(`[data-team-id="${data.team_id}"]`)) return;
+    const chip = document.createElement('div');
+    chip.className = 'answered-chip';
+    chip.dataset.teamId = data.team_id;
+    chip.innerHTML = `<span class="material-symbols-outlined chip-check">check_small</span>${data.team_name}`;
+    chips.appendChild(chip);
+    document.getElementById('answers-panel-count').textContent = chips.children.length;
 });
 
-socket.on('scores_updated', () => {});
+socket.on('quiz_ended', () => location.reload());
+socket.on('quiz_activated', () => location.reload());
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function updateTimer(remaining) {
+    const el = document.getElementById('timer-pres');
+    if (!el) return;
+    el.textContent = remaining;
+    el.style.color = remaining <= 10 ? '#ef4444' : '#f59e0b';
+}
 
 function loadQuestion(q) {
     document.getElementById('q-text-pres').textContent = q.text || '';
-    document.getElementById('q-meta-pres').textContent = `${q.points} балл(ов) \u2022 ${q.time_seconds}с`;
-    document.getElementById('timer-pres').textContent = q.time_seconds;
+    document.getElementById('q-meta-pres').textContent =
+        `${q.points}\u2009балл${q.points === 1 ? '' : '(ов)'} · ${q.time_seconds}\u2009с`;
 
-    const imgEl = document.getElementById('q-image-pres');
-    imgEl.innerHTML = q.image_path
-        ? `<img src="${q.image_path}" class="max-h-64 mx-auto rounded-xl object-contain">`
+    const timerEl = document.getElementById('timer-pres');
+    timerEl.textContent = q.time_seconds;
+    timerEl.style.color = '#f59e0b';
+
+    document.getElementById('q-image-pres').innerHTML = q.image_path
+        ? `<img src="${q.image_path}">`
         : '';
-
-    const audEl = document.getElementById('q-audio-pres');
-    audEl.innerHTML = q.audio_path
-        ? `<audio controls autoplay src="${q.audio_path}" class="w-full max-w-lg mx-auto block"></audio>`
+    document.getElementById('q-audio-pres').innerHTML = q.audio_path
+        ? `<audio controls autoplay src="${q.audio_path}" style="width:100%;max-width:600px;display:block;margin:0 auto 1.5rem;"></audio>`
         : '';
 
     const optsEl = document.getElementById('q-options-pres');
     optsEl.innerHTML = '';
     if (['single_choice', 'multiple_choice'].includes(q.answer_type)) {
-        const colors = ['#006CDC', '#8C2CFF', '#FF5B9A', '#0ea5e9'];
         q.answer_options.forEach((opt, i) => {
-            optsEl.innerHTML += `<div style="background:${colors[i % colors.length]}; border-radius:0.75rem; padding:1rem 1.5rem; font-size:1.25rem; font-weight:500;">${opt.text}</div>`;
+            const tile = document.createElement('div');
+            tile.className = 'opt-tile';
+            tile.innerHTML = `<span class="opt-letter">${String.fromCharCode(0x0410 + i)}</span><span>${opt.text}</span>`;
+            optsEl.appendChild(tile);
         });
     }
 
@@ -238,20 +525,27 @@ function loadQuestion(q) {
 
 function showAnswer(q) {
     document.getElementById('q-text-answer-pres').textContent = q.text || '';
-
     const correctEl = document.getElementById('correct-answer-pres');
     const optsEl = document.getElementById('correct-options-pres');
     optsEl.innerHTML = '';
 
     if (q.correct_answer) {
         correctEl.textContent = q.correct_answer;
-    } else if (q.answer_options) {
+    } else if (q.answer_options && q.answer_options.length) {
         correctEl.textContent = '';
-        const colors = ['#006CDC', '#8C2CFF', '#FF5B9A', '#0ea5e9'];
         q.answer_options.forEach((opt, i) => {
-            const opacity = opt.is_correct ? '1' : '0.35';
-            const ring = opt.is_correct ? 'outline: 3px solid white;' : '';
-            optsEl.innerHTML += `<div style="background:${colors[i % colors.length]}; opacity:${opacity}; ${ring} border-radius:0.75rem; padding:1rem 1.5rem; font-size:1.25rem; font-weight:500;">${opt.text}</div>`;
+            const tile = document.createElement('div');
+            tile.className = 'opt-tile';
+            if (opt.is_correct) {
+                tile.style.background = '#f0fdf4';
+                tile.style.borderColor = '#16a34a';
+                tile.style.borderWidth = '2px';
+            } else {
+                tile.style.opacity = '0.35';
+            }
+            tile.innerHTML = `<span class="opt-letter">${String.fromCharCode(0x0410 + i)}</span><span>${opt.text}</span>
+                ${opt.is_correct ? '<span class="material-symbols-outlined" style="margin-left:auto;font-size:2rem;color:#16a34a;">check_circle</span>' : ''}`;
+            optsEl.appendChild(tile);
         });
     } else {
         correctEl.textContent = '—';
@@ -260,26 +554,27 @@ function showAnswer(q) {
 
 function renderResults(containerId, scores) {
     const container = document.getElementById(containerId);
-    const medalColors = ['#f59e0b', '#94a3b8', '#b45309'];
+    const medals = [
+        { bg: '#fef3c7', border: '#fcd34d', icon: '🥇' },
+        { bg: '#f1f5f9', border: '#cbd5e1', icon: '🥈' },
+        { bg: '#fff7ed', border: '#fdba74', icon: '🥉' },
+    ];
     container.innerHTML = scores.map((s, i) => {
-        const bg = i < 3
-            ? `background: ${medalColors[i]}22; border: 1px solid ${medalColors[i]}66;`
-            : 'background: rgba(255,255,255,0.05);';
-        const place = i < 3
-            ? `<span class="material-symbols-outlined fill-1" style="color:${medalColors[i]}; font-size:28px;">military_tech</span>`
-            : `<span style="opacity:0.6; font-size:1.25rem;">${i+1}.</span>`;
-        return `<div style="${bg} border-radius:0.75rem; padding:1rem 1.5rem;" class="flex justify-between items-center text-xl sm:text-2xl">
-            <span class="flex items-center gap-3">${place} ${s.team_name}</span>
-            <span style="font-weight:700;">${s.score}</span>
+        const m = medals[i];
+        const rowStyle = m
+            ? `background:${m.bg};border:1.5px solid ${m.border};`
+            : 'background:#f8fafc;border:1.5px solid #e2e8f0;';
+        const place = m
+            ? `<span style="font-size:2rem;line-height:1;">${m.icon}</span>`
+            : `<span style="color:#94a3b8;font-size:1.3rem;min-width:2.2rem;font-weight:700;">${i+1}.</span>`;
+        return `<div class="result-row" style="${rowStyle}">
+            <span style="display:flex;align-items:center;gap:1rem;">${place}${s.team_name}</span>
+            <span style="font-size:clamp(1.5rem,3vw,2rem);font-weight:900;color:#111827;">${s.score}</span>
         </div>`;
     }).join('');
 }
 
-// Init screen
-{% if gs %}
-showScreen('{{ gs.current_screen }}');
-{% else %}
-showScreen('splash');
-{% endif %}
+// ── Init ───────────────────────────────────────────────────────────────────────
+showScreen('{{ gs.current_screen if gs else "splash" }}');
 </script>
 {% endblock %}
