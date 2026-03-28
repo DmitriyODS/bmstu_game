@@ -2,14 +2,20 @@
 {% block title %}Управление: {{ quiz.title }}{% endblock %}
 
 {% block admin_content %}
-<div class="flex justify-between items-center mb-4">
+<div class="flex flex-wrap justify-between items-center gap-3 mb-4">
     <div>
-        <h1 class="text-2xl font-bold">{{ quiz.title }}</h1>
+        <h1 class="text-xl sm:text-2xl font-bold">{{ quiz.title }}</h1>
         <div class="text-sm text-base-content/60">Панель управления</div>
     </div>
     <div class="flex gap-2">
-        <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-ghost btn-sm">✏️ Конструктор</a>
-        <a href="/screen" target="_blank" class="btn btn-outline btn-sm">🖥️ Презентация</a>
+        <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-ghost btn-sm">
+            <span class="material-symbols-outlined icon-sm">edit_note</span>
+            Конструктор
+        </a>
+        <a href="/screen" target="_blank" class="btn btn-outline btn-sm">
+            <span class="material-symbols-outlined icon-sm">desktop_windows</span>
+            Презентация
+        </a>
     </div>
 </div>
 
@@ -21,11 +27,26 @@
             <div class="card-body">
                 <h2 class="card-title text-base">Смена экрана</h2>
                 <div class="flex flex-wrap gap-2">
-                    <button onclick="changeScreen('splash')" class="btn btn-sm btn-outline screen-btn" data-screen="splash">🎬 Заставка</button>
-                    <button onclick="openRegistration()" class="btn btn-sm btn-outline screen-btn" data-screen="registration">📋 Регистрация</button>
-                    <button onclick="changeScreen('teams')" class="btn btn-sm btn-outline screen-btn" data-screen="teams">👥 Команды</button>
-                    <button onclick="changeScreen('waiting')" class="btn btn-sm btn-outline screen-btn" data-screen="waiting">⏳ Ожидание</button>
-                    <button onclick="showGameResults()" class="btn btn-sm btn-success screen-btn" data-screen="game_results">🏆 Итоги игры</button>
+                    <button onclick="changeScreen('splash')" class="btn btn-sm btn-outline screen-btn" data-screen="splash">
+                        <span class="material-symbols-outlined icon-sm">slideshow</span>
+                        Заставка
+                    </button>
+                    <button onclick="openRegistration()" class="btn btn-sm btn-outline screen-btn" data-screen="registration">
+                        <span class="material-symbols-outlined icon-sm">app_registration</span>
+                        Регистрация
+                    </button>
+                    <button onclick="changeScreen('teams')" class="btn btn-sm btn-outline screen-btn" data-screen="teams">
+                        <span class="material-symbols-outlined icon-sm">groups</span>
+                        Команды
+                    </button>
+                    <button onclick="changeScreen('waiting')" class="btn btn-sm btn-outline screen-btn" data-screen="waiting">
+                        <span class="material-symbols-outlined icon-sm">hourglass_empty</span>
+                        Ожидание
+                    </button>
+                    <button onclick="showGameResults()" class="btn btn-sm btn-success screen-btn" data-screen="game_results">
+                        <span class="material-symbols-outlined icon-sm">emoji_events</span>
+                        Итоги игры
+                    </button>
                 </div>
             </div>
         </div>
@@ -37,18 +58,24 @@
                 <div class="flex flex-col gap-3">
                     {% for tour in quiz.tours %}
                     <div class="border rounded-lg p-3">
-                        <div class="flex justify-between items-center mb-2">
+                        <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
                             <span class="font-semibold">{{ tour.title }}</span>
                             <div class="flex gap-2">
-                                <button onclick="showTourSplash('{{ tour.id }}')" class="btn btn-xs btn-outline">🎬 Заставка тура</button>
-                                <button onclick="showTourResults('{{ tour.id }}')" class="btn btn-xs btn-outline">📊 Итоги тура</button>
+                                <button onclick="showTourSplash('{{ tour.id }}')" class="btn btn-xs btn-outline">
+                                    <span class="material-symbols-outlined icon-sm">slideshow</span>
+                                    <span class="hidden sm:inline">Заставка</span>
+                                </button>
+                                <button onclick="showTourResults('{{ tour.id }}')" class="btn btn-xs btn-outline">
+                                    <span class="material-symbols-outlined icon-sm">bar_chart</span>
+                                    <span class="hidden sm:inline">Итоги</span>
+                                </button>
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             {% for q in tour.questions %}
                             <button onclick="showQuestion('{{ q.id }}')"
                                     class="btn btn-xs btn-ghost border question-btn" data-q-id="{{ q.id }}">
-                                {{ loop.index }}. {{ (q.text or '🖼️')[:20] }}
+                                {{ loop.index }}. {{ (q.text or '[картинка]')[:20] }}
                             </button>
                             {% endfor %}
                         </div>
@@ -64,10 +91,22 @@
                 <h2 class="card-title text-base">Активный вопрос</h2>
                 <div id="active-q-info" class="text-sm text-base-content/70 mb-3"></div>
                 <div class="flex flex-wrap gap-2 mb-4">
-                    <button onclick="startTimer()" class="btn btn-sm btn-success" id="btn-start-timer">▶ Запустить таймер</button>
-                    <button onclick="pauseTimer()" class="btn btn-sm btn-warning" id="btn-pause-timer">⏸ Пауза</button>
-                    <button onclick="resetTimer()" class="btn btn-sm btn-ghost">🔄 Сброс</button>
-                    <button onclick="showAnswer()" class="btn btn-sm btn-info">✅ Показать ответ</button>
+                    <button onclick="startTimer()" class="btn btn-sm btn-success" id="btn-start-timer">
+                        <span class="material-symbols-outlined icon-sm">play_arrow</span>
+                        Запустить таймер
+                    </button>
+                    <button onclick="pauseTimer()" class="btn btn-sm btn-warning" id="btn-pause-timer">
+                        <span class="material-symbols-outlined icon-sm">pause</span>
+                        Пауза
+                    </button>
+                    <button onclick="resetTimer()" class="btn btn-sm btn-ghost">
+                        <span class="material-symbols-outlined icon-sm">refresh</span>
+                        Сброс
+                    </button>
+                    <button onclick="showAnswer()" class="btn btn-sm btn-info">
+                        <span class="material-symbols-outlined icon-sm">check_circle</span>
+                        Показать ответ
+                    </button>
                 </div>
                 <div class="text-6xl font-mono font-bold text-center text-primary" id="timer-display">--</div>
             </div>
@@ -109,7 +148,10 @@
 
         <div class="card bg-base-100 shadow">
             <div class="card-body p-3">
-                <a href="/judge/" target="_blank" class="btn btn-outline btn-sm w-full">⚖️ Проверка ответов</a>
+                <a href="/judge/" target="_blank" class="btn btn-outline btn-sm w-full">
+                    <span class="material-symbols-outlined icon-sm">balance</span>
+                    Проверка ответов
+                </a>
             </div>
         </div>
     </div>
@@ -186,7 +228,6 @@ function changeScreen(screen, params = {}) {
 }
 
 function openRegistration() {
-    changeScreen('registration');
     socket.emit('change_screen', {screen: 'registration'});
 }
 

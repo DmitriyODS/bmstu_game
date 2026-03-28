@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="min-h-screen flex items-center justify-center">
+<div class="min-h-screen flex items-center justify-center p-4">
     <div class="text-center">
-        <h1 class="text-4xl font-bold mb-4">🎯 Бауманка.Квиз</h1>
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-16 w-auto mx-auto mb-4">
+        <h1 class="text-3xl font-bold mb-4">Бауманка.Квиз</h1>
         <p class="text-xl text-base-content/60">Квиз ещё не запущен. Ожидайте.</p>
     </div>
 </div>

@@ -3,43 +3,68 @@
 
 {% block admin_content %}
 <div class="flex justify-between items-center mb-6">
-    <h1 class="text-3xl font-bold">Квизы</h1>
-    <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary">+ Новый квиз</a>
+    <h1 class="text-2xl sm:text-3xl font-bold">Квизы</h1>
+    <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary btn-sm sm:btn-md">
+        <span class="material-symbols-outlined icon-sm">add</span>
+        Новый квиз
+    </a>
 </div>
 
 {% if quizzes %}
 <div class="grid gap-4">
     {% for quiz in quizzes %}
     <div class="card bg-base-100 shadow">
-        <div class="card-body flex-row items-center justify-between flex-wrap gap-4">
-            <div>
-                <h2 class="card-title">{{ quiz.title }}</h2>
-                <div class="flex gap-2 mt-1">
-                    <span class="badge {% if quiz.status == 'active' %}badge-success{% elif quiz.status == 'finished' %}badge-neutral{% else %}badge-ghost{% endif %}">
-                        {{ {'draft': 'Черновик', 'active': 'Активен', 'finished': 'Завершён'}.get(quiz.status, quiz.status) }}
-                    </span>
-                    {% if quiz.is_active %}
-                    <span class="badge badge-warning">▶ Запущен</span>
-                    {% endif %}
-                    <span class="badge badge-ghost">{{ quiz.tours|length }} туров</span>
-                    <span class="text-sm text-base-content/50">{{ quiz.created_at.strftime('%d.%m.%Y') }}</span>
+        <div class="card-body p-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="card-title text-base sm:text-lg">{{ quiz.title }}</h2>
+                    <div class="flex flex-wrap gap-2 mt-1">
+                        <span class="badge {% if quiz.status == 'active' %}badge-success{% elif quiz.status == 'finished' %}badge-neutral{% else %}badge-ghost{% endif %}">
+                            {{ {'draft': 'Черновик', 'active': 'Активен', 'finished': 'Завершён'}.get(quiz.status, quiz.status) }}
+                        </span>
+                        {% if quiz.is_active %}
+                        <span class="badge badge-warning">
+                            <span class="material-symbols-outlined" style="font-size:12px">play_arrow</span>
+                            Запущен
+                        </span>
+                        {% endif %}
+                        <span class="badge badge-ghost">{{ quiz.tours|length }} туров</span>
+                        <span class="text-sm text-base-content/50">{{ quiz.created_at.strftime('%d.%m.%Y') }}</span>
+                    </div>
                 </div>
-            </div>
-            <div class="flex gap-2 flex-wrap">
-                <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">✏️ Редактировать</a>
-                {% if not quiz.is_active %}
-                <form method="POST" action="{{ url_for('admin.quiz_activate', quiz_id=quiz.id) }}" class="inline">
-                    <button class="btn btn-sm btn-success">▶ Активировать</button>
-                </form>
-                {% else %}
-                <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-sm btn-primary">🎮 Управление</a>
-                {% endif %}
-                <a href="{{ url_for('admin.teams', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">👥 Команды</a>
-                <a href="{{ url_for('admin.export_excel', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">📥 Excel</a>
-                <form method="POST" action="{{ url_for('admin.quiz_delete', quiz_id=quiz.id) }}"
-                      onsubmit="return confirm('Удалить квиз «{{ quiz.title }}»?')">
-                    <button class="btn btn-sm btn-error btn-outline">🗑️</button>
-                </form>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
+                        <span class="material-symbols-outlined icon-sm">edit</span>
+                        <span class="hidden sm:inline">Редактировать</span>
+                    </a>
+                    {% if not quiz.is_active %}
+                    <form method="POST" action="{{ url_for('admin.quiz_activate', quiz_id=quiz.id) }}" class="inline">
+                        <button class="btn btn-sm btn-success">
+                            <span class="material-symbols-outlined icon-sm">play_arrow</span>
+                            <span class="hidden sm:inline">Активировать</span>
+                        </button>
+                    </form>
+                    {% else %}
+                    <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-sm btn-primary">
+                        <span class="material-symbols-outlined icon-sm">tune</span>
+                        <span class="hidden sm:inline">Управление</span>
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('admin.teams', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
+                        <span class="material-symbols-outlined icon-sm">groups</span>
+                        <span class="hidden sm:inline">Команды</span>
+                    </a>
+                    <a href="{{ url_for('admin.export_excel', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
+                        <span class="material-symbols-outlined icon-sm">download</span>
+                        <span class="hidden sm:inline">Excel</span>
+                    </a>
+                    <form method="POST" action="{{ url_for('admin.quiz_delete', quiz_id=quiz.id) }}"
+                          onsubmit="return confirm('Удалить квиз «{{ quiz.title }}»?')">
+                        <button class="btn btn-sm btn-error btn-outline">
+                            <span class="material-symbols-outlined icon-sm">delete</span>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -49,6 +74,7 @@
 <div class="hero min-h-64">
     <div class="hero-content text-center">
         <div>
+            <span class="material-symbols-outlined icon-2xl text-base-content/30 mb-4 block">quiz</span>
             <h2 class="text-2xl font-bold mb-4">Квизов пока нет</h2>
             <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary">Создать первый квиз</a>
         </div>

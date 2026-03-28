@@ -3,24 +3,36 @@
 
 {% block admin_content %}
 <div class="flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold">Команды: {{ quiz.title }}</h1>
-    <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-ghost btn-sm">← Назад</a>
+    <h1 class="text-2xl sm:text-2xl font-bold">Команды: {{ quiz.title }}</h1>
+    <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-ghost btn-sm">
+        <span class="material-symbols-outlined icon-sm">arrow_back</span>
+        Назад
+    </a>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
     <div class="card bg-base-100 shadow">
         <div class="card-body">
-            <h2 class="card-title">Добавить команду вручную</h2>
+            <h2 class="card-title">
+                <span class="material-symbols-outlined icon-sm">person_add</span>
+                Добавить команду вручную
+            </h2>
             <form method="POST" action="{{ url_for('admin.team_create', quiz_id=quiz.id) }}" class="flex gap-2">
                 <input type="text" name="name" class="input input-bordered flex-1" placeholder="Название команды" required>
-                <button class="btn btn-primary">Добавить</button>
+                <button class="btn btn-primary">
+                    <span class="material-symbols-outlined icon-sm">add</span>
+                    Добавить
+                </button>
             </form>
         </div>
     </div>
 
     <div class="card bg-base-100 shadow">
         <div class="card-body">
-            <h2 class="card-title">QR-код для регистрации</h2>
+            <h2 class="card-title">
+                <span class="material-symbols-outlined icon-sm">qr_code_2</span>
+                QR-код для регистрации
+            </h2>
             <img src="{{ url_for('admin.qr_code', quiz_id=quiz.id) }}" class="w-40 mx-auto" alt="QR">
             <div class="text-center text-sm mt-2">
                 <a href="/play/{{ quiz.id }}" target="_blank" class="link link-primary">/play/{{ quiz.id }}</a>
@@ -29,9 +41,12 @@
     </div>
 </div>
 
-<div class="card bg-base-100 shadow mt-6">
+<div class="card bg-base-100 shadow">
     <div class="card-body">
-        <h2 class="card-title">Список команд ({{ quiz.teams|length }})</h2>
+        <h2 class="card-title">
+            <span class="material-symbols-outlined icon-sm">groups</span>
+            Список команд ({{ quiz.teams|length }})
+        </h2>
         {% if quiz.teams %}
         <div class="overflow-x-auto">
             <table class="table table-zebra">
@@ -45,7 +60,7 @@
                             <form method="POST" action="{{ url_for('admin.team_rename', team_id=team.id) }}"
                                   class="flex gap-2 items-center">
                                 <input type="text" name="name" value="{{ team.name }}"
-                                       class="input input-bordered input-sm w-48">
+                                       class="input input-bordered input-sm w-40 sm:w-48">
                                 <button class="btn btn-xs btn-outline">Переим.</button>
                             </form>
                         </td>
@@ -53,7 +68,9 @@
                         <td>
                             <form method="POST" action="{{ url_for('admin.team_delete', team_id=team.id) }}"
                                   onsubmit="return confirm('Удалить команду?')">
-                                <button class="btn btn-xs btn-error btn-outline">Удалить</button>
+                                <button class="btn btn-xs btn-error btn-outline">
+                                    <span class="material-symbols-outlined icon-sm">delete</span>
+                                </button>
                             </form>
                         </td>
                     </tr>

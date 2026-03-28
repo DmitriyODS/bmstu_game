@@ -3,26 +3,35 @@
 
 {% block head %}
 <style>
-.tour-item.drag-over { border: 2px dashed #570df8; }
-.question-item.drag-over { border: 2px dashed #570df8; }
+.tour-item.drag-over { border: 2px dashed oklch(var(--p)); }
+.question-item.drag-over { border: 2px dashed oklch(var(--p)); }
 </style>
 {% endblock %}
 
 {% block admin_content %}
-<div class="flex justify-between items-center mb-4">
+<div class="flex flex-wrap justify-between items-center gap-3 mb-4">
     <div>
-        <h1 class="text-2xl font-bold">{{ quiz.title }}</h1>
+        <h1 class="text-xl sm:text-2xl font-bold">{{ quiz.title }}</h1>
         <div class="text-sm text-base-content/60">Конструктор квиза</div>
     </div>
     <div class="flex gap-2">
         {% if not quiz.is_active %}
         <form method="POST" action="{{ url_for('admin.quiz_activate', quiz_id=quiz.id) }}">
-            <button class="btn btn-success btn-sm">▶ Активировать</button>
+            <button class="btn btn-success btn-sm">
+                <span class="material-symbols-outlined icon-sm">play_arrow</span>
+                Активировать
+            </button>
         </form>
         {% else %}
-        <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-primary btn-sm">🎮 Управление</a>
+        <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-primary btn-sm">
+            <span class="material-symbols-outlined icon-sm">tune</span>
+            Управление
+        </a>
         {% endif %}
-        <a href="{{ url_for('admin.quizzes') }}" class="btn btn-ghost btn-sm">← Назад</a>
+        <a href="{{ url_for('admin.quizzes') }}" class="btn btn-ghost btn-sm">
+            <span class="material-symbols-outlined icon-sm">arrow_back</span>
+            Назад
+        </a>
     </div>
 </div>
 
@@ -33,30 +42,37 @@
             <div class="card-body p-4">
                 <div class="flex justify-between items-center mb-3">
                     <h2 class="font-bold">Туры</h2>
-                    <button onclick="addTour()" class="btn btn-xs btn-primary">+ Тур</button>
+                    <button onclick="addTour()" class="btn btn-xs btn-primary">
+                        <span class="material-symbols-outlined icon-sm">add</span>
+                        Тур
+                    </button>
                 </div>
                 <ul id="tours-list" class="flex flex-col gap-1">
                     {% for tour in quiz.tours %}
                     <li class="tour-item" data-tour-id="{{ tour.id }}" draggable="true">
                         <div class="flex items-center gap-2 p-2 rounded hover:bg-base-200 cursor-pointer group"
                              onclick="selectTour('{{ tour.id }}', '{{ tour.title|e }}')">
-                            <span class="cursor-grab text-base-content/30">⠿</span>
+                            <span class="material-symbols-outlined text-base-content/30 cursor-grab" style="font-size:16px">drag_indicator</span>
                             <span class="flex-1 text-sm font-medium tour-name-{{ tour.id }}">{{ tour.title }}</span>
                             <button onclick="event.stopPropagation(); deleteTour('{{ tour.id }}')"
-                                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">✕</button>
+                                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">
+                                <span class="material-symbols-outlined" style="font-size:14px">close</span>
+                            </button>
                         </div>
                         <ul class="ml-4 flex flex-col gap-1" id="questions-{{ tour.id }}">
                             {% for q in tour.questions %}
                             <li class="question-item" data-q-id="{{ q.id }}" draggable="true">
                                 <div class="flex items-center gap-1 p-1 rounded hover:bg-base-300 cursor-pointer group text-sm"
                                      onclick="selectQuestion('{{ q.id }}')">
-                                    <span class="cursor-grab text-base-content/30 text-xs">⠿</span>
+                                    <span class="material-symbols-outlined text-base-content/30 cursor-grab" style="font-size:14px">drag_indicator</span>
                                     <span class="flex-1 truncate text-xs">
-                                        {{ {'text':'📝','text_image':'🖼️','image_only':'🌄','audio':'🎵'}.get(q.question_type,'📝') }}
+                                        <span class="material-symbols-outlined" style="font-size:12px">{{ {'text':'text_fields','text_image':'image','image_only':'image','audio':'music_note'}.get(q.question_type,'text_fields') }}</span>
                                         {{ (q.text or '(без текста)')[:30] }}
                                     </span>
                                     <button onclick="event.stopPropagation(); deleteQuestion('{{ q.id }}')"
-                                            class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">✕</button>
+                                            class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">
+                                        <span class="material-symbols-outlined" style="font-size:12px">close</span>
+                                    </button>
                                 </div>
                             </li>
                             {% endfor %}
@@ -81,23 +97,29 @@
                         <input type="file" id="tour-splash-input" accept="image/*" class="file-input file-input-bordered w-full">
                         <div id="tour-splash-preview" class="mt-2"></div>
                     </div>
-                    <div class="flex gap-2">
-                        <button onclick="saveTour()" class="btn btn-primary btn-sm">Сохранить</button>
-                        <button onclick="addQuestion()" class="btn btn-outline btn-sm">+ Вопрос</button>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="saveTour()" class="btn btn-primary btn-sm">
+                            <span class="material-symbols-outlined icon-sm">save</span>
+                            Сохранить
+                        </button>
+                        <button onclick="addQuestion()" class="btn btn-outline btn-sm">
+                            <span class="material-symbols-outlined icon-sm">add</span>
+                            Вопрос
+                        </button>
                     </div>
                 </div>
 
                 <!-- Question editor -->
                 <div id="question-editor" class="hidden">
                     <h2 class="font-bold text-lg mb-4">Редактировать вопрос</h2>
-                    <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                         <div class="form-control">
                             <label class="label"><span class="label-text">Тип вопроса</span></label>
                             <select id="q-type" class="select select-bordered" onchange="onQTypeChange()">
-                                <option value="text">📝 Текст</option>
-                                <option value="text_image">🖼️ Текст + картинка</option>
-                                <option value="image_only">🌄 Только картинка</option>
-                                <option value="audio">🎵 Аудио</option>
+                                <option value="text">Текст</option>
+                                <option value="text_image">Текст + картинка</option>
+                                <option value="image_only">Только картинка</option>
+                                <option value="audio">Аудио</option>
                             </select>
                         </div>
                         <div class="form-control">
@@ -141,7 +163,10 @@
                     <div id="q-options-block" class="mb-4 hidden">
                         <div class="flex justify-between items-center mb-2">
                             <label class="label-text font-medium">Варианты ответа</label>
-                            <button onclick="addOption()" class="btn btn-xs btn-outline">+ Вариант</button>
+                            <button onclick="addOption()" class="btn btn-xs btn-outline">
+                                <span class="material-symbols-outlined icon-sm">add</span>
+                                Вариант
+                            </button>
                         </div>
                         <div id="options-list" class="flex flex-col gap-2"></div>
                     </div>
@@ -150,7 +175,10 @@
                     <div id="q-matching-block" class="mb-4 hidden">
                         <div class="flex justify-between items-center mb-2">
                             <label class="label-text font-medium">Пары для сопоставления</label>
-                            <button onclick="addMatchingItem()" class="btn btn-xs btn-outline">+ Пара</button>
+                            <button onclick="addMatchingItem()" class="btn btn-xs btn-outline">
+                                <span class="material-symbols-outlined icon-sm">add</span>
+                                Пара
+                            </button>
                         </div>
                         <div id="matching-list" class="flex flex-col gap-2"></div>
                     </div>
@@ -164,7 +192,10 @@
                     <!-- Sounds -->
                     <div class="collapse collapse-arrow bg-base-200 mb-4">
                         <input type="checkbox">
-                        <div class="collapse-title font-medium">🔊 Звуки</div>
+                        <div class="collapse-title font-medium flex items-center gap-2">
+                            <span class="material-symbols-outlined icon-sm">volume_up</span>
+                            Звуки
+                        </div>
                         <div class="collapse-content">
                             <div class="grid grid-cols-1 gap-3 mt-2">
                                 <div>
@@ -173,7 +204,7 @@
                                            onchange="uploadSound(this, 'sound_start')">
                                     <div id="sound-start-preview" class="mt-1"></div>
                                 </div>
-                                <div class="grid grid-cols-2 gap-2">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <div>
                                         <label class="label-text text-sm">Предупреждение (за N сек)</label>
                                         <input type="number" id="q-sound-mid-secs" class="input input-bordered input-sm w-full mt-1" placeholder="секунд до конца">
@@ -196,13 +227,17 @@
                     </div>
 
                     <div class="flex gap-2">
-                        <button onclick="saveQuestion()" class="btn btn-primary btn-sm">Сохранить</button>
+                        <button onclick="saveQuestion()" class="btn btn-primary btn-sm">
+                            <span class="material-symbols-outlined icon-sm">save</span>
+                            Сохранить
+                        </button>
                     </div>
                 </div>
 
                 <!-- Placeholder -->
                 <div id="editor-placeholder" class="text-center text-base-content/50 py-16">
-                    <p class="text-lg">← Выберите тур или вопрос для редактирования</p>
+                    <span class="material-symbols-outlined icon-2xl mb-4 block">arrow_back</span>
+                    <p class="text-lg">Выберите тур или вопрос для редактирования</p>
                 </div>
             </div>
         </div>
@@ -236,10 +271,12 @@ function createTourLi(tour) {
     li.innerHTML = `
         <div class="flex items-center gap-2 p-2 rounded hover:bg-base-200 cursor-pointer group"
              onclick="selectTour('${tour.id}', '${tour.title.replace(/'/g,"\\'")}')">
-            <span class="cursor-grab text-base-content/30">⠿</span>
+            <span class="material-symbols-outlined text-base-content/30 cursor-grab" style="font-size:16px">drag_indicator</span>
             <span class="flex-1 text-sm font-medium tour-name-${tour.id}">${tour.title}</span>
             <button onclick="event.stopPropagation(); deleteTour('${tour.id}')"
-                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">✕</button>
+                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">
+                <span class="material-symbols-outlined" style="font-size:14px">close</span>
+            </button>
         </div>
         <ul class="ml-4 flex flex-col gap-1" id="questions-${tour.id}"></ul>`;
     return li;
@@ -290,7 +327,7 @@ async function uploadTourSplash() {
             `<img src="${data.path}" class="max-h-32 rounded mt-2">`;
     }
 }
-document.getElementById && document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tour-splash-input')?.addEventListener('change', uploadTourSplash);
 });
 
@@ -313,14 +350,19 @@ function appendQuestionToList(tourId, q) {
     li.className = 'question-item';
     li.dataset.qId = q.id;
     li.draggable = true;
-    const icons = {text:'📝',text_image:'🖼️',image_only:'🌄',audio:'🎵'};
+    const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note'};
     li.innerHTML = `
         <div class="flex items-center gap-1 p-1 rounded hover:bg-base-300 cursor-pointer group text-sm"
              onclick="selectQuestion('${q.id}')">
-            <span class="cursor-grab text-base-content/30 text-xs">⠿</span>
-            <span class="flex-1 truncate text-xs q-label-${q.id}">${icons[q.question_type]||'📝'} ${(q.text||'(без текста)').substring(0,30)}</span>
+            <span class="material-symbols-outlined text-base-content/30 cursor-grab" style="font-size:14px">drag_indicator</span>
+            <span class="flex-1 truncate text-xs q-label-${q.id}">
+                <span class="material-symbols-outlined" style="font-size:12px">${iconMap[q.question_type]||'text_fields'}</span>
+                ${(q.text||'(без текста)').substring(0,30)}
+            </span>
             <button onclick="event.stopPropagation(); deleteQuestion('${q.id}')"
-                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">✕</button>
+                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">
+                <span class="material-symbols-outlined" style="font-size:12px">close</span>
+            </button>
         </div>`;
     ul.appendChild(li);
 }
@@ -341,7 +383,6 @@ async function selectQuestion(qId) {
     document.getElementById('q-correct').value = q.correct_answer || '';
     document.getElementById('q-sound-mid-secs').value = q.sound_mid_seconds || '';
 
-    // Previews
     document.getElementById('q-image-preview').innerHTML =
         q.image_path ? `<img src="${q.image_path}" class="max-h-32 rounded">` : '';
     document.getElementById('q-audio-preview').innerHTML =
@@ -400,7 +441,9 @@ function createOptionEl(opt, answerType) {
                onchange="updateOption('${opt.id}', null, this.checked)" class="checkbox">
         <input type="text" value="${opt.text}" class="input input-bordered input-sm flex-1"
                onblur="updateOption('${opt.id}', this.value, null)">
-        <button onclick="deleteOption('${opt.id}', this)" class="btn btn-xs btn-ghost text-error">✕</button>`;
+        <button onclick="deleteOption('${opt.id}', this)" class="btn btn-xs btn-ghost text-error">
+            <span class="material-symbols-outlined" style="font-size:14px">close</span>
+        </button>`;
     return div;
 }
 
@@ -411,10 +454,12 @@ function createMatchingEl(m) {
     div.innerHTML = `
         <input type="text" value="${m.left_text}" placeholder="Левый" class="input input-bordered input-sm flex-1"
                onblur="updateMatching('${m.id}', this.value, null)">
-        <span>→</span>
+        <span class="material-symbols-outlined text-base-content/40" style="font-size:16px">arrow_forward</span>
         <input type="text" value="${m.right_text}" placeholder="Правый" class="input input-bordered input-sm flex-1"
                onblur="updateMatching('${m.id}', null, this.value)">
-        <button onclick="deleteMatching('${m.id}', this)" class="btn btn-xs btn-ghost text-error">✕</button>`;
+        <button onclick="deleteMatching('${m.id}', this)" class="btn btn-xs btn-ghost text-error">
+            <span class="material-symbols-outlined" style="font-size:14px">close</span>
+        </button>`;
     return div;
 }
 
@@ -487,11 +532,11 @@ async function saveQuestion() {
     });
     const label = document.querySelector(`.q-label-${currentQuestionId}`);
     if (label) {
-        const icons = {text:'📝',text_image:'🖼️',image_only:'🌄',audio:'🎵'};
-        label.textContent = `${icons[body.question_type]||'📝'} ${(body.text||'(без текста)').substring(0,30)}`;
+        const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note'};
+        const iconName = iconMap[body.question_type] || 'text_fields';
+        label.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px">${iconName}</span> ${(body.text||'(без текста)').substring(0,30)}`;
     }
 
-    // Upload image/audio if new file selected
     const imgInput = document.getElementById('q-image-input');
     if (imgInput.files[0]) await uploadQuestionFile(imgInput.files[0], 'image');
     const audInput = document.getElementById('q-audio-input');

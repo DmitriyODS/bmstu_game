@@ -5,10 +5,11 @@
 <div class="min-h-screen flex flex-col items-center justify-center p-4" id="app">
 
     <!-- SPLASH -->
-    <div id="screen-splash" class="text-center">
-        <h1 class="text-4xl font-bold mb-4">{{ quiz.title }}</h1>
+    <div id="screen-splash" class="text-center max-w-sm w-full">
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-16 w-auto mx-auto mb-4">
+        <h1 class="text-3xl sm:text-4xl font-bold mb-4">{{ quiz.title }}</h1>
         {% if quiz.description %}
-        <p class="text-xl text-base-content/70 mb-8">{{ quiz.description }}</p>
+        <p class="text-lg text-base-content/70 mb-6">{{ quiz.description }}</p>
         {% endif %}
         {% if team %}
         <div class="badge badge-lg badge-primary">{{ team.name }}</div>
@@ -20,7 +21,10 @@
 
     <!-- REGISTRATION -->
     <div id="screen-registration" class="hidden w-full max-w-sm">
-        <h1 class="text-3xl font-bold text-center mb-6">{{ quiz.title }}</h1>
+        <div class="text-center mb-6">
+            <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-12 w-auto mx-auto mb-3">
+            <h1 class="text-2xl font-bold">{{ quiz.title }}</h1>
+        </div>
         {% if team %}
             {% if gs and gs.registration_open %}
             <div class="card bg-base-100 shadow">
@@ -31,7 +35,10 @@
                         <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
                         <input type="text" name="name" class="input input-bordered w-full mb-3"
                                value="{{ team.name }}" placeholder="Новое название">
-                        <button class="btn btn-outline btn-sm w-full">Изменить название</button>
+                        <button class="btn btn-outline btn-sm w-full">
+                            <span class="material-symbols-outlined icon-sm">edit</span>
+                            Изменить название
+                        </button>
                     </form>
                 </div>
             </div>
@@ -62,16 +69,16 @@
 
     <!-- TEAMS -->
     <div id="screen-teams" class="hidden text-center">
-        <h2 class="text-3xl font-bold mb-4">Команды в игре</h2>
+        <h2 class="text-2xl sm:text-3xl font-bold mb-4">Команды в игре</h2>
         {% if team %}
         <div class="badge badge-primary badge-lg">{{ team.name }}</div>
         {% endif %}
     </div>
 
     <!-- TOUR SPLASH -->
-    <div id="screen-tour_splash" class="hidden text-center">
+    <div id="screen-tour_splash" class="hidden text-center max-w-sm w-full">
         <div class="text-sm text-base-content/60 mb-2">Начинается</div>
-        <h2 class="text-4xl font-bold mb-4" id="tour-title">Тур</h2>
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4" id="tour-title">Тур</h2>
         <p class="text-xl text-base-content/60">Готовьтесь!</p>
     </div>
 
@@ -83,10 +90,10 @@
         </div>
 
         <div class="card bg-base-100 shadow mb-4">
-            <div class="card-body">
+            <div class="card-body p-4">
                 <div id="q-image-area"></div>
                 <div id="q-audio-area"></div>
-                <p class="text-lg font-medium" id="q-text"></p>
+                <p class="text-base sm:text-lg font-medium" id="q-text"></p>
             </div>
         </div>
 
@@ -94,13 +101,15 @@
 
         <div id="answer-submitted" class="hidden">
             <div class="alert alert-success">
-                <span>✅ Ответ принят! Вы можете изменить его, пока идёт таймер.</span>
+                <span class="material-symbols-outlined icon-sm">check_circle</span>
+                <span>Ответ принят! Вы можете изменить его, пока идёт таймер.</span>
             </div>
         </div>
 
         <div id="timer-expired" class="hidden">
             <div class="alert alert-warning">
-                <span>⏰ Время вышло. Ответы не принимаются.</span>
+                <span class="material-symbols-outlined icon-sm">timer_off</span>
+                <span>Время вышло. Ответы не принимаются.</span>
             </div>
         </div>
     </div>
@@ -109,8 +118,11 @@
     <div id="screen-question_answer" class="hidden text-center w-full max-w-lg">
         <div class="card bg-base-100 shadow">
             <div class="card-body">
-                <h2 class="card-title justify-center text-success">Правильный ответ</h2>
-                <p class="text-2xl font-bold mt-2" id="correct-answer-text"></p>
+                <h2 class="card-title justify-center text-success">
+                    <span class="material-symbols-outlined icon-md">check_circle</span>
+                    Правильный ответ
+                </h2>
+                <p class="text-xl sm:text-2xl font-bold mt-2" id="correct-answer-text"></p>
             </div>
         </div>
     </div>
@@ -129,7 +141,10 @@
 
     <!-- GAME RESULTS -->
     <div id="screen-game_results" class="hidden w-full max-w-md">
-        <h2 class="text-2xl font-bold text-center mb-4">🏆 Итоги игры</h2>
+        <h2 class="text-2xl font-bold text-center mb-4 flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined icon-lg text-warning">emoji_events</span>
+            Итоги игры
+        </h2>
         <div id="game-results-content"></div>
     </div>
 
@@ -208,26 +223,22 @@ function loadQuestion(q) {
     document.getElementById('timer').textContent = q.time_seconds;
     document.getElementById('q-meta').textContent = `${q.points} балл(ов)`;
 
-    // Text
     const textEl = document.getElementById('q-text');
     textEl.textContent = q.text || '';
     textEl.classList.toggle('hidden', q.question_type === 'image_only');
 
-    // Image
     const imgArea = document.getElementById('q-image-area');
     imgArea.innerHTML = '';
     if (q.image_path) {
-        imgArea.innerHTML = `<img src="${q.image_path}" class="rounded max-h-48 mx-auto mb-3">`;
+        imgArea.innerHTML = `<img src="${q.image_path}" class="rounded max-h-48 w-full object-contain mx-auto mb-3">`;
     }
 
-    // Audio
     const audArea = document.getElementById('q-audio-area');
     audArea.innerHTML = '';
     if (q.audio_path) {
         audArea.innerHTML = `<audio controls autoplay src="${q.audio_path}" class="w-full mb-3"></audio>`;
     }
 
-    // Sounds
     if (q.sound_start_path) {
         new Audio(q.sound_start_path).play().catch(() => {});
     }
@@ -268,12 +279,17 @@ function renderAnswerArea(q) {
         area.innerHTML = `
             <div class="flex gap-2">
                 <input type="text" id="text-answer" class="input input-bordered flex-1" placeholder="Ваш ответ..." maxlength="255">
-                <button onclick="submitText()" class="btn btn-primary">Отправить</button>
+                <button onclick="submitText()" class="btn btn-primary">
+                    <span class="material-symbols-outlined icon-sm">send</span>
+                </button>
             </div>`;
     } else if (q.answer_type === 'long_text') {
         area.innerHTML = `
             <textarea id="text-answer" class="textarea textarea-bordered w-full mb-2" rows="4" placeholder="Ваш ответ..."></textarea>
-            <button onclick="submitText()" class="btn btn-primary w-full">Отправить</button>`;
+            <button onclick="submitText()" class="btn btn-primary w-full">
+                <span class="material-symbols-outlined icon-sm">send</span>
+                Отправить
+            </button>`;
     } else if (q.answer_type === 'matching') {
         renderMatching(q, area);
     }
@@ -285,11 +301,14 @@ function renderMatching(q, area) {
     let pairs = {};
 
     area.innerHTML = `
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-2 sm:gap-3">
             <div id="left-col" class="flex flex-col gap-2"></div>
             <div id="right-col" class="flex flex-col gap-2"></div>
         </div>
-        <button onclick="submitMatching()" class="btn btn-primary w-full mt-3">Отправить</button>`;
+        <button onclick="submitMatching()" class="btn btn-primary w-full mt-3">
+            <span class="material-symbols-outlined icon-sm">send</span>
+            Отправить
+        </button>`;
 
     const leftCol = area.querySelector('#left-col');
     const rightCol = area.querySelector('#right-col');
@@ -371,7 +390,8 @@ function renderResults(containerId, scores) {
     let html = '';
     if (myEntry) {
         html += `<div class="alert alert-info mb-4">
-            <span>🏅 Место: ${myEntry.place} | Баллы: ${myEntry.score}</span>
+            <span class="material-symbols-outlined icon-sm">military_tech</span>
+            <span>Место: ${myEntry.place} | Баллы: ${myEntry.score}</span>
         </div>`;
     }
     html += '<div class="flex flex-col gap-2">';

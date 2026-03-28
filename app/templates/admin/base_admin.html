@@ -3,45 +3,91 @@
 {% block content %}
 <div class="drawer lg:drawer-open">
     <input id="drawer-toggle" type="checkbox" class="drawer-toggle">
-    <div class="drawer-content flex flex-col">
-        <!-- Navbar -->
-        <div class="navbar bg-base-100 shadow lg:hidden">
+    <div class="drawer-content flex flex-col min-h-screen">
+        <!-- Navbar (mobile only) -->
+        <div class="navbar bg-base-100 shadow lg:hidden sticky top-0 z-30">
             <label for="drawer-toggle" class="btn btn-ghost drawer-button">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-5 h-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                <span class="material-symbols-outlined">menu</span>
             </label>
-            <span class="text-xl font-bold">Бауманка.Квиз</span>
+            <div class="flex items-center gap-2 flex-1">
+                <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-7 w-auto">
+                <span class="text-lg font-bold">Бауманка.Квиз</span>
+            </div>
         </div>
         <!-- Main content -->
-        <main class="flex-1 p-6">
+        <main class="flex-1 p-4 sm:p-6">
             {% block admin_content %}{% endblock %}
         </main>
     </div>
-    <div class="drawer-side">
+    <div class="drawer-side z-40">
         <label for="drawer-toggle" class="drawer-overlay"></label>
-        <ul class="menu p-4 w-64 min-h-full bg-base-100 text-base-content gap-1">
-            <li class="menu-title">
-                <span class="text-lg font-bold">🎯 Бауманка.Квиз</span>
+        <ul class="menu p-4 w-64 min-h-full bg-base-100 text-base-content gap-1 shadow-xl">
+            <!-- Logo -->
+            <li class="mb-3">
+                <div class="flex items-center gap-3 px-2 py-1 pointer-events-none">
+                    <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-8 w-auto">
+                    <span class="text-lg font-bold">Бауманка.Квиз</span>
+                </div>
             </li>
-            <li><a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">📊 Дашборд</a></li>
-            <li><a href="{{ url_for('admin.quizzes') }}" class="{% if 'quiz' in request.endpoint %}active{% endif %}">📝 Квизы</a></li>
+            <div class="divider my-1"></div>
+            <li>
+                <a href="{{ url_for('admin.dashboard') }}" class="flex items-center gap-3 {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm">dashboard</span>
+                    Дашборд
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('admin.quizzes') }}" class="flex items-center gap-3 {% if 'quiz' in request.endpoint %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm">quiz</span>
+                    Квизы
+                </a>
+            </li>
             {% if active_quiz %}
             <li>
                 <details open>
-                    <summary>🎮 Активный квиз</summary>
+                    <summary class="flex items-center gap-3">
+                        <span class="material-symbols-outlined icon-sm">sports_esports</span>
+                        Активный квиз
+                    </summary>
                     <ul>
-                        <li><a href="{{ url_for('admin.quiz_control', quiz_id=active_quiz.id) }}">Управление</a></li>
-                        <li><a href="{{ url_for('admin.quiz_edit', quiz_id=active_quiz.id) }}">Конструктор</a></li>
-                        <li><a href="{{ url_for('admin.teams', quiz_id=active_quiz.id) }}">Команды</a></li>
-                        <li><a href="/judge/" target="_blank">Проверка ответов</a></li>
-                        <li><a href="{{ url_for('admin.export_excel', quiz_id=active_quiz.id) }}">📥 Экспорт</a></li>
+                        <li><a href="{{ url_for('admin.quiz_control', quiz_id=active_quiz.id) }}">
+                            <span class="material-symbols-outlined icon-sm">tune</span>Управление
+                        </a></li>
+                        <li><a href="{{ url_for('admin.quiz_edit', quiz_id=active_quiz.id) }}">
+                            <span class="material-symbols-outlined icon-sm">edit_note</span>Конструктор
+                        </a></li>
+                        <li><a href="{{ url_for('admin.teams', quiz_id=active_quiz.id) }}">
+                            <span class="material-symbols-outlined icon-sm">groups</span>Команды
+                        </a></li>
+                        <li><a href="/judge/" target="_blank">
+                            <span class="material-symbols-outlined icon-sm">balance</span>Проверка ответов
+                        </a></li>
+                        <li><a href="{{ url_for('admin.export_excel', quiz_id=active_quiz.id) }}">
+                            <span class="material-symbols-outlined icon-sm">download</span>Экспорт
+                        </a></li>
                     </ul>
                 </details>
             </li>
             {% endif %}
             <div class="divider my-1"></div>
-            <li><a href="{{ url_for('admin.settings') }}" class="{% if request.endpoint == 'admin.settings' %}active{% endif %}">⚙️ Настройки</a></li>
-            <li><a href="/screen" target="_blank">🖥️ Презентация</a></li>
-            <li><a href="{{ url_for('auth.logout') }}" class="text-error">🚪 Выйти</a></li>
+            <li>
+                <a href="{{ url_for('admin.settings') }}" class="flex items-center gap-3 {% if request.endpoint == 'admin.settings' %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm">settings</span>
+                    Настройки
+                </a>
+            </li>
+            <li>
+                <a href="/screen" target="_blank" class="flex items-center gap-3">
+                    <span class="material-symbols-outlined icon-sm">desktop_windows</span>
+                    Презентация
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('auth.logout') }}" class="flex items-center gap-3 text-error">
+                    <span class="material-symbols-outlined icon-sm">logout</span>
+                    Выйти
+                </a>
+            </li>
         </ul>
     </div>
 </div>

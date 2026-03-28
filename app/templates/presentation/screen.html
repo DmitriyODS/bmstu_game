@@ -3,36 +3,57 @@
 
 {% block head %}
 <style>
-body { background: #1a1a2e; color: #fff; }
-.screen-section { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
+#pres-app {
+    background: #0a0f1e;
+    color: #fff;
+    min-height: 100vh;
+}
+.screen-section {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+.pres-card {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 1rem;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div id="app" class="min-h-screen" style="background:#1a1a2e; color:#fff">
+<div id="pres-app">
 
     <!-- SPLASH -->
     <div id="screen-splash" class="screen-section text-center">
-        <h1 class="text-6xl font-bold mb-6">{{ quiz.title }}</h1>
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-20 w-auto mx-auto mb-8 opacity-90">
+        <h1 class="text-5xl sm:text-6xl font-bold mb-6">{{ quiz.title }}</h1>
         {% if quiz.description %}
-        <p class="text-2xl opacity-70">{{ quiz.description }}</p>
+        <p class="text-xl sm:text-2xl opacity-70">{{ quiz.description }}</p>
         {% endif %}
     </div>
 
     <!-- REGISTRATION -->
     <div id="screen-registration" class="hidden screen-section">
-        <div class="grid grid-cols-2 gap-12 w-full max-w-6xl">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 w-full max-w-6xl">
             <div class="text-center">
-                <h2 class="text-4xl font-bold mb-6">Регистрация</h2>
-                <p class="text-xl mb-4 opacity-70">Сканируйте QR-код</p>
-                <img src="/api/qr/{{ quiz.id }}" class="mx-auto w-64 h-64 bg-white p-3 rounded-2xl" alt="QR">
-                <p class="mt-4 text-lg opacity-60">/play/{{ quiz.id }}</p>
+                <h2 class="text-3xl sm:text-4xl font-bold mb-6">Регистрация</h2>
+                <p class="text-lg sm:text-xl mb-4 opacity-70">Сканируйте QR-код для участия</p>
+                <div class="inline-block bg-white p-3 rounded-2xl">
+                    <img src="/api/qr/{{ quiz.id }}" class="w-48 sm:w-64 h-48 sm:h-64" alt="QR">
+                </div>
+                <p class="mt-4 text-base sm:text-lg opacity-60">/play/{{ quiz.id }}</p>
             </div>
             <div>
-                <h3 class="text-2xl font-bold mb-4">Команды (<span id="teams-count">{{ teams|length }}</span>)</h3>
+                <h3 class="text-xl sm:text-2xl font-bold mb-4">
+                    Команды (<span id="teams-count">{{ teams|length }}</span>)
+                </h3>
                 <div id="teams-list" class="flex flex-col gap-2 max-h-96 overflow-y-auto">
                     {% for team in teams %}
-                    <div class="bg-white/10 rounded-lg px-4 py-2 text-lg" id="team-{{ team.id }}">{{ team.name }}</div>
+                    <div class="pres-card px-4 py-2 text-base sm:text-lg" id="team-{{ team.id }}">{{ team.name }}</div>
                     {% endfor %}
                 </div>
             </div>
@@ -41,20 +62,20 @@ body { background: #1a1a2e; color: #fff; }
 
     <!-- TEAMS -->
     <div id="screen-teams" class="hidden screen-section">
-        <h2 class="text-4xl font-bold mb-8">Команды</h2>
-        <div id="all-teams-grid" class="grid grid-cols-3 gap-4 w-full max-w-5xl">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-8">Команды</h2>
+        <div id="all-teams-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-4 w-full max-w-5xl">
             {% for team in teams %}
-            <div class="bg-white/10 rounded-xl px-6 py-4 text-2xl text-center font-medium">{{ team.name }}</div>
+            <div class="pres-card px-6 py-4 text-xl sm:text-2xl text-center font-medium">{{ team.name }}</div>
             {% endfor %}
         </div>
     </div>
 
     <!-- TOUR SPLASH -->
-    <div id="screen-tour_splash" class="hidden screen-section text-center">
-        <div id="tour-splash-bg" class="absolute inset-0 bg-cover bg-center opacity-20" style="z-index:0"></div>
-        <div style="position:relative;z-index:1">
-            <p class="text-2xl opacity-60 mb-4">Тур</p>
-            <h2 class="text-7xl font-bold mb-6" id="tour-title">Тур</h2>
+    <div id="screen-tour_splash" class="hidden screen-section text-center" style="position:relative; overflow:hidden;">
+        <div id="tour-splash-bg" class="absolute inset-0 bg-cover bg-center opacity-20" style="display:none; z-index:0"></div>
+        <div style="position:relative; z-index:1">
+            <p class="text-xl sm:text-2xl opacity-60 mb-4">Тур</p>
+            <h2 class="text-6xl sm:text-7xl font-bold mb-6" id="tour-title">Тур</h2>
         </div>
     </div>
 
@@ -62,39 +83,45 @@ body { background: #1a1a2e; color: #fff; }
     <div id="screen-question" class="hidden screen-section w-full">
         <div class="w-full max-w-5xl">
             <div class="flex justify-between items-start mb-6">
-                <div class="text-xl opacity-60" id="q-meta-pres"></div>
-                <div class="text-8xl font-bold font-mono text-yellow-400" id="timer-pres">--</div>
+                <div class="text-lg sm:text-xl opacity-60" id="q-meta-pres"></div>
+                <div class="text-7xl sm:text-8xl font-bold font-mono" id="timer-pres" style="color:#fbbf24">--</div>
             </div>
             <div id="q-image-pres" class="mb-6 text-center"></div>
             <div id="q-audio-pres" class="mb-4"></div>
-            <h2 class="text-4xl font-bold mb-8" id="q-text-pres"></h2>
-            <div id="q-options-pres" class="grid grid-cols-2 gap-4"></div>
+            <h2 class="text-3xl sm:text-4xl font-bold mb-8" id="q-text-pres"></h2>
+            <div id="q-options-pres" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
         </div>
     </div>
 
     <!-- QUESTION ANSWER -->
     <div id="screen-question_answer" class="hidden screen-section text-center w-full max-w-4xl">
-        <div class="mb-6 opacity-60 text-xl" id="q-text-answer-pres"></div>
-        <div class="text-3xl font-bold mb-4 text-yellow-400">Правильный ответ:</div>
-        <div class="text-5xl font-bold" id="correct-answer-pres"></div>
-        <div id="correct-options-pres" class="grid grid-cols-2 gap-4 mt-8 w-full max-w-3xl"></div>
+        <div class="mb-6 opacity-60 text-lg sm:text-xl" id="q-text-answer-pres"></div>
+        <div class="text-2xl sm:text-3xl font-bold mb-4" style="color:#fbbf24">Правильный ответ:</div>
+        <div class="text-4xl sm:text-5xl font-bold" id="correct-answer-pres"></div>
+        <div id="correct-options-pres" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 w-full max-w-3xl"></div>
     </div>
 
     <!-- WAITING -->
     <div id="screen-waiting" class="hidden screen-section text-center">
-        <div class="loading loading-spinner loading-lg mb-6 text-white"></div>
-        <p class="text-4xl opacity-60">Ожидайте...</p>
+        <div class="loading loading-spinner loading-lg mb-6" style="color:#006CDC"></div>
+        <p class="text-3xl sm:text-4xl opacity-60">Ожидайте...</p>
     </div>
 
     <!-- TOUR RESULTS -->
     <div id="screen-tour_results" class="hidden screen-section w-full max-w-3xl">
-        <h2 class="text-4xl font-bold text-center mb-8">📊 Итоги тура</h2>
+        <h2 class="text-3xl sm:text-4xl font-bold text-center mb-8 flex items-center justify-center gap-3">
+            <span class="material-symbols-outlined icon-xl" style="color:#fbbf24">bar_chart</span>
+            Итоги тура
+        </h2>
         <div id="tour-results-pres" class="flex flex-col gap-3"></div>
     </div>
 
     <!-- GAME RESULTS -->
     <div id="screen-game_results" class="hidden screen-section w-full max-w-3xl">
-        <h2 class="text-5xl font-bold text-center mb-8">🏆 Итоги игры</h2>
+        <h2 class="text-4xl sm:text-5xl font-bold text-center mb-8 flex items-center justify-center gap-3">
+            <span class="material-symbols-outlined icon-xl fill-1" style="color:#fbbf24">emoji_events</span>
+            Итоги игры
+        </h2>
         <div id="game-results-pres" class="flex flex-col gap-3"></div>
     </div>
 
@@ -134,14 +161,10 @@ socket.on('screen_changed', (data) => {
         showAnswer(data.question);
     }
 
-    if (data.screen === 'registration') {
-        // refresh teams list on registration
-    }
-
     if (data.screen === 'teams' && data.teams) {
         const grid = document.getElementById('all-teams-grid');
         grid.innerHTML = data.teams.map(t =>
-            `<div class="bg-white/10 rounded-xl px-6 py-4 text-2xl text-center font-medium">${t.name}</div>`
+            `<div class="pres-card px-6 py-4 text-xl sm:text-2xl text-center font-medium">${t.name}</div>`
         ).join('');
     }
 
@@ -153,7 +176,7 @@ socket.on('team_registered', (data) => {
     const list = document.getElementById('teams-list');
     if (list) {
         const div = document.createElement('div');
-        div.className = 'bg-white/10 rounded-lg px-4 py-2 text-lg';
+        div.className = 'pres-card px-4 py-2 text-lg';
         div.id = `team-${data.team_id}`;
         div.textContent = data.name;
         list.appendChild(div);
@@ -171,38 +194,42 @@ socket.on('timer_tick', (data) => {
     const el = document.getElementById('timer-pres');
     if (el) {
         el.textContent = data.remaining;
-        el.style.color = data.remaining <= 10 ? '#f87171' : '#facc15';
+        el.style.color = data.remaining <= 10 ? '#ef4444' : '#fbbf24';
     }
 });
 
 socket.on('timer_stopped', () => {
     const el = document.getElementById('timer-pres');
-    if (el) { el.textContent = '0'; el.style.color = '#f87171'; }
+    if (el) { el.textContent = '0'; el.style.color = '#ef4444'; }
 });
 
 socket.on('play_sound', (data) => {
     new Audio(data.path).play().catch(() => {});
 });
 
-socket.on('scores_updated', (data) => {});
+socket.on('scores_updated', () => {});
 
 function loadQuestion(q) {
     document.getElementById('q-text-pres').textContent = q.text || '';
-    document.getElementById('q-meta-pres').textContent = `${q.points} балл(ов) • ${q.time_seconds}с`;
+    document.getElementById('q-meta-pres').textContent = `${q.points} балл(ов) \u2022 ${q.time_seconds}с`;
     document.getElementById('timer-pres').textContent = q.time_seconds;
 
     const imgEl = document.getElementById('q-image-pres');
-    imgEl.innerHTML = q.image_path ? `<img src="${q.image_path}" class="max-h-64 mx-auto rounded-xl">` : '';
+    imgEl.innerHTML = q.image_path
+        ? `<img src="${q.image_path}" class="max-h-64 mx-auto rounded-xl object-contain">`
+        : '';
 
     const audEl = document.getElementById('q-audio-pres');
-    audEl.innerHTML = q.audio_path ? `<audio controls autoplay src="${q.audio_path}" class="w-full max-w-lg mx-auto block"></audio>` : '';
+    audEl.innerHTML = q.audio_path
+        ? `<audio controls autoplay src="${q.audio_path}" class="w-full max-w-lg mx-auto block"></audio>`
+        : '';
 
     const optsEl = document.getElementById('q-options-pres');
     optsEl.innerHTML = '';
     if (['single_choice', 'multiple_choice'].includes(q.answer_type)) {
-        const colors = ['bg-blue-600', 'bg-red-600', 'bg-yellow-600', 'bg-green-600'];
+        const colors = ['#006CDC', '#8C2CFF', '#FF5B9A', '#0ea5e9'];
         q.answer_options.forEach((opt, i) => {
-            optsEl.innerHTML += `<div class="${colors[i % colors.length]} rounded-xl px-6 py-4 text-xl font-medium">${opt.text}</div>`;
+            optsEl.innerHTML += `<div style="background:${colors[i % colors.length]}; border-radius:0.75rem; padding:1rem 1.5rem; font-size:1.25rem; font-weight:500;">${opt.text}</div>`;
         });
     }
 
@@ -220,12 +247,11 @@ function showAnswer(q) {
         correctEl.textContent = q.correct_answer;
     } else if (q.answer_options) {
         correctEl.textContent = '';
-        const colors = ['bg-blue-600', 'bg-red-600', 'bg-yellow-600', 'bg-green-600'];
+        const colors = ['#006CDC', '#8C2CFF', '#FF5B9A', '#0ea5e9'];
         q.answer_options.forEach((opt, i) => {
-            const cls = opt.is_correct
-                ? `${colors[i % colors.length]} ring-4 ring-white`
-                : `${colors[i % colors.length]} opacity-40`;
-            optsEl.innerHTML += `<div class="${cls} rounded-xl px-6 py-4 text-xl font-medium">${opt.text}</div>`;
+            const opacity = opt.is_correct ? '1' : '0.35';
+            const ring = opt.is_correct ? 'outline: 3px solid white;' : '';
+            optsEl.innerHTML += `<div style="background:${colors[i % colors.length]}; opacity:${opacity}; ${ring} border-radius:0.75rem; padding:1rem 1.5rem; font-size:1.25rem; font-weight:500;">${opt.text}</div>`;
         });
     } else {
         correctEl.textContent = '—';
@@ -234,15 +260,19 @@ function showAnswer(q) {
 
 function renderResults(containerId, scores) {
     const container = document.getElementById(containerId);
-    const medals = ['🥇', '🥈', '🥉'];
-    container.innerHTML = scores.map((s, i) => `
-        <div class="flex justify-between items-center px-6 py-4 rounded-xl text-2xl
-                    ${i === 0 ? 'bg-yellow-500/30 border border-yellow-400' :
-                      i === 1 ? 'bg-gray-400/20 border border-gray-400' :
-                      i === 2 ? 'bg-amber-700/20 border border-amber-700' : 'bg-white/5'}">
-            <span>${medals[i] || (i+1)+'.'} ${s.team_name}</span>
-            <span class="font-bold">${s.score}</span>
-        </div>`).join('');
+    const medalColors = ['#f59e0b', '#94a3b8', '#b45309'];
+    container.innerHTML = scores.map((s, i) => {
+        const bg = i < 3
+            ? `background: ${medalColors[i]}22; border: 1px solid ${medalColors[i]}66;`
+            : 'background: rgba(255,255,255,0.05);';
+        const place = i < 3
+            ? `<span class="material-symbols-outlined fill-1" style="color:${medalColors[i]}; font-size:28px;">military_tech</span>`
+            : `<span style="opacity:0.6; font-size:1.25rem;">${i+1}.</span>`;
+        return `<div style="${bg} border-radius:0.75rem; padding:1rem 1.5rem;" class="flex justify-between items-center text-xl sm:text-2xl">
+            <span class="flex items-center gap-3">${place} ${s.team_name}</span>
+            <span style="font-weight:700;">${s.score}</span>
+        </div>`;
+    }).join('');
 }
 
 // Init screen

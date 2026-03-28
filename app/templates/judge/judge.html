@@ -2,24 +2,33 @@
 {% block title %}Проверка ответов — {{ quiz.title }}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen p-4">
+<div class="min-h-screen p-3 sm:p-4">
     <div class="navbar bg-base-100 rounded-box shadow mb-4">
-        <div class="flex-1">
-            <span class="text-xl font-bold">⚖️ Проверка ответов</span>
-            <span class="text-sm text-base-content/60 ml-3">{{ quiz.title }}</span>
+        <div class="flex-1 min-w-0">
+            <span class="material-symbols-outlined icon-md text-primary mr-2">balance</span>
+            <span class="text-lg font-bold hidden sm:inline">Проверка ответов</span>
+            <span class="text-sm text-base-content/60 ml-1 truncate">{{ quiz.title }}</span>
         </div>
         <div class="flex-none gap-2">
-            <!-- Mode toggle -->
             <div class="join">
-                <button id="btn-tinder" onclick="setMode('tinder')" class="btn btn-sm join-item btn-primary">🃏 Карточки</button>
-                <button id="btn-table" onclick="setMode('table')" class="btn btn-sm join-item btn-outline">📊 Таблица</button>
+                <button id="btn-tinder" onclick="setMode('tinder')" class="btn btn-sm join-item btn-primary">
+                    <span class="material-symbols-outlined icon-sm">style</span>
+                    <span class="hidden sm:inline">Карточки</span>
+                </button>
+                <button id="btn-table" onclick="setMode('table')" class="btn btn-sm join-item btn-outline">
+                    <span class="material-symbols-outlined icon-sm">table_chart</span>
+                    <span class="hidden sm:inline">Таблица</span>
+                </button>
             </div>
-            <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost btn-sm">Выйти</a>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost btn-sm">
+                <span class="material-symbols-outlined icon-sm">logout</span>
+                <span class="hidden sm:inline">Выйти</span>
+            </a>
         </div>
     </div>
 
     <!-- Filters -->
-    <div class="flex flex-wrap gap-3 mb-4">
+    <div class="flex flex-wrap gap-2 sm:gap-3 mb-4">
         <select id="filter-tour" class="select select-bordered select-sm" onchange="onFilterChange()">
             <option value="">Все туры</option>
             {% for tour in tours %}
@@ -70,7 +79,7 @@
 
 <!-- Modal for table cell edit -->
 <dialog id="answer-modal" class="modal">
-    <div class="modal-box">
+    <div class="modal-box w-full max-w-md">
         <h3 class="font-bold text-lg mb-4" id="modal-team"></h3>
         <p class="text-sm text-base-content/60 mb-2" id="modal-question"></p>
         <div class="bg-base-200 rounded p-3 mb-2">
@@ -82,11 +91,18 @@
             <p class="font-medium text-success" id="modal-correct"></p>
         </div>
         <div class="flex gap-3 items-center mb-4">
+            <span class="text-sm">Баллы:</span>
             <input type="number" id="modal-score" class="input input-bordered input-sm w-24" placeholder="Баллы">
         </div>
         <div class="flex gap-3">
-            <button onclick="modalCheck(true)" class="btn btn-success flex-1">✅ Верно</button>
-            <button onclick="modalCheck(false)" class="btn btn-error flex-1">❌ Неверно</button>
+            <button onclick="modalCheck(true)" class="btn btn-success flex-1">
+                <span class="material-symbols-outlined icon-sm">check_circle</span>
+                Верно
+            </button>
+            <button onclick="modalCheck(false)" class="btn btn-error flex-1">
+                <span class="material-symbols-outlined icon-sm">cancel</span>
+                Неверно
+            </button>
             <button onclick="document.getElementById('answer-modal').close()" class="btn btn-ghost">Отмена</button>
         </div>
     </div>
@@ -134,7 +150,6 @@ async function updateQuestionFilter() {
     const currentVal = sel.value;
     sel.innerHTML = '<option value="">Все вопросы</option>';
     if (!tourId) return;
-    // Load questions for tour via existing quiz tours data
     const res = await fetch(`/judge/answers?tour_id=${tourId}`);
     const data = await res.json();
     const seen = new Set();
@@ -162,10 +177,13 @@ function renderCard(answer) {
         container.innerHTML = `
             <div class="card w-full max-w-md bg-base-100 shadow-xl">
                 <div class="card-body text-center py-16">
-                    <div class="text-5xl mb-4">✅</div>
+                    <span class="material-symbols-outlined icon-2xl text-success mb-4 block fill-1">check_circle</span>
                     <p class="text-xl font-bold">Всё проверено!</p>
                     <p class="text-base-content/60 mt-2">Нет ответов для проверки</p>
-                    <button onclick="loadNextCard()" class="btn btn-outline btn-sm mt-4">Обновить</button>
+                    <button onclick="loadNextCard()" class="btn btn-outline btn-sm mt-4">
+                        <span class="material-symbols-outlined icon-sm">refresh</span>
+                        Обновить
+                    </button>
                 </div>
             </div>`;
         return;
@@ -192,8 +210,14 @@ function renderCard(answer) {
                     <span class="text-xs text-base-content/50">макс. ${answer.question_points}</span>
                 </div>
                 <div class="flex gap-3">
-                    <button onclick="judgeCard(false)" class="btn btn-error flex-1">❌ Неверно</button>
-                    <button onclick="judgeCard(true)" class="btn btn-success flex-1">✅ Верно</button>
+                    <button onclick="judgeCard(false)" class="btn btn-error flex-1">
+                        <span class="material-symbols-outlined icon-sm">cancel</span>
+                        Неверно
+                    </button>
+                    <button onclick="judgeCard(true)" class="btn btn-success flex-1">
+                        <span class="material-symbols-outlined icon-sm">check_circle</span>
+                        Верно
+                    </button>
                 </div>
             </div>
         </div>`;
@@ -226,9 +250,9 @@ function renderTable(answers) {
     }
     tbody.innerHTML = answers.map(a => {
         const statusBadge = a.is_correct === true
-            ? '<span class="badge badge-success">✓</span>'
+            ? '<span class="badge badge-success"><span class="material-symbols-outlined" style="font-size:13px">check</span></span>'
             : a.is_correct === false
-            ? '<span class="badge badge-error">✗</span>'
+            ? '<span class="badge badge-error"><span class="material-symbols-outlined" style="font-size:13px">close</span></span>'
             : '<span class="badge badge-ghost">?</span>';
         return `<tr>
             <td>${a.team_name}</td>
