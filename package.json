@@ -1,0 +1,8 @@
+{
+  "name": "bmstu-quiz",
+  "version": "1.0.0",
+  "devDependencies": {
+    "tailwindcss": "^3.4.3",
+    "daisyui": "^4.11.1"
+  }
+}

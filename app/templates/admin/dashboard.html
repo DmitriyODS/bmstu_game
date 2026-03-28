@@ -1,0 +1,43 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Дашборд — Бауманка.Квиз{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-3xl font-bold mb-6">Дашборд</h1>
+
+{% if active_quiz %}
+<div class="alert alert-success mb-6">
+    <span>Активный квиз: <strong>{{ active_quiz.title }}</strong></span>
+    <a href="{{ url_for('admin.quiz_control', quiz_id=active_quiz.id) }}" class="btn btn-sm btn-success">Управление</a>
+</div>
+{% else %}
+<div class="alert alert-warning mb-6">
+    <span>Нет активного квиза. Активируйте квиз для начала игры.</span>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+    <div class="stat bg-base-100 rounded-box shadow">
+        <div class="stat-title">Всего квизов</div>
+        <div class="stat-value">{{ quizzes|length }}</div>
+    </div>
+    {% if active_quiz %}
+    <div class="stat bg-base-100 rounded-box shadow">
+        <div class="stat-title">Команд в игре</div>
+        <div class="stat-value">{{ active_quiz.teams|length }}</div>
+    </div>
+    <div class="stat bg-base-100 rounded-box shadow">
+        <div class="stat-title">Туров</div>
+        <div class="stat-value">{{ active_quiz.tours|length }}</div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="flex gap-4 flex-wrap">
+    <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary">+ Новый квиз</a>
+    <a href="{{ url_for('admin.quizzes') }}" class="btn btn-outline">Все квизы</a>
+    {% if active_quiz %}
+    <a href="/screen" target="_blank" class="btn btn-outline">🖥️ Открыть презентацию</a>
+    <a href="{{ url_for('admin.export_excel', quiz_id=active_quiz.id) }}" class="btn btn-outline">📥 Экспорт Excel</a>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Настройки — Бауманка.Квиз{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-3xl font-bold mb-6">Настройки</h1>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Смена учётных данных -->
+    <div class="card bg-base-100 shadow">
+        <div class="card-body">
+            <h2 class="card-title">Учётные данные администратора</h2>
+            <form method="POST">
+                <input type="hidden" name="action" value="change_credentials">
+                <div class="form-control mb-3">
+                    <label class="label"><span class="label-text">Новый логин</span></label>
+                    <input type="text" name="username" class="input input-bordered"
+                           value="{{ current_user.username }}" placeholder="Оставьте пустым, чтобы не менять">
+                </div>
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Новый пароль</span></label>
+                    <input type="password" name="password" class="input input-bordered"
+                           placeholder="Оставьте пустым, чтобы не менять">
+                </div>
+                <button class="btn btn-primary">Сохранить</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Судьи -->
+    <div class="card bg-base-100 shadow">
+        <div class="card-body">
+            <h2 class="card-title">Судьи</h2>
+            {% if judges %}
+            <div class="flex flex-col gap-2 mb-4">
+                {% for judge in judges %}
+                <div class="flex justify-between items-center p-2 bg-base-200 rounded">
+                    <span>{{ judge.username }}</span>
+                    <form method="POST" onsubmit="return confirm('Удалить судью?')">
+                        <input type="hidden" name="action" value="delete_judge">
+                        <input type="hidden" name="judge_id" value="{{ judge.id }}">
+                        <button class="btn btn-xs btn-error btn-outline">Удалить</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-base-content/50 mb-4">Судей пока нет</p>
+            {% endif %}
+            <form method="POST">
+                <input type="hidden" name="action" value="create_judge">
+                <div class="form-control mb-3">
+                    <label class="label"><span class="label-text">Логин судьи</span></label>
+                    <input type="text" name="judge_username" class="input input-bordered input-sm" required>
+                </div>
+                <div class="form-control mb-3">
+                    <label class="label"><span class="label-text">Пароль</span></label>
+                    <input type="password" name="judge_password" class="input input-bordered input-sm" required>
+                </div>
+                <button class="btn btn-outline btn-sm">+ Создать судью</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

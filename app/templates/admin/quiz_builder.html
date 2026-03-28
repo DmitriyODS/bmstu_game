@@ -1,0 +1,549 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Конструктор: {{ quiz.title }}{% endblock %}
+
+{% block head %}
+<style>
+.tour-item.drag-over { border: 2px dashed #570df8; }
+.question-item.drag-over { border: 2px dashed #570df8; }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div class="flex justify-between items-center mb-4">
+    <div>
+        <h1 class="text-2xl font-bold">{{ quiz.title }}</h1>
+        <div class="text-sm text-base-content/60">Конструктор квиза</div>
+    </div>
+    <div class="flex gap-2">
+        {% if not quiz.is_active %}
+        <form method="POST" action="{{ url_for('admin.quiz_activate', quiz_id=quiz.id) }}">
+            <button class="btn btn-success btn-sm">▶ Активировать</button>
+        </form>
+        {% else %}
+        <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-primary btn-sm">🎮 Управление</a>
+        {% endif %}
+        <a href="{{ url_for('admin.quizzes') }}" class="btn btn-ghost btn-sm">← Назад</a>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Левая панель: туры -->
+    <div class="lg:col-span-1">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body p-4">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-bold">Туры</h2>
+                    <button onclick="addTour()" class="btn btn-xs btn-primary">+ Тур</button>
+                </div>
+                <ul id="tours-list" class="flex flex-col gap-1">
+                    {% for tour in quiz.tours %}
+                    <li class="tour-item" data-tour-id="{{ tour.id }}" draggable="true">
+                        <div class="flex items-center gap-2 p-2 rounded hover:bg-base-200 cursor-pointer group"
+                             onclick="selectTour('{{ tour.id }}', '{{ tour.title|e }}')">
+                            <span class="cursor-grab text-base-content/30">⠿</span>
+                            <span class="flex-1 text-sm font-medium tour-name-{{ tour.id }}">{{ tour.title }}</span>
+                            <button onclick="event.stopPropagation(); deleteTour('{{ tour.id }}')"
+                                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">✕</button>
+                        </div>
+                        <ul class="ml-4 flex flex-col gap-1" id="questions-{{ tour.id }}">
+                            {% for q in tour.questions %}
+                            <li class="question-item" data-q-id="{{ q.id }}" draggable="true">
+                                <div class="flex items-center gap-1 p-1 rounded hover:bg-base-300 cursor-pointer group text-sm"
+                                     onclick="selectQuestion('{{ q.id }}')">
+                                    <span class="cursor-grab text-base-content/30 text-xs">⠿</span>
+                                    <span class="flex-1 truncate text-xs">
+                                        {{ {'text':'📝','text_image':'🖼️','image_only':'🌄','audio':'🎵'}.get(q.question_type,'📝') }}
+                                        {{ (q.text or '(без текста)')[:30] }}
+                                    </span>
+                                    <button onclick="event.stopPropagation(); deleteQuestion('{{ q.id }}')"
+                                            class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">✕</button>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Правая панель: редактор -->
+    <div class="lg:col-span-2" id="editor-panel">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <!-- Tour editor -->
+                <div id="tour-editor" class="hidden">
+                    <h2 class="font-bold text-lg mb-4">Редактировать тур</h2>
+                    <input type="text" id="tour-title-input" class="input input-bordered w-full mb-4" placeholder="Название тура">
+                    <div class="mb-4">
+                        <label class="label"><span class="label-text">Картинка заставки тура</span></label>
+                        <input type="file" id="tour-splash-input" accept="image/*" class="file-input file-input-bordered w-full">
+                        <div id="tour-splash-preview" class="mt-2"></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="saveTour()" class="btn btn-primary btn-sm">Сохранить</button>
+                        <button onclick="addQuestion()" class="btn btn-outline btn-sm">+ Вопрос</button>
+                    </div>
+                </div>
+
+                <!-- Question editor -->
+                <div id="question-editor" class="hidden">
+                    <h2 class="font-bold text-lg mb-4">Редактировать вопрос</h2>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Тип вопроса</span></label>
+                            <select id="q-type" class="select select-bordered" onchange="onQTypeChange()">
+                                <option value="text">📝 Текст</option>
+                                <option value="text_image">🖼️ Текст + картинка</option>
+                                <option value="image_only">🌄 Только картинка</option>
+                                <option value="audio">🎵 Аудио</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Тип ответа</span></label>
+                            <select id="q-answer-type" class="select select-bordered" onchange="onAnswerTypeChange()">
+                                <option value="single_choice">Один вариант</option>
+                                <option value="multiple_choice">Несколько вариантов</option>
+                                <option value="short_text">Короткий текст</option>
+                                <option value="long_text">Длинный текст</option>
+                                <option value="matching">Сопоставление</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Время (сек)</span></label>
+                            <input type="number" id="q-time" class="input input-bordered" value="60" min="5" max="600">
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Баллы</span></label>
+                            <input type="number" id="q-points" class="input input-bordered" value="1" min="0">
+                        </div>
+                    </div>
+
+                    <div class="form-control mb-4" id="q-text-block">
+                        <label class="label"><span class="label-text">Текст вопроса</span></label>
+                        <textarea id="q-text" class="textarea textarea-bordered" rows="3"></textarea>
+                    </div>
+
+                    <div id="q-image-block" class="mb-4 hidden">
+                        <label class="label"><span class="label-text">Картинка вопроса</span></label>
+                        <input type="file" id="q-image-input" accept="image/*" class="file-input file-input-bordered w-full">
+                        <div id="q-image-preview" class="mt-2"></div>
+                    </div>
+
+                    <div id="q-audio-block" class="mb-4 hidden">
+                        <label class="label"><span class="label-text">Аудиофайл</span></label>
+                        <input type="file" id="q-audio-input" accept="audio/*" class="file-input file-input-bordered w-full">
+                        <div id="q-audio-preview" class="mt-2"></div>
+                    </div>
+
+                    <!-- Answer options -->
+                    <div id="q-options-block" class="mb-4 hidden">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="label-text font-medium">Варианты ответа</label>
+                            <button onclick="addOption()" class="btn btn-xs btn-outline">+ Вариант</button>
+                        </div>
+                        <div id="options-list" class="flex flex-col gap-2"></div>
+                    </div>
+
+                    <!-- Matching -->
+                    <div id="q-matching-block" class="mb-4 hidden">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="label-text font-medium">Пары для сопоставления</label>
+                            <button onclick="addMatchingItem()" class="btn btn-xs btn-outline">+ Пара</button>
+                        </div>
+                        <div id="matching-list" class="flex flex-col gap-2"></div>
+                    </div>
+
+                    <!-- Correct answer for manual check display -->
+                    <div id="q-correct-block" class="mb-4 hidden">
+                        <label class="label"><span class="label-text">Правильный ответ (для показа судьям)</span></label>
+                        <input type="text" id="q-correct" class="input input-bordered w-full">
+                    </div>
+
+                    <!-- Sounds -->
+                    <div class="collapse collapse-arrow bg-base-200 mb-4">
+                        <input type="checkbox">
+                        <div class="collapse-title font-medium">🔊 Звуки</div>
+                        <div class="collapse-content">
+                            <div class="grid grid-cols-1 gap-3 mt-2">
+                                <div>
+                                    <label class="label-text text-sm">Старт вопроса</label>
+                                    <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-1"
+                                           onchange="uploadSound(this, 'sound_start')">
+                                    <div id="sound-start-preview" class="mt-1"></div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="label-text text-sm">Предупреждение (за N сек)</label>
+                                        <input type="number" id="q-sound-mid-secs" class="input input-bordered input-sm w-full mt-1" placeholder="секунд до конца">
+                                    </div>
+                                    <div>
+                                        <label class="label-text text-sm">Аудио предупреждения</label>
+                                        <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-1"
+                                               onchange="uploadSound(this, 'sound_mid')">
+                                        <div id="sound-mid-preview" class="mt-1"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="label-text text-sm">Конец времени</label>
+                                    <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-1"
+                                           onchange="uploadSound(this, 'sound_end')">
+                                    <div id="sound-end-preview" class="mt-1"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="saveQuestion()" class="btn btn-primary btn-sm">Сохранить</button>
+                    </div>
+                </div>
+
+                <!-- Placeholder -->
+                <div id="editor-placeholder" class="text-center text-base-content/50 py-16">
+                    <p class="text-lg">← Выберите тур или вопрос для редактирования</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const QUIZ_ID = '{{ quiz.id }}';
+let currentTourId = null;
+let currentQuestionId = null;
+
+// ── Tour ───────────────────────────────────────────────────────
+async function addTour() {
+    const res = await fetch(`/admin/quizzes/${QUIZ_ID}/tours`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    });
+    const tour = await res.json();
+    const li = createTourLi(tour);
+    document.getElementById('tours-list').appendChild(li);
+    selectTour(tour.id, tour.title);
+}
+
+function createTourLi(tour) {
+    const li = document.createElement('li');
+    li.className = 'tour-item';
+    li.dataset.tourId = tour.id;
+    li.draggable = true;
+    li.innerHTML = `
+        <div class="flex items-center gap-2 p-2 rounded hover:bg-base-200 cursor-pointer group"
+             onclick="selectTour('${tour.id}', '${tour.title.replace(/'/g,"\\'")}')">
+            <span class="cursor-grab text-base-content/30">⠿</span>
+            <span class="flex-1 text-sm font-medium tour-name-${tour.id}">${tour.title}</span>
+            <button onclick="event.stopPropagation(); deleteTour('${tour.id}')"
+                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">✕</button>
+        </div>
+        <ul class="ml-4 flex flex-col gap-1" id="questions-${tour.id}"></ul>`;
+    return li;
+}
+
+function selectTour(tourId, tourTitle) {
+    currentTourId = tourId;
+    currentQuestionId = null;
+    document.getElementById('editor-placeholder').classList.add('hidden');
+    document.getElementById('question-editor').classList.add('hidden');
+    document.getElementById('tour-editor').classList.remove('hidden');
+    document.getElementById('tour-title-input').value = tourTitle;
+    document.getElementById('tour-splash-preview').innerHTML = '';
+}
+
+async function saveTour() {
+    if (!currentTourId) return;
+    const title = document.getElementById('tour-title-input').value.trim();
+    if (!title) return;
+    await fetch(`/admin/tours/${currentTourId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title})
+    });
+    const nameEl = document.querySelector(`.tour-name-${currentTourId}`);
+    if (nameEl) nameEl.textContent = title;
+    showToast('Тур сохранён');
+}
+
+async function deleteTour(tourId) {
+    if (!confirm('Удалить тур со всеми вопросами?')) return;
+    await fetch(`/admin/tours/${tourId}`, {method: 'DELETE'});
+    document.querySelector(`[data-tour-id="${tourId}"]`).remove();
+    if (currentTourId === tourId) {
+        currentTourId = null;
+        showPlaceholder();
+    }
+}
+
+async function uploadTourSplash() {
+    const input = document.getElementById('tour-splash-input');
+    if (!input.files[0] || !currentTourId) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    const res = await fetch(`/admin/tours/${currentTourId}/upload-splash`, {method: 'POST', body: fd});
+    const data = await res.json();
+    if (data.path) {
+        document.getElementById('tour-splash-preview').innerHTML =
+            `<img src="${data.path}" class="max-h-32 rounded mt-2">`;
+    }
+}
+document.getElementById && document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('tour-splash-input')?.addEventListener('change', uploadTourSplash);
+});
+
+// ── Question ───────────────────────────────────────────────────
+async function addQuestion() {
+    if (!currentTourId) return;
+    const res = await fetch(`/admin/tours/${currentTourId}/questions`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question_type: 'text', answer_type: 'short_text'})
+    });
+    const q = await res.json();
+    appendQuestionToList(currentTourId, q);
+    selectQuestion(q.id);
+}
+
+function appendQuestionToList(tourId, q) {
+    const ul = document.getElementById(`questions-${tourId}`);
+    if (!ul) return;
+    const li = document.createElement('li');
+    li.className = 'question-item';
+    li.dataset.qId = q.id;
+    li.draggable = true;
+    const icons = {text:'📝',text_image:'🖼️',image_only:'🌄',audio:'🎵'};
+    li.innerHTML = `
+        <div class="flex items-center gap-1 p-1 rounded hover:bg-base-300 cursor-pointer group text-sm"
+             onclick="selectQuestion('${q.id}')">
+            <span class="cursor-grab text-base-content/30 text-xs">⠿</span>
+            <span class="flex-1 truncate text-xs q-label-${q.id}">${icons[q.question_type]||'📝'} ${(q.text||'(без текста)').substring(0,30)}</span>
+            <button onclick="event.stopPropagation(); deleteQuestion('${q.id}')"
+                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error">✕</button>
+        </div>`;
+    ul.appendChild(li);
+}
+
+async function selectQuestion(qId) {
+    currentQuestionId = qId;
+    const res = await fetch(`/admin/questions/${qId}`);
+    const q = await res.json();
+    document.getElementById('editor-placeholder').classList.add('hidden');
+    document.getElementById('tour-editor').classList.add('hidden');
+    document.getElementById('question-editor').classList.remove('hidden');
+
+    document.getElementById('q-type').value = q.question_type;
+    document.getElementById('q-answer-type').value = q.answer_type;
+    document.getElementById('q-time').value = q.time_seconds;
+    document.getElementById('q-points').value = q.points;
+    document.getElementById('q-text').value = q.text || '';
+    document.getElementById('q-correct').value = q.correct_answer || '';
+    document.getElementById('q-sound-mid-secs').value = q.sound_mid_seconds || '';
+
+    // Previews
+    document.getElementById('q-image-preview').innerHTML =
+        q.image_path ? `<img src="${q.image_path}" class="max-h-32 rounded">` : '';
+    document.getElementById('q-audio-preview').innerHTML =
+        q.audio_path ? `<audio controls src="${q.audio_path}" class="w-full mt-1"></audio>` : '';
+    document.getElementById('sound-start-preview').innerHTML =
+        q.sound_start_path ? `<audio controls src="${q.sound_start_path}" class="w-full"></audio>` : '';
+    document.getElementById('sound-mid-preview').innerHTML =
+        q.sound_mid_path ? `<audio controls src="${q.sound_mid_path}" class="w-full"></audio>` : '';
+    document.getElementById('sound-end-preview').innerHTML =
+        q.sound_end_path ? `<audio controls src="${q.sound_end_path}" class="w-full"></audio>` : '';
+
+    onQTypeChange();
+    onAnswerTypeChange();
+    await loadOptions(q);
+}
+
+function onQTypeChange() {
+    const type = document.getElementById('q-type').value;
+    document.getElementById('q-text-block').classList.toggle('hidden', type === 'image_only');
+    document.getElementById('q-image-block').classList.toggle('hidden', !['text_image','image_only'].includes(type));
+    document.getElementById('q-audio-block').classList.toggle('hidden', type !== 'audio');
+}
+
+function onAnswerTypeChange() {
+    const type = document.getElementById('q-answer-type').value;
+    document.getElementById('q-options-block').classList.toggle('hidden', !['single_choice','multiple_choice'].includes(type));
+    document.getElementById('q-matching-block').classList.toggle('hidden', type !== 'matching');
+    document.getElementById('q-correct-block').classList.toggle('hidden', ['single_choice','multiple_choice','matching'].includes(type));
+}
+
+async function loadOptions(q) {
+    const optsList = document.getElementById('options-list');
+    const matchList = document.getElementById('matching-list');
+    optsList.innerHTML = '';
+    matchList.innerHTML = '';
+
+    if (['single_choice','multiple_choice'].includes(q.answer_type)) {
+        for (const opt of q.answer_options) {
+            optsList.appendChild(createOptionEl(opt, q.answer_type));
+        }
+    }
+    if (q.answer_type === 'matching') {
+        for (const m of q.matching_items) {
+            matchList.appendChild(createMatchingEl(m));
+        }
+    }
+}
+
+function createOptionEl(opt, answerType) {
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2';
+    div.dataset.optId = opt.id;
+    const inputType = answerType === 'single_choice' ? 'radio' : 'checkbox';
+    div.innerHTML = `
+        <input type="${inputType}" name="correct_opt" ${opt.is_correct ? 'checked' : ''}
+               onchange="updateOption('${opt.id}', null, this.checked)" class="checkbox">
+        <input type="text" value="${opt.text}" class="input input-bordered input-sm flex-1"
+               onblur="updateOption('${opt.id}', this.value, null)">
+        <button onclick="deleteOption('${opt.id}', this)" class="btn btn-xs btn-ghost text-error">✕</button>`;
+    return div;
+}
+
+function createMatchingEl(m) {
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2';
+    div.dataset.matchId = m.id;
+    div.innerHTML = `
+        <input type="text" value="${m.left_text}" placeholder="Левый" class="input input-bordered input-sm flex-1"
+               onblur="updateMatching('${m.id}', this.value, null)">
+        <span>→</span>
+        <input type="text" value="${m.right_text}" placeholder="Правый" class="input input-bordered input-sm flex-1"
+               onblur="updateMatching('${m.id}', null, this.value)">
+        <button onclick="deleteMatching('${m.id}', this)" class="btn btn-xs btn-ghost text-error">✕</button>`;
+    return div;
+}
+
+async function addOption() {
+    if (!currentQuestionId) return;
+    const res = await fetch(`/admin/questions/${currentQuestionId}/options`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: 'Вариант', is_correct: false})
+    });
+    const opt = await res.json();
+    const answerType = document.getElementById('q-answer-type').value;
+    document.getElementById('options-list').appendChild(createOptionEl(opt, answerType));
+}
+
+async function updateOption(optId, text, isCorrect) {
+    const body = {};
+    if (text !== null) body.text = text;
+    if (isCorrect !== null) body.is_correct = isCorrect;
+    await fetch(`/admin/options/${optId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    });
+}
+
+async function deleteOption(optId, btn) {
+    await fetch(`/admin/options/${optId}`, {method: 'DELETE'});
+    btn.closest('[data-opt-id]').remove();
+}
+
+async function addMatchingItem() {
+    if (!currentQuestionId) return;
+    const res = await fetch(`/admin/questions/${currentQuestionId}/matching`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({left_text: '', right_text: ''})
+    });
+    const m = await res.json();
+    document.getElementById('matching-list').appendChild(createMatchingEl(m));
+}
+
+async function updateMatching(mId, leftText, rightText) {
+    const body = {};
+    if (leftText !== null) body.left_text = leftText;
+    if (rightText !== null) body.right_text = rightText;
+    await fetch(`/admin/matching/${mId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    });
+}
+
+async function deleteMatching(mId, btn) {
+    await fetch(`/admin/matching/${mId}`, {method: 'DELETE'});
+    btn.closest('[data-match-id]').remove();
+}
+
+async function saveQuestion() {
+    if (!currentQuestionId) return;
+    const body = {
+        question_type: document.getElementById('q-type').value,
+        answer_type: document.getElementById('q-answer-type').value,
+        text: document.getElementById('q-text').value,
+        time_seconds: parseInt(document.getElementById('q-time').value),
+        points: parseInt(document.getElementById('q-points').value),
+        correct_answer: document.getElementById('q-correct').value,
+        sound_mid_seconds: parseInt(document.getElementById('q-sound-mid-secs').value) || null,
+        auto_check: ['single_choice','multiple_choice'].includes(document.getElementById('q-answer-type').value),
+    };
+    await fetch(`/admin/questions/${currentQuestionId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    });
+    const label = document.querySelector(`.q-label-${currentQuestionId}`);
+    if (label) {
+        const icons = {text:'📝',text_image:'🖼️',image_only:'🌄',audio:'🎵'};
+        label.textContent = `${icons[body.question_type]||'📝'} ${(body.text||'(без текста)').substring(0,30)}`;
+    }
+
+    // Upload image/audio if new file selected
+    const imgInput = document.getElementById('q-image-input');
+    if (imgInput.files[0]) await uploadQuestionFile(imgInput.files[0], 'image');
+    const audInput = document.getElementById('q-audio-input');
+    if (audInput.files[0]) await uploadQuestionFile(audInput.files[0], 'audio');
+
+    showToast('Вопрос сохранён');
+}
+
+async function deleteQuestion(qId) {
+    if (!confirm('Удалить вопрос?')) return;
+    await fetch(`/admin/questions/${qId}`, {method: 'DELETE'});
+    document.querySelector(`[data-q-id="${qId}"]`).remove();
+    if (currentQuestionId === qId) { currentQuestionId = null; showPlaceholder(); }
+}
+
+async function uploadQuestionFile(file, type) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('type', type);
+    const res = await fetch(`/admin/questions/${currentQuestionId}/upload`, {method: 'POST', body: fd});
+    const data = await res.json();
+    if (type === 'image' && data.path)
+        document.getElementById('q-image-preview').innerHTML = `<img src="${data.path}" class="max-h-32 rounded">`;
+    if (type === 'audio' && data.path)
+        document.getElementById('q-audio-preview').innerHTML = `<audio controls src="${data.path}" class="w-full mt-1"></audio>`;
+}
+
+async function uploadSound(input, soundType) {
+    if (!input.files[0] || !currentQuestionId) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('type', soundType);
+    const res = await fetch(`/admin/questions/${currentQuestionId}/upload`, {method: 'POST', body: fd});
+    const data = await res.json();
+    if (data.path) {
+        document.getElementById(`${soundType}-preview`).innerHTML =
+            `<audio controls src="${data.path}" class="w-full"></audio>`;
+    }
+}
+
+function showPlaceholder() {
+    document.getElementById('editor-placeholder').classList.remove('hidden');
+    document.getElementById('tour-editor').classList.add('hidden');
+    document.getElementById('question-editor').classList.add('hidden');
+}
+
+function showToast(msg) {
+    const div = document.createElement('div');
+    div.className = 'toast toast-end';
+    div.innerHTML = `<div class="alert alert-success"><span>${msg}</span></div>`;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 2500);
+}
+</script>
+{% endblock %}

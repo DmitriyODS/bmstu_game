@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+{% block title %}{{ quiz.title }} — Бауманка.Квиз{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex flex-col items-center justify-center p-4" id="app">
+
+    <!-- SPLASH -->
+    <div id="screen-splash" class="text-center">
+        <h1 class="text-4xl font-bold mb-4">{{ quiz.title }}</h1>
+        {% if quiz.description %}
+        <p class="text-xl text-base-content/70 mb-8">{{ quiz.description }}</p>
+        {% endif %}
+        {% if team %}
+        <div class="badge badge-lg badge-primary">{{ team.name }}</div>
+        <p class="mt-4 text-base-content/60">Ожидайте начала...</p>
+        {% else %}
+        <p class="text-base-content/60">Ожидайте начала...</p>
+        {% endif %}
+    </div>
+
+    <!-- REGISTRATION -->
+    <div id="screen-registration" class="hidden w-full max-w-sm">
+        <h1 class="text-3xl font-bold text-center mb-6">{{ quiz.title }}</h1>
+        {% if team %}
+            {% if gs and gs.registration_open %}
+            <div class="card bg-base-100 shadow">
+                <div class="card-body text-center">
+                    <p class="text-lg mb-2">Ваша команда:</p>
+                    <div class="badge badge-lg badge-primary mb-4">{{ team.name }}</div>
+                    <form method="POST" action="/play/register">
+                        <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+                        <input type="text" name="name" class="input input-bordered w-full mb-3"
+                               value="{{ team.name }}" placeholder="Новое название">
+                        <button class="btn btn-outline btn-sm w-full">Изменить название</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="card bg-base-100 shadow text-center">
+                <div class="card-body">
+                    <div class="badge badge-lg badge-primary mb-2">{{ team.name }}</div>
+                    <p class="text-base-content/60">Ожидайте начала игры</p>
+                </div>
+            </div>
+            {% endif %}
+        {% else %}
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title justify-center">Регистрация</h2>
+                <form method="POST" action="/play/register">
+                    <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+                    <div class="form-control mb-4">
+                        <label class="label"><span class="label-text">Название команды</span></label>
+                        <input type="text" name="name" class="input input-bordered" required autofocus>
+                    </div>
+                    <button class="btn btn-primary w-full">Зарегистрироваться</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- TEAMS -->
+    <div id="screen-teams" class="hidden text-center">
+        <h2 class="text-3xl font-bold mb-4">Команды в игре</h2>
+        {% if team %}
+        <div class="badge badge-primary badge-lg">{{ team.name }}</div>
+        {% endif %}
+    </div>
+
+    <!-- TOUR SPLASH -->
+    <div id="screen-tour_splash" class="hidden text-center">
+        <div class="text-sm text-base-content/60 mb-2">Начинается</div>
+        <h2 class="text-4xl font-bold mb-4" id="tour-title">Тур</h2>
+        <p class="text-xl text-base-content/60">Готовьтесь!</p>
+    </div>
+
+    <!-- QUESTION -->
+    <div id="screen-question" class="hidden w-full max-w-lg">
+        <div class="flex justify-between items-center mb-4">
+            <div class="text-sm text-base-content/60" id="q-meta"></div>
+            <div class="text-3xl font-bold font-mono text-primary" id="timer">--</div>
+        </div>
+
+        <div class="card bg-base-100 shadow mb-4">
+            <div class="card-body">
+                <div id="q-image-area"></div>
+                <div id="q-audio-area"></div>
+                <p class="text-lg font-medium" id="q-text"></p>
+            </div>
+        </div>
+
+        <div id="answer-area" class="mb-4"></div>
+
+        <div id="answer-submitted" class="hidden">
+            <div class="alert alert-success">
+                <span>✅ Ответ принят! Вы можете изменить его, пока идёт таймер.</span>
+            </div>
+        </div>
+
+        <div id="timer-expired" class="hidden">
+            <div class="alert alert-warning">
+                <span>⏰ Время вышло. Ответы не принимаются.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUESTION ANSWER -->
+    <div id="screen-question_answer" class="hidden text-center w-full max-w-lg">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title justify-center text-success">Правильный ответ</h2>
+                <p class="text-2xl font-bold mt-2" id="correct-answer-text"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- WAITING -->
+    <div id="screen-waiting" class="hidden text-center">
+        <div class="loading loading-spinner loading-lg mb-4"></div>
+        <p class="text-xl text-base-content/60">Ожидайте следующего вопроса...</p>
+    </div>
+
+    <!-- TOUR RESULTS -->
+    <div id="screen-tour_results" class="hidden w-full max-w-md">
+        <h2 class="text-2xl font-bold text-center mb-4">Итоги тура</h2>
+        <div id="tour-results-content"></div>
+    </div>
+
+    <!-- GAME RESULTS -->
+    <div id="screen-game_results" class="hidden w-full max-w-md">
+        <h2 class="text-2xl font-bold text-center mb-4">🏆 Итоги игры</h2>
+        <div id="game-results-content"></div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const QUIZ_ID = '{{ quiz.id }}';
+const TEAM_ID = '{{ team.id if team else "" }}';
+const TEAM_NAME = '{{ team.name if team else "" }}';
+let currentQuestion = null;
+let timerExpired = false;
+
+const socket = io('/participant');
+
+function showScreen(name) {
+    document.querySelectorAll('[id^="screen-"]').forEach(el => el.classList.add('hidden'));
+    const el = document.getElementById(`screen-${name}`);
+    if (el) el.classList.remove('hidden');
+}
+
+socket.on('screen_changed', (data) => {
+    showScreen(data.screen);
+
+    if (data.screen === 'tour_splash' && data.tour) {
+        document.getElementById('tour-title').textContent = data.tour.title;
+    }
+
+    if (data.screen === 'question' && data.question) {
+        loadQuestion(data.question);
+    }
+
+    if (data.screen === 'question_answer' && data.question) {
+        showCorrectAnswer(data.question);
+    }
+
+    if (data.screen === 'tour_results' && data.scores) {
+        renderResults('tour-results-content', data.scores);
+    }
+
+    if (data.screen === 'game_results' && data.scores) {
+        renderResults('game-results-content', data.scores);
+    }
+});
+
+socket.on('timer_tick', (data) => {
+    const el = document.getElementById('timer');
+    if (el) {
+        el.textContent = data.remaining;
+        el.className = `text-3xl font-bold font-mono ${data.remaining <= 10 ? 'text-error' : 'text-primary'}`;
+    }
+    if (data.remaining === 0) {
+        timerExpired = true;
+        document.getElementById('timer-expired').classList.remove('hidden');
+        document.getElementById('answer-area').classList.add('opacity-50', 'pointer-events-none');
+    }
+});
+
+socket.on('timer_stopped', () => {
+    timerExpired = true;
+    document.getElementById('timer-expired')?.classList.remove('hidden');
+    document.getElementById('answer-area')?.classList.add('opacity-50', 'pointer-events-none');
+});
+
+socket.on('registration_opened', () => location.reload());
+socket.on('registration_closed', () => location.reload());
+socket.on('team_registered', () => {});
+
+function loadQuestion(q) {
+    currentQuestion = q;
+    timerExpired = false;
+    document.getElementById('answer-submitted').classList.add('hidden');
+    document.getElementById('timer-expired').classList.add('hidden');
+    document.getElementById('answer-area').classList.remove('opacity-50', 'pointer-events-none');
+    document.getElementById('timer').textContent = q.time_seconds;
+    document.getElementById('q-meta').textContent = `${q.points} балл(ов)`;
+
+    // Text
+    const textEl = document.getElementById('q-text');
+    textEl.textContent = q.text || '';
+    textEl.classList.toggle('hidden', q.question_type === 'image_only');
+
+    // Image
+    const imgArea = document.getElementById('q-image-area');
+    imgArea.innerHTML = '';
+    if (q.image_path) {
+        imgArea.innerHTML = `<img src="${q.image_path}" class="rounded max-h-48 mx-auto mb-3">`;
+    }
+
+    // Audio
+    const audArea = document.getElementById('q-audio-area');
+    audArea.innerHTML = '';
+    if (q.audio_path) {
+        audArea.innerHTML = `<audio controls autoplay src="${q.audio_path}" class="w-full mb-3"></audio>`;
+    }
+
+    // Sounds
+    if (q.sound_start_path) {
+        new Audio(q.sound_start_path).play().catch(() => {});
+    }
+
+    renderAnswerArea(q);
+}
+
+function renderAnswerArea(q) {
+    const area = document.getElementById('answer-area');
+    area.innerHTML = '';
+
+    if (q.answer_type === 'single_choice') {
+        q.answer_options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-outline w-full mb-2 text-left justify-start';
+            btn.textContent = opt.text;
+            btn.onclick = () => {
+                area.querySelectorAll('button').forEach(b => b.classList.remove('btn-primary'));
+                btn.classList.add('btn-primary');
+                submitAnswer({selected_options: [opt.id]});
+            };
+            area.appendChild(btn);
+        });
+    } else if (q.answer_type === 'multiple_choice') {
+        const selected = new Set();
+        q.answer_options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-outline w-full mb-2 text-left justify-start';
+            btn.textContent = opt.text;
+            btn.onclick = () => {
+                if (selected.has(opt.id)) { selected.delete(opt.id); btn.classList.remove('btn-primary'); }
+                else { selected.add(opt.id); btn.classList.add('btn-primary'); }
+                submitAnswer({selected_options: [...selected]});
+            };
+            area.appendChild(btn);
+        });
+    } else if (q.answer_type === 'short_text') {
+        area.innerHTML = `
+            <div class="flex gap-2">
+                <input type="text" id="text-answer" class="input input-bordered flex-1" placeholder="Ваш ответ..." maxlength="255">
+                <button onclick="submitText()" class="btn btn-primary">Отправить</button>
+            </div>`;
+    } else if (q.answer_type === 'long_text') {
+        area.innerHTML = `
+            <textarea id="text-answer" class="textarea textarea-bordered w-full mb-2" rows="4" placeholder="Ваш ответ..."></textarea>
+            <button onclick="submitText()" class="btn btn-primary w-full">Отправить</button>`;
+    } else if (q.answer_type === 'matching') {
+        renderMatching(q, area);
+    }
+}
+
+function renderMatching(q, area) {
+    const items = q.matching_items;
+    const rights = [...items].sort(() => Math.random() - 0.5);
+    let pairs = {};
+
+    area.innerHTML = `
+        <div class="grid grid-cols-2 gap-3">
+            <div id="left-col" class="flex flex-col gap-2"></div>
+            <div id="right-col" class="flex flex-col gap-2"></div>
+        </div>
+        <button onclick="submitMatching()" class="btn btn-primary w-full mt-3">Отправить</button>`;
+
+    const leftCol = area.querySelector('#left-col');
+    const rightCol = area.querySelector('#right-col');
+
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'p-2 bg-base-100 rounded border text-sm font-medium min-h-10 flex items-center';
+        div.textContent = item.left_text;
+        div.dataset.leftId = item.id;
+        leftCol.appendChild(div);
+    });
+
+    rights.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'p-2 bg-base-200 rounded border text-sm cursor-pointer min-h-10 flex items-center draggable-right';
+        div.textContent = item.right_text;
+        div.dataset.rightId = item.id;
+        div.draggable = true;
+        div.addEventListener('dragstart', e => e.dataTransfer.setData('rightId', item.id));
+        rightCol.appendChild(div);
+    });
+
+    leftCol.querySelectorAll('[data-left-id]').forEach(leftEl => {
+        leftEl.addEventListener('dragover', e => e.preventDefault());
+        leftEl.addEventListener('drop', e => {
+            const rightId = e.dataTransfer.getData('rightId');
+            pairs[leftEl.dataset.leftId] = rightId;
+            leftEl.dataset.pairedRight = rightId;
+            const rightEl = rightCol.querySelector(`[data-right-id="${rightId}"]`);
+            if (rightEl) {
+                leftEl.innerHTML = `<span>${leftEl.textContent}</span><span class="ml-auto text-primary text-xs">${rightEl.textContent}</span>`;
+                leftEl.classList.add('border-primary');
+            }
+        });
+    });
+
+    window._matchingPairs = pairs;
+}
+
+function submitMatching() {
+    const pairs = window._matchingPairs || {};
+    const matchingPairs = Object.entries(pairs).map(([leftId, rightId]) => ({left_id: leftId, right_id: rightId}));
+    submitAnswer({matching_pairs: matchingPairs});
+}
+
+function submitText() {
+    const el = document.getElementById('text-answer');
+    if (!el || !el.value.trim()) return;
+    submitAnswer({answer_text: el.value.trim()});
+}
+
+async function submitAnswer(answerData) {
+    if (timerExpired || !currentQuestion) return;
+    const res = await fetch('/play/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question_id: currentQuestion.id, ...answerData})
+    });
+    if (res.ok) {
+        document.getElementById('answer-submitted').classList.remove('hidden');
+    }
+}
+
+function showCorrectAnswer(q) {
+    const el = document.getElementById('correct-answer-text');
+    if (q.correct_answer) {
+        el.textContent = q.correct_answer;
+    } else if (q.answer_options) {
+        const correct = q.answer_options.filter(o => o.is_correct).map(o => o.text).join(', ');
+        el.textContent = correct || '—';
+    } else {
+        el.textContent = '—';
+    }
+}
+
+function renderResults(containerId, scores) {
+    const container = document.getElementById(containerId);
+    const myEntry = scores.find(s => s.team_id === TEAM_ID);
+    let html = '';
+    if (myEntry) {
+        html += `<div class="alert alert-info mb-4">
+            <span>🏅 Место: ${myEntry.place} | Баллы: ${myEntry.score}</span>
+        </div>`;
+    }
+    html += '<div class="flex flex-col gap-2">';
+    scores.forEach(s => {
+        const isMe = s.team_id === TEAM_ID;
+        html += `<div class="flex justify-between items-center p-3 rounded ${isMe ? 'bg-primary text-primary-content' : 'bg-base-100'}">
+            <span>${s.place}. ${s.team_name}</span>
+            <span class="font-bold">${s.score}</span>
+        </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Show initial screen
+{% if gs %}
+showScreen('{{ gs.current_screen }}');
+{% if gs.current_screen == 'registration' %}
+document.getElementById('screen-registration').classList.remove('hidden');
+{% endif %}
+{% else %}
+showScreen('splash');
+{% endif %}
+</script>
+{% endblock %}

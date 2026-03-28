@@ -1,0 +1,58 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Квизы — Бауманка.Квиз{% endblock %}
+
+{% block admin_content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold">Квизы</h1>
+    <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary">+ Новый квиз</a>
+</div>
+
+{% if quizzes %}
+<div class="grid gap-4">
+    {% for quiz in quizzes %}
+    <div class="card bg-base-100 shadow">
+        <div class="card-body flex-row items-center justify-between flex-wrap gap-4">
+            <div>
+                <h2 class="card-title">{{ quiz.title }}</h2>
+                <div class="flex gap-2 mt-1">
+                    <span class="badge {% if quiz.status == 'active' %}badge-success{% elif quiz.status == 'finished' %}badge-neutral{% else %}badge-ghost{% endif %}">
+                        {{ {'draft': 'Черновик', 'active': 'Активен', 'finished': 'Завершён'}.get(quiz.status, quiz.status) }}
+                    </span>
+                    {% if quiz.is_active %}
+                    <span class="badge badge-warning">▶ Запущен</span>
+                    {% endif %}
+                    <span class="badge badge-ghost">{{ quiz.tours|length }} туров</span>
+                    <span class="text-sm text-base-content/50">{{ quiz.created_at.strftime('%d.%m.%Y') }}</span>
+                </div>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+                <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">✏️ Редактировать</a>
+                {% if not quiz.is_active %}
+                <form method="POST" action="{{ url_for('admin.quiz_activate', quiz_id=quiz.id) }}" class="inline">
+                    <button class="btn btn-sm btn-success">▶ Активировать</button>
+                </form>
+                {% else %}
+                <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-sm btn-primary">🎮 Управление</a>
+                {% endif %}
+                <a href="{{ url_for('admin.teams', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">👥 Команды</a>
+                <a href="{{ url_for('admin.export_excel', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">📥 Excel</a>
+                <form method="POST" action="{{ url_for('admin.quiz_delete', quiz_id=quiz.id) }}"
+                      onsubmit="return confirm('Удалить квиз «{{ quiz.title }}»?')">
+                    <button class="btn btn-sm btn-error btn-outline">🗑️</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="hero min-h-64">
+    <div class="hero-content text-center">
+        <div>
+            <h2 class="text-2xl font-bold mb-4">Квизов пока нет</h2>
+            <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary">Создать первый квиз</a>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

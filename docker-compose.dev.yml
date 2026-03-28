@@ -1,0 +1,49 @@
+version: '3.9'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5000:5000"
+    env_file: .env
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    volumes:
+      - .:/app                                      # монтируем весь код
+      - uploads_data:/app/app/static/uploads        # сохраняем загрузки отдельно
+      - /app/node_modules                           # не затираем node_modules контейнера
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  tailwind:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npx tailwindcss -i ./app/static/css/input.css -o ./app/static/css/output.css --watch
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    env_file: .env
+    ports:
+      - "5432:5432"                                 # доступен напрямую с хоста
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads_data:

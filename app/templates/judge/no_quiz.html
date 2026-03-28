@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="min-h-screen flex items-center justify-center">
+    <div class="text-center">
+        <h1 class="text-3xl font-bold mb-4">⚖️ Проверка ответов</h1>
+        <p class="text-xl text-base-content/60">Нет активного квиза</p>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost mt-4">Выйти</a>
+    </div>
+</div>
+{% endblock %}

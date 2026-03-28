@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block title %}Проверка ответов — {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-4">
+    <div class="navbar bg-base-100 rounded-box shadow mb-4">
+        <div class="flex-1">
+            <span class="text-xl font-bold">⚖️ Проверка ответов</span>
+            <span class="text-sm text-base-content/60 ml-3">{{ quiz.title }}</span>
+        </div>
+        <div class="flex-none gap-2">
+            <!-- Mode toggle -->
+            <div class="join">
+                <button id="btn-tinder" onclick="setMode('tinder')" class="btn btn-sm join-item btn-primary">🃏 Карточки</button>
+                <button id="btn-table" onclick="setMode('table')" class="btn btn-sm join-item btn-outline">📊 Таблица</button>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost btn-sm">Выйти</a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-3 mb-4">
+        <select id="filter-tour" class="select select-bordered select-sm" onchange="onFilterChange()">
+            <option value="">Все туры</option>
+            {% for tour in tours %}
+            <option value="{{ tour.id }}">{{ tour.title }}</option>
+            {% endfor %}
+        </select>
+        <select id="filter-question" class="select select-bordered select-sm" onchange="onFilterChange()">
+            <option value="">Все вопросы</option>
+        </select>
+        <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="filter-unchecked" class="checkbox checkbox-sm" onchange="onFilterChange()">
+            <span class="text-sm">Только непроверенные</span>
+        </label>
+    </div>
+
+    <!-- TINDER MODE -->
+    <div id="mode-tinder">
+        <div id="card-container" class="flex justify-center">
+            <div id="card-placeholder" class="card w-full max-w-md bg-base-100 shadow-xl">
+                <div class="card-body text-center py-16">
+                    <div class="loading loading-spinner loading-lg mx-auto mb-4"></div>
+                    <p class="text-base-content/60">Загрузка...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABLE MODE -->
+    <div id="mode-table" class="hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra w-full" id="answers-table">
+                <thead>
+                    <tr>
+                        <th>Команда</th>
+                        <th>Вопрос</th>
+                        <th>Ответ</th>
+                        <th>Правильный</th>
+                        <th>Статус</th>
+                        <th>Баллы</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="answers-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for table cell edit -->
+<dialog id="answer-modal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4" id="modal-team"></h3>
+        <p class="text-sm text-base-content/60 mb-2" id="modal-question"></p>
+        <div class="bg-base-200 rounded p-3 mb-2">
+            <span class="text-xs text-base-content/60">Ответ команды:</span>
+            <p class="font-medium" id="modal-answer"></p>
+        </div>
+        <div class="bg-success/10 rounded p-3 mb-4">
+            <span class="text-xs text-base-content/60">Правильный ответ:</span>
+            <p class="font-medium text-success" id="modal-correct"></p>
+        </div>
+        <div class="flex gap-3 items-center mb-4">
+            <input type="number" id="modal-score" class="input input-bordered input-sm w-24" placeholder="Баллы">
+        </div>
+        <div class="flex gap-3">
+            <button onclick="modalCheck(true)" class="btn btn-success flex-1">✅ Верно</button>
+            <button onclick="modalCheck(false)" class="btn btn-error flex-1">❌ Неверно</button>
+            <button onclick="document.getElementById('answer-modal').close()" class="btn btn-ghost">Отмена</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let mode = localStorage.getItem('judge_mode') || 'tinder';
+let currentCard = null;
+let modalAnswerId = null;
+const socket = io('/judge');
+
+setMode(mode);
+
+function setMode(m) {
+    mode = m;
+    localStorage.setItem('judge_mode', m);
+    document.getElementById('mode-tinder').classList.toggle('hidden', m !== 'tinder');
+    document.getElementById('mode-table').classList.toggle('hidden', m !== 'table');
+    document.getElementById('btn-tinder').className = `btn btn-sm join-item ${m === 'tinder' ? 'btn-primary' : 'btn-outline'}`;
+    document.getElementById('btn-table').className = `btn btn-sm join-item ${m === 'table' ? 'btn-primary' : 'btn-outline'}`;
+    if (m === 'tinder') loadNextCard();
+    else loadTable();
+}
+
+function getFilters() {
+    return {
+        tour_id: document.getElementById('filter-tour').value,
+        question_id: document.getElementById('filter-question').value,
+        unchecked: document.getElementById('filter-unchecked').checked ? '1' : '0',
+    };
+}
+
+function onFilterChange() {
+    updateQuestionFilter();
+    if (mode === 'tinder') loadNextCard();
+    else loadTable();
+}
+
+async function updateQuestionFilter() {
+    const tourId = document.getElementById('filter-tour').value;
+    const sel = document.getElementById('filter-question');
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">Все вопросы</option>';
+    if (!tourId) return;
+    // Load questions for tour via existing quiz tours data
+    const res = await fetch(`/judge/answers?tour_id=${tourId}`);
+    const data = await res.json();
+    const seen = new Set();
+    data.answers.forEach(a => {
+        if (!seen.has(a.question_id)) {
+            seen.add(a.question_id);
+            sel.innerHTML += `<option value="${a.question_id}">${a.question_text}</option>`;
+        }
+    });
+    if ([...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
+}
+
+async function loadNextCard() {
+    const f = getFilters();
+    const params = new URLSearchParams(f);
+    const res = await fetch(`/judge/next-card?${params}`);
+    const data = await res.json();
+    currentCard = data.answer;
+    renderCard(currentCard);
+}
+
+function renderCard(answer) {
+    const container = document.getElementById('card-container');
+    if (!answer) {
+        container.innerHTML = `
+            <div class="card w-full max-w-md bg-base-100 shadow-xl">
+                <div class="card-body text-center py-16">
+                    <div class="text-5xl mb-4">✅</div>
+                    <p class="text-xl font-bold">Всё проверено!</p>
+                    <p class="text-base-content/60 mt-2">Нет ответов для проверки</p>
+                    <button onclick="loadNextCard()" class="btn btn-outline btn-sm mt-4">Обновить</button>
+                </div>
+            </div>`;
+        return;
+    }
+
+    const defaultScore = answer.question_points;
+    container.innerHTML = `
+        <div class="card w-full max-w-md bg-base-100 shadow-xl">
+            <div class="card-body">
+                <div class="text-sm text-base-content/60 mb-1">${answer.team_name}</div>
+                <p class="text-base font-medium mb-3">${answer.question_text}</p>
+                <div class="bg-base-200 rounded-lg p-4 mb-3 min-h-16">
+                    <span class="text-xs text-base-content/60">Ответ:</span>
+                    <p class="text-lg font-bold mt-1">${answer.answer_display || '(пусто)'}</p>
+                </div>
+                <div class="bg-success/10 border border-success/30 rounded-lg p-3 mb-4">
+                    <span class="text-xs text-success">Правильный ответ:</span>
+                    <p class="font-medium text-success">${answer.correct_answer || '—'}</p>
+                </div>
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="text-sm">Баллы:</span>
+                    <input type="number" id="card-score" value="${defaultScore}" min="0"
+                           class="input input-bordered input-sm w-24">
+                    <span class="text-xs text-base-content/50">макс. ${answer.question_points}</span>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="judgeCard(false)" class="btn btn-error flex-1">❌ Неверно</button>
+                    <button onclick="judgeCard(true)" class="btn btn-success flex-1">✅ Верно</button>
+                </div>
+            </div>
+        </div>`;
+}
+
+async function judgeCard(isCorrect) {
+    if (!currentCard) return;
+    const score = parseInt(document.getElementById('card-score')?.value ?? 0);
+    await fetch(`/judge/check/${currentCard.id}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({is_correct: isCorrect, score})
+    });
+    loadNextCard();
+}
+
+async function loadTable() {
+    const f = getFilters();
+    const params = new URLSearchParams(f);
+    const res = await fetch(`/judge/answers?${params}`);
+    const data = await res.json();
+    renderTable(data.answers);
+}
+
+function renderTable(answers) {
+    const tbody = document.getElementById('answers-tbody');
+    if (!answers.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-base-content/50">Нет ответов</td></tr>';
+        return;
+    }
+    tbody.innerHTML = answers.map(a => {
+        const statusBadge = a.is_correct === true
+            ? '<span class="badge badge-success">✓</span>'
+            : a.is_correct === false
+            ? '<span class="badge badge-error">✗</span>'
+            : '<span class="badge badge-ghost">?</span>';
+        return `<tr>
+            <td>${a.team_name}</td>
+            <td class="max-w-xs truncate text-sm">${a.question_text}</td>
+            <td class="max-w-xs truncate">${a.answer_display || ''}</td>
+            <td class="text-success text-sm">${a.correct_answer || '—'}</td>
+            <td>${statusBadge} ${a.auto_checked ? '<span class="badge badge-xs badge-outline">авто</span>' : ''}</td>
+            <td>${a.score}</td>
+            <td><button onclick="openModal(${JSON.stringify(a).replace(/"/g,'&quot;')})" class="btn btn-xs btn-outline">Изменить</button></td>
+        </tr>`;
+    }).join('');
+}
+
+function openModal(answer) {
+    modalAnswerId = answer.id;
+    document.getElementById('modal-team').textContent = answer.team_name;
+    document.getElementById('modal-question').textContent = answer.question_text;
+    document.getElementById('modal-answer').textContent = answer.answer_display || '(пусто)';
+    document.getElementById('modal-correct').textContent = answer.correct_answer || '—';
+    document.getElementById('modal-score').value = answer.score ?? answer.question_points;
+    document.getElementById('answer-modal').showModal();
+}
+
+async function modalCheck(isCorrect) {
+    if (!modalAnswerId) return;
+    const score = parseInt(document.getElementById('modal-score').value ?? 0);
+    await fetch(`/judge/check/${modalAnswerId}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({is_correct: isCorrect, score})
+    });
+    document.getElementById('answer-modal').close();
+    loadTable();
+}
+
+socket.on('answer_checked', () => {
+    if (mode === 'table') loadTable();
+});
+</script>
+{% endblock %}
