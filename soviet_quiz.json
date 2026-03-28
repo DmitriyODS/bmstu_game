@@ -1,0 +1,488 @@
+{
+  "title": "Советские мультики и фильмы",
+  "description": "Три тура по мотивам советской анимации и кинематографа",
+  "tours": [
+    {
+      "title": "Тур 1: Мультфильмы",
+      "order": 0,
+      "questions": [
+        {
+          "order": 0,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Из какого мультфильма этот персонаж?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/8/8d/Cheburashka.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Крокодил Гена", "is_correct": true, "order": 0},
+            {"text": "Ну, погоди!", "is_correct": false, "order": 1},
+            {"text": "Простоквашино", "is_correct": false, "order": 2},
+            {"text": "Маугли", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 1,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Как зовут этого персонажа?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/3/38/Nu_pogodi.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Волк и Заяц", "is_correct": true, "order": 0},
+            {"text": "Ёжик в тумане", "is_correct": false, "order": 1},
+            {"text": "Чебурашка", "is_correct": false, "order": 2},
+            {"text": "Винни-Пух", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 2,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Кто написал оригинальную сказку, по которой снят этот мультфильм?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/2/2a/Soyuzmult_Snezhnaya_Koroleva_1957.jpg",
+          "time_seconds": 40,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Ганс Христиан Андерсен", "is_correct": true, "order": 0},
+            {"text": "Братья Гримм", "is_correct": false, "order": 1},
+            {"text": "Шарль Перро", "is_correct": false, "order": 2},
+            {"text": "Александр Пушкин", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 3,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "В каком году вышел мультфильм «Ёжик в тумане»?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/a/a2/Hedgehog_in_the_fog.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "1975", "is_correct": true, "order": 0},
+            {"text": "1969", "is_correct": false, "order": 1},
+            {"text": "1981", "is_correct": false, "order": 2},
+            {"text": "1963", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 4,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Кто является режиссёром мультфильма «Ёжик в тумане»?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Yuri_Norstein_2010.jpg/440px-Yuri_Norstein_2010.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Юрий Норштейн", "is_correct": true, "order": 0},
+            {"text": "Фёдор Хитрук", "is_correct": false, "order": 1},
+            {"text": "Роман Качанов", "is_correct": false, "order": 2},
+            {"text": "Вячеслав Котёночкин", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 5,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Откуда родом кот Матроскин?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/1/1f/Prostokwashino.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Простоквашино", "is_correct": true, "order": 0},
+            {"text": "Москва", "is_correct": false, "order": 1},
+            {"text": "Ленинград", "is_correct": false, "order": 2},
+            {"text": "Усатово", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 6,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Сколько серий в оригинальном мультфильме «Ну, погоди!» (1969–1993)?",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "18", "is_correct": true, "order": 0},
+            {"text": "12", "is_correct": false, "order": 1},
+            {"text": "24", "is_correct": false, "order": 2},
+            {"text": "20", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 7,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Какое животное является другом Малыша в советском мультфильме?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/2/27/Malysh_i_Karlson.jpg",
+          "time_seconds": 25,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Карлсон — человечек с пропеллером", "is_correct": true, "order": 0},
+            {"text": "Медведь", "is_correct": false, "order": 1},
+            {"text": "Кот", "is_correct": false, "order": 2},
+            {"text": "Собака", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 8,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте мультфильм с его главным персонажем",
+          "time_seconds": 50,
+          "points": 2,
+          "auto_check": false,
+          "matching_items": [
+            {"left_text": "Крокодил Гена", "right_text": "Чебурашка", "order": 0},
+            {"left_text": "Простоквашино", "right_text": "Кот Матроскин", "order": 1},
+            {"left_text": "Ну, погоди!", "right_text": "Волк и Заяц", "order": 2},
+            {"left_text": "Маугли", "right_text": "Шер-Хан", "order": 3}
+          ]
+        },
+        {
+          "order": 9,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Как называется студия, выпустившая большинство советских мультфильмов?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Soyuzmultfilm_logo.svg/800px-Soyuzmultfilm_logo.svg.png",
+          "time_seconds": 25,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Союзмультфильм", "is_correct": true, "order": 0},
+            {"text": "Мосфильм", "is_correct": false, "order": 1},
+            {"text": "Пилот", "is_correct": false, "order": 2},
+            {"text": "Ленфильм", "is_correct": false, "order": 3}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Тур 2: Советское кино",
+      "order": 1,
+      "questions": [
+        {
+          "order": 0,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Как называется этот знаменитый советский фильм?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/9/9c/Irony_of_fate_poster.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Ирония судьбы, или С лёгким паром!", "is_correct": true, "order": 0},
+            {"text": "Москва слезам не верит", "is_correct": false, "order": 1},
+            {"text": "Служебный роман", "is_correct": false, "order": 2},
+            {"text": "Джентльмены удачи", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 1,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Кто режиссёр фильма «Москва слезам не верит»?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/b/b7/Moscow_Does_Not_Believe_in_Tears_poster.jpg",
+          "time_seconds": 35,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Владимир Меньшов", "is_correct": true, "order": 0},
+            {"text": "Эльдар Рязанов", "is_correct": false, "order": 1},
+            {"text": "Георгий Данелия", "is_correct": false, "order": 2},
+            {"text": "Леонид Гайдай", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 2,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "В каком году вышел фильм «Кавказская пленница»?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/1/17/Kavkazskaya_plennitsa.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "1967", "is_correct": true, "order": 0},
+            {"text": "1961", "is_correct": false, "order": 1},
+            {"text": "1971", "is_correct": false, "order": 2},
+            {"text": "1965", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 3,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Как зовут главного героя этого фильма?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/1/10/White_sun_of_the_desert.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Фёдор Сухов", "is_correct": true, "order": 0},
+            {"text": "Иван Варавва", "is_correct": false, "order": 1},
+            {"text": "Семён Семёнович", "is_correct": false, "order": 2},
+            {"text": "Афоня", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 4,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Фильм «Бриллиантовая рука» снял режиссёр...",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/a/af/Brilliantovaya_ruka.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Леонид Гайдай", "is_correct": true, "order": 0},
+            {"text": "Эльдар Рязанов", "is_correct": false, "order": 1},
+            {"text": "Владимир Меньшов", "is_correct": false, "order": 2},
+            {"text": "Георгий Данелия", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 5,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Как называется этот фильм с Юрием Никулиным?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/c/cc/Operation_Y_poster.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Операция «Ы» и другие приключения Шурика", "is_correct": true, "order": 0},
+            {"text": "Кавказская пленница", "is_correct": false, "order": 1},
+            {"text": "Бриллиантовая рука", "is_correct": false, "order": 2},
+            {"text": "Иван Васильевич меняет профессию", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 6,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Фильм «Москва слезам не верит» получил премию...",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Оскар", "is_correct": true, "order": 0},
+            {"text": "Золотая пальмовая ветвь", "is_correct": false, "order": 1},
+            {"text": "Золотой глобус", "is_correct": false, "order": 2},
+            {"text": "BAFTA", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 7,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Что ищут герои этого фильма?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/2/25/Ivan_Vasilievich_poster.jpg",
+          "time_seconds": 35,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Машину времени", "is_correct": true, "order": 0},
+            {"text": "Клад", "is_correct": false, "order": 1},
+            {"text": "Бриллианты", "is_correct": false, "order": 2},
+            {"text": "Невесту", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 8,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте фильм с годом выхода",
+          "time_seconds": 50,
+          "points": 2,
+          "auto_check": false,
+          "matching_items": [
+            {"left_text": "Ирония судьбы", "right_text": "1975", "order": 0},
+            {"left_text": "Кавказская пленница", "right_text": "1967", "order": 1},
+            {"left_text": "Бриллиантовая рука", "right_text": "1969", "order": 2},
+            {"left_text": "Москва слезам не верит", "right_text": "1980", "order": 3}
+          ]
+        },
+        {
+          "order": 9,
+          "question_type": "text_image",
+          "answer_type": "short_text",
+          "text": "Назовите актёра, сыгравшего Шурика в фильмах Гайдая",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/5/52/Aleksandr_Demyanenko_in_Kavkazskaya_plennitsa.jpg",
+          "time_seconds": 40,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "Александр Демьяненко"
+        }
+      ]
+    },
+    {
+      "title": "Тур 3: Знатоки и эрудиты",
+      "order": 2,
+      "questions": [
+        {
+          "order": 0,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Какой мультфильм считается первым советским полнометражным цветным?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/5/55/Konyok-Gorbunok_1947.jpg",
+          "time_seconds": 35,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Конёк-Горбунок (1947)", "is_correct": true, "order": 0},
+            {"text": "Снежная королева (1957)", "is_correct": false, "order": 1},
+            {"text": "Аленький цветочек (1952)", "is_correct": false, "order": 2},
+            {"text": "Сказка о царе Салтане (1966)", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 1,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Кто озвучивал Волка в мультфильме «Ну, погоди!»?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/3/38/Nu_pogodi.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Анатолий Папанов", "is_correct": true, "order": 0},
+            {"text": "Юрий Никулин", "is_correct": false, "order": 1},
+            {"text": "Евгений Леонов", "is_correct": false, "order": 2},
+            {"text": "Олег Табаков", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 2,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Какой советский фильм первым показал открытый космос (съёмки на орбите)?",
+          "time_seconds": 40,
+          "points": 2,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "«Москва — Кассиопея» (1973)", "is_correct": false, "order": 0},
+            {"text": "«Возвращение с орбиты» (1984)", "is_correct": true, "order": 1},
+            {"text": "«Укрощение огня» (1972)", "is_correct": false, "order": 2},
+            {"text": "«Поехали!» (1961)", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 3,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "По произведениям какого автора снят этот мультфильм?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/0/04/Vini_Pukh_1969.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Алан Александр Милн", "is_correct": true, "order": 0},
+            {"text": "Редьярд Киплинг", "is_correct": false, "order": 1},
+            {"text": "Льюис Кэрролл", "is_correct": false, "order": 2},
+            {"text": "Корней Чуковский", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 4,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Как называется этот фильм о советских спортсменах?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/a/a4/Mimino_poster.jpg",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Мимино", "is_correct": true, "order": 0},
+            {"text": "Кин-дза-дза", "is_correct": false, "order": 1},
+            {"text": "Афоня", "is_correct": false, "order": 2},
+            {"text": "Осенний марафон", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 5,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Кто написал музыку к мультфильму «Крокодил Гена»?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/8/8d/Cheburashka.jpg",
+          "time_seconds": 35,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Владимир Шаинский", "is_correct": true, "order": 0},
+            {"text": "Микаэл Таривердиев", "is_correct": false, "order": 1},
+            {"text": "Александр Зацепин", "is_correct": false, "order": 2},
+            {"text": "Геннадий Гладков", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "order": 6,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Какие из этих фильмов снял Эльдар Рязанов? (выберите все верные)",
+          "time_seconds": 40,
+          "points": 2,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Ирония судьбы", "is_correct": true, "order": 0},
+            {"text": "Служебный роман", "is_correct": true, "order": 1},
+            {"text": "Кавказская пленница", "is_correct": false, "order": 2},
+            {"text": "Берегись автомобиля", "is_correct": true, "order": 3},
+            {"text": "Бриллиантовая рука", "is_correct": false, "order": 4}
+          ]
+        },
+        {
+          "order": 7,
+          "question_type": "text_image",
+          "answer_type": "short_text",
+          "text": "Назовите планету, на которой оказываются герои этого фильма",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/f/f8/Kin-dza-dza.jpg",
+          "time_seconds": 35,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "Плюк"
+        },
+        {
+          "order": 8,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте персонажа с мультфильмом",
+          "time_seconds": 50,
+          "points": 2,
+          "auto_check": false,
+          "matching_items": [
+            {"left_text": "Дядя Фёдор", "right_text": "Простоквашино", "order": 0},
+            {"left_text": "Карлсон", "right_text": "Малыш и Карлсон", "order": 1},
+            {"left_text": "Умка", "right_text": "Умка", "order": 2},
+            {"left_text": "Мальчик-с-пальчик", "right_text": "Дюймовочка", "order": 3}
+          ]
+        },
+        {
+          "order": 9,
+          "question_type": "text_image",
+          "answer_type": "single_choice",
+          "text": "Этот советский фантастический фильм снят по роману братьев Стругацких. Как он называется?",
+          "image_path": "https://upload.wikimedia.org/wikipedia/ru/2/2c/Stalker_1979_film_poster.jpg",
+          "time_seconds": 35,
+          "points": 1,
+          "auto_check": true,
+          "answer_options": [
+            {"text": "Сталкер", "is_correct": true, "order": 0},
+            {"text": "Солярис", "is_correct": false, "order": 1},
+            {"text": "Москва — Кассиопея", "is_correct": false, "order": 2},
+            {"text": "Через тернии к звёздам", "is_correct": false, "order": 3}
+          ]
+        }
+      ]
+    }
+  ]
+}

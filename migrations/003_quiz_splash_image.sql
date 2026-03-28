@@ -1,0 +1,1 @@
+ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS splash_image VARCHAR(512);

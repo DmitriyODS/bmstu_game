@@ -4,19 +4,34 @@
 {% block head %}
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { overflow: hidden; background: #fff; }
+body { overflow: hidden; background: #f8fafc; }
+
+/* ── Palette ──────────────────────────────────────────────────────── */
+:root {
+    --c-primary:   #006CDC;
+    --c-secondary: #8C2CFF;
+    --c-accent:    #FF5B9A;
+    --c-bg:        #f8fafc;
+    --c-card:      #ffffff;
+    --c-border:    #e2e8f0;
+    --c-text:      #111827;
+    --c-muted:     #64748b;
+    --c-shadow:    0 2px 12px rgba(0,0,0,0.08);
+    --c-shadow-lg: 0 4px 24px rgba(0,0,0,0.10);
+}
 
 #pres-app {
     width: 100vw;
     height: 100vh;
-    background: #ffffff;
-    color: #111827;
+    background: var(--c-bg);
+    color: var(--c-text);
     font-family: inherit;
     position: relative;
     overflow: hidden;
 }
 
-/* ── Base screen ── */
+
+/* ── Base screen ──────────────────────────────────────────────────── */
 .pres-screen {
     position: absolute;
     inset: 0;
@@ -24,161 +39,189 @@ body { overflow: hidden; background: #fff; }
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 3.5rem;
+    padding: 3rem;
 }
 .pres-screen.active { display: flex; }
 
-/* ── Card ── */
-.p-card {
-    background: #f1f5f9;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 1.25rem;
+/* ── Card / Island ────────────────────────────────────────────────── */
+.island {
+    background: var(--c-card);
+    border: 1.5px solid var(--c-border);
+    border-radius: 1.5rem;
+    box-shadow: var(--c-shadow);
 }
 
-/* ── QUESTION ── */
+/* ── QUESTION ─────────────────────────────────────────────────────── */
 #screen-question {
     justify-content: flex-start;
-    padding: 2.25rem 3.5rem 8.5rem;
+    padding: 2rem 3rem 7rem;
     align-items: stretch;
+    gap: 1.5rem;
 }
 .q-topbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2rem;
+    gap: 1rem;
 }
 #q-meta-pres {
-    font-size: 1.4rem;
-    color: #64748b;
+    font-size: 1.75rem;
+    color: var(--c-muted);
     font-weight: 600;
+    background: var(--c-card);
+    border: 1.5px solid var(--c-border);
+    border-radius: 1rem;
+    padding: 0.5rem 1.5rem;
+    box-shadow: var(--c-shadow);
 }
 #timer-pres {
-    font-size: clamp(4.5rem, 9vw, 7.5rem);
+    font-size: clamp(4rem, 8vw, 7rem);
     font-weight: 900;
     font-variant-numeric: tabular-nums;
-    color: #f59e0b;
+    color: #fff;
+    background: var(--c-primary);
+    border-radius: 1.25rem;
+    padding: 0.2rem 1.25rem;
     line-height: 1;
     min-width: 3ch;
-    text-align: right;
+    text-align: center;
+    transition: background 0.4s;
+    box-shadow: var(--c-shadow);
 }
+#timer-pres.danger { background: #ef4444; }
+
 #q-text-pres {
-    font-size: clamp(2rem, 4.2vw, 3.5rem);
+    font-size: clamp(2.5rem, 5vw, 4.75rem);
     font-weight: 700;
-    color: #111827;
+    color: var(--c-text);
     line-height: 1.25;
-    margin-bottom: 2rem;
+    padding: 2rem 2.5rem;
+    background: var(--c-card);
+    border: 1.5px solid var(--c-border);
+    border-radius: 1.5rem;
+    text-align: center;
+    box-shadow: var(--c-shadow);
 }
 #q-image-pres img {
-    max-height: 32vh;
+    max-height: 34vh;
     max-width: 100%;
     border-radius: 1rem;
     object-fit: contain;
-    margin-bottom: 1.75rem;
     display: block;
-    margin-left: auto;
-    margin-right: auto;
+    margin: 0 auto 1rem;
 }
 #q-options-pres {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    gap: 1.25rem;
 }
 .opt-tile {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    background: #ffffff;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 1rem;
-    padding: 1.25rem 1.75rem;
-    font-size: clamp(1.2rem, 2.2vw, 1.65rem);
+    gap: 1.25rem;
+    border-radius: 1.25rem;
+    padding: 1.5rem 2rem;
+    font-size: clamp(1.5rem, 2.8vw, 2.5rem);
     font-weight: 700;
-    color: #111827;
-    min-height: 5.5rem;
+    color: #fff;
+    min-height: 7rem;
+    box-shadow: var(--c-shadow);
 }
+.opt-tile:nth-child(4n+1) { background: var(--c-primary); }
+.opt-tile:nth-child(4n+2) { background: var(--c-secondary); }
+.opt-tile:nth-child(4n+3) { background: var(--c-accent); }
+.opt-tile:nth-child(4n+4) { background: #059669; }
 .opt-letter {
-    font-size: 1.5rem;
+    font-size: clamp(1.5rem, 2.8vw, 2.5rem);
     font-weight: 900;
-    color: #94a3b8;
-    min-width: 1.8rem;
+    opacity: 0.6;
+    min-width: 2rem;
+    flex-shrink: 0;
 }
 
-/* ── QUESTION ANSWER ── */
-#screen-question_answer { text-align: center; }
+/* ── QUESTION ANSWER ──────────────────────────────────────────────── */
+#screen-question_answer {
+    text-align: center;
+    gap: 1.5rem;
+}
 #q-text-answer-pres {
-    font-size: clamp(1.2rem, 2.2vw, 1.6rem);
-    color: #64748b;
-    margin-bottom: 1.25rem;
+    font-size: clamp(1.5rem, 2.8vw, 2.5rem);
+    color: var(--c-muted);
     max-width: 72vw;
     line-height: 1.4;
+    background: var(--c-card);
+    border: 1.5px solid var(--c-border);
+    border-radius: 1.5rem;
+    padding: 1.25rem 2rem;
 }
 .answer-label {
-    font-size: clamp(1.4rem, 2.8vw, 2rem);
-    font-weight: 700;
-    color: #f59e0b;
-    margin-bottom: 1rem;
+    font-size: clamp(1.2rem, 2.2vw, 1.75rem);
+    font-weight: 800;
+    color: var(--c-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
 }
 #correct-answer-pres {
-    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-size: clamp(3rem, 7vw, 6rem);
     font-weight: 900;
-    color: #111827;
+    color: var(--c-text);
 }
 #correct-options-pres {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    gap: 1.25rem;
     width: 100%;
-    max-width: 75vw;
-    margin-top: 2rem;
+    max-width: 80vw;
 }
 
-/* ── REGISTRATION ── */
+/* ── REGISTRATION ─────────────────────────────────────────────────── */
 #screen-registration {
-    padding: 3rem 4rem;
+    padding: 2.5rem 3.5rem;
     align-items: stretch;
 }
 .reg-layout {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 5rem;
+    gap: 4rem;
     align-items: start;
     width: 100%;
     max-width: 1200px;
     margin: auto;
 }
 #teams-list {
-    max-height: 60vh;
+    max-height: 65vh;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.75rem;
 }
 .team-reg-card {
-    background: #f1f5f9;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 0.85rem;
-    padding: 0.8rem 1.25rem;
-    font-size: 1.4rem;
+    background: var(--c-card);
+    border: 1.5px solid var(--c-border);
+    border-radius: 1rem;
+    padding: 1rem 1.5rem;
+    font-size: 1.9rem;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--c-text);
+    box-shadow: var(--c-shadow);
 }
 
-/* ── TEAMS GRID ── */
+/* ── TEAMS GRID ───────────────────────────────────────────────────── */
 #all-teams-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
     width: 100%;
-    max-width: 1100px;
+    max-width: 1200px;
 }
 
-/* ── RESULTS ── */
+/* ── RESULTS ──────────────────────────────────────────────────────── */
 .results-list {
     width: 100%;
-    max-width: 900px;
+    max-width: 1000px;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
     max-height: 72vh;
     overflow-y: auto;
 }
@@ -186,22 +229,25 @@ body { overflow: hidden; background: #fff; }
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-radius: 1rem;
-    padding: 1.1rem 2rem;
-    font-size: clamp(1.3rem, 2.5vw, 1.75rem);
+    border-radius: 1.25rem;
+    padding: 1.25rem 2.25rem;
+    font-size: clamp(1.5rem, 2.8vw, 2.25rem);
     font-weight: 600;
-    color: #111827;
+    color: var(--c-text);
+    background: var(--c-card);
+    box-shadow: var(--c-shadow);
 }
 
-/* ── TOUR SPLASH ── */
+/* ── TOUR SPLASH ──────────────────────────────────────────────────── */
 #screen-tour_splash { position: absolute; }
 #tour-splash-bg {
     display: none;
     position: absolute;
     inset: 0;
-    background-size: cover;
+    background-size: contain;
     background-position: center;
-    opacity: 0.12;
+    background-repeat: no-repeat;
+    background-color: #000;
     z-index: 0;
 }
 #screen-tour_splash > .tour-splash-content {
@@ -210,24 +256,24 @@ body { overflow: hidden; background: #fff; }
     text-align: center;
 }
 
-/* ── WAITING ── */
+/* ── WAITING ──────────────────────────────────────────────────────── */
 .pres-spinner {
     width: 5rem; height: 5rem;
-    border: 5px solid #e2e8f0;
-    border-top-color: #006CDC;
+    border: 5px solid var(--c-border);
+    border-top-color: var(--c-primary);
     border-radius: 50%;
     animation: spin 0.85s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── ANSWERS PANEL ── */
+/* ── ANSWERS PANEL ────────────────────────────────────────────────── */
 #answers-panel {
     position: absolute;
     bottom: 0; left: 0; right: 0;
     z-index: 50;
-    background: rgba(255,255,255,0.92);
+    background: rgba(255,255,255,0.96);
     backdrop-filter: blur(16px);
-    border-top: 2px solid #e2e8f0;
+    border-top: 1.5px solid var(--c-border);
     padding: 0.85rem 2.5rem 1rem;
     transform: translateY(100%);
     transition: transform 0.35s cubic-bezier(.4,0,.2,1);
@@ -240,33 +286,67 @@ body { overflow: hidden; background: #fff; }
     margin-bottom: 0.55rem;
 }
 .ap-label {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.09em;
-    color: #94a3b8;
+    color: var(--c-muted);
 }
-.ap-count { font-size: 1.35rem; font-weight: 900; color: #16a34a; }
-.ap-total { font-size: 0.95rem; color: #94a3b8; }
+.ap-count { font-size: 1.35rem; font-weight: 900; color: var(--c-primary); }
+.ap-total { font-size: 0.95rem; color: var(--c-muted); }
 #answers-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .answered-chip {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    background: #f0fdf4;
-    border: 1.5px solid #86efac;
+    background: #eff6ff;
+    border: 1.5px solid #93c5fd;
     border-radius: 2rem;
     padding: 0.2rem 0.8rem 0.2rem 0.55rem;
     font-size: 1rem;
     font-weight: 700;
-    color: #166534;
+    color: #1d4ed8;
     animation: chipIn 0.3s cubic-bezier(.4,0,.2,1);
 }
-.chip-check { font-size: 14px; color: #16a34a; }
+.chip-check { font-size: 14px; color: var(--c-primary); }
 @keyframes chipIn {
     from { opacity: 0; transform: scale(0.65) translateY(6px); }
     to   { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+/* ── IMAGE-ONLY QUESTION ──────────────────────────────────────────── */
+#screen-question.image-only-mode {
+    padding: 0;
+    background: #000;
+}
+#screen-question.image-only-mode #q-image-pres {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#screen-question.image-only-mode #q-image-pres img {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    margin: 0;
+    object-fit: contain;
+}
+#screen-question.image-only-mode .q-topbar {
+    position: absolute;
+    top: 1.5rem;
+    right: 2rem;
+    left: auto;
+    z-index: 10;
+    margin: 0;
+}
+#screen-question.image-only-mode #q-meta-pres { display: none !important; }
+#screen-question.image-only-mode #q-text-pres,
+#screen-question.image-only-mode #q-audio-pres,
+#screen-question.image-only-mode #q-options-pres { display: none !important; }
 </style>
 {% endblock %}
 
@@ -275,15 +355,20 @@ body { overflow: hidden; background: #fff; }
 
     <!-- SPLASH -->
     <div id="screen-splash" class="pres-screen text-center">
+        {% if quiz.splash_image %}
+        <img src="{{ quiz.splash_image }}" alt=""
+             style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;border-radius:0;">
+        {% else %}
         <img src="{{ url_for('static', filename='img/logo.svg') }}" alt=""
-             style="height:5.5rem;margin-bottom:2.5rem;opacity:0.9;">
-        <h1 style="font-size:clamp(3rem,7vw,5.5rem);font-weight:900;color:#111827;line-height:1.1;margin-bottom:1.5rem;">
+             style="height:9rem;margin-bottom:3rem;opacity:0.7;">
+        <h1 style="font-size:clamp(4.5rem,10vw,8rem);font-weight:900;color:#111827;line-height:1.05;margin-bottom:2rem;">
             {{ quiz.title }}
         </h1>
         {% if quiz.description %}
-        <p style="font-size:clamp(1.25rem,2.5vw,1.9rem);color:#64748b;max-width:60vw;">
+        <p style="font-size:clamp(1.75rem,3.5vw,2.75rem);color:#64748b;max-width:70vw;">
             {{ quiz.description }}
         </p>
+        {% endif %}
         {% endif %}
     </div>
 
@@ -291,20 +376,20 @@ body { overflow: hidden; background: #fff; }
     <div id="screen-registration" class="pres-screen" style="display:none">
         <div class="reg-layout">
             <div style="text-align:center;flex-shrink:0;">
-                <p style="font-size:1.4rem;font-weight:700;color:#64748b;margin-bottom:1.5rem;">
+                <p style="font-size:1.6rem;font-weight:700;color:#64748b;margin-bottom:1.5rem;">
                     Сканируйте для участия
                 </p>
-                <div style="background:#fff;border:2px solid #e2e8f0;padding:1rem;border-radius:1.5rem;display:inline-block;">
-                    <img src="/api/qr/{{ quiz.id }}" style="width:280px;height:280px;" alt="QR">
+                <div style="background:#fff;border:1.5px solid #e2e8f0;padding:1.25rem;border-radius:1.5rem;display:inline-block;box-shadow:0 4px 16px rgba(0,0,0,0.08);">
+                    <img src="/api/qr/{{ quiz.id }}" style="width:500px;height:500px;" alt="QR">
                 </div>
-                <p style="margin-top:1rem;font-size:1.2rem;color:#94a3b8;font-family:monospace;">
+                <p style="margin-top:1rem;font-size:1.4rem;color:#64748b;font-family:monospace;">
                     /play/{{ quiz.id }}
                 </p>
             </div>
             <div>
-                <h3 style="font-size:clamp(1.75rem,3vw,2.5rem);font-weight:800;color:#111827;margin-bottom:1.25rem;">
+                <h3 style="font-size:clamp(2rem,3.5vw,3rem);font-weight:800;color:#111827;margin-bottom:1.25rem;">
                     Команды
-                    <span style="color:#94a3b8;font-weight:500;font-size:0.8em;">
+                    <span style="color:#64748b;font-weight:500;font-size:0.8em;">
                         (<span id="teams-count">{{ teams|length }}</span>)
                     </span>
                 </h3>
@@ -322,7 +407,7 @@ body { overflow: hidden; background: #fff; }
         <h2 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;color:#111827;margin-bottom:2rem;">Команды</h2>
         <div id="all-teams-grid">
             {% for team in teams %}
-            <div class="p-card" style="padding:1.1rem 1.75rem;font-size:1.5rem;font-weight:700;text-align:center;color:#1e293b;">
+            <div class="island" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">
                 {{ team.name }}
             </div>
             {% endfor %}
@@ -333,7 +418,7 @@ body { overflow: hidden; background: #fff; }
     <div id="screen-tour_splash" class="pres-screen text-center" style="display:none;">
         <div id="tour-splash-bg"></div>
         <div class="tour-splash-content">
-            <p style="font-size:clamp(1.1rem,2vw,1.5rem);font-weight:700;color:#94a3b8;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:0.75rem;">
+            <p style="font-size:clamp(1.1rem,2vw,1.5rem);font-weight:700;color:#64748b;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:0.75rem;">
                 Тур
             </p>
             <h2 id="tour-title" style="font-size:clamp(4rem,10vw,8rem);font-weight:900;color:#111827;line-height:1.05;">
@@ -365,13 +450,13 @@ body { overflow: hidden; background: #fff; }
     <!-- WAITING -->
     <div id="screen-waiting" class="pres-screen text-center" style="display:none">
         <div class="pres-spinner" style="margin-bottom:2rem;"></div>
-        <p style="font-size:clamp(2rem,4vw,3rem);font-weight:600;color:#94a3b8;">Ожидайте...</p>
+        <p style="font-size:clamp(2rem,4vw,3rem);font-weight:600;color:#64748b;">Ожидайте...</p>
     </div>
 
     <!-- TOUR RESULTS -->
     <div id="screen-tour_results" class="pres-screen" style="display:none">
         <h2 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;color:#111827;margin-bottom:2rem;display:flex;align-items:center;gap:0.75rem;">
-            <span class="material-symbols-outlined" style="font-size:2.5rem;color:#f59e0b;">bar_chart</span>
+            <span class="material-symbols-outlined" style="font-size:2.5rem;color:#006CDC;">bar_chart</span>
             Итоги тура
         </h2>
         <div id="tour-results-pres" class="results-list"></div>
@@ -380,7 +465,7 @@ body { overflow: hidden; background: #fff; }
     <!-- GAME RESULTS -->
     <div id="screen-game_results" class="pres-screen" style="display:none">
         <h2 style="font-size:clamp(2.5rem,5vw,3.75rem);font-weight:900;color:#111827;margin-bottom:2rem;display:flex;align-items:center;gap:0.75rem;">
-            <span class="material-symbols-outlined fill-1" style="font-size:3rem;color:#f59e0b;">emoji_events</span>
+            <span class="material-symbols-outlined fill-1" style="font-size:3rem;color:#006CDC;">emoji_events</span>
             Итоги игры
         </h2>
         <div id="game-results-pres" class="results-list"></div>
@@ -404,7 +489,8 @@ body { overflow: hidden; background: #fff; }
 const QUIZ_ID = '{{ quiz.id }}';
 const socket = io('/presentation');
 
-// ── Screen ─────────────────────────────────────────────────────────────────────
+
+// ── Screen ──────────────────────────────────────────────────────────────────────
 function showScreen(name) {
     document.querySelectorAll('.pres-screen').forEach(el => {
         el.classList.remove('active');
@@ -420,25 +506,33 @@ function resetAnswersPanel() {
     document.getElementById('answers-panel-count').textContent = '0';
 }
 
-// ── Sockets ────────────────────────────────────────────────────────────────────
+// ── Sockets ─────────────────────────────────────────────────────────────────────
 socket.on('screen_changed', (data) => {
     showScreen(data.screen);
 
     if (data.screen === 'tour_splash' && data.tour) {
         document.getElementById('tour-title').textContent = data.tour.title;
         const bg = document.getElementById('tour-splash-bg');
-        bg.style.display = data.tour.splash_image ? '' : 'none';
-        if (data.tour.splash_image) bg.style.backgroundImage = `url('${data.tour.splash_image}')`;
+        const content = document.querySelector('.tour-splash-content');
+        if (data.tour.splash_image) {
+            bg.style.backgroundImage = `url('${data.tour.splash_image}')`;
+            bg.style.display = 'block';
+            content.style.display = 'none';
+        } else {
+            bg.style.display = 'none';
+            content.style.display = '';
+        }
     }
     if (data.screen === 'question' && data.question) {
         loadQuestion(data.question);
         resetAnswersPanel();
         if (data.timer_active && data.timer_remaining != null) updateTimer(data.timer_remaining);
+        else updateTimer(data.question.time_seconds);
     }
     if (data.screen === 'question_answer' && data.question) showAnswer(data.question);
     if (data.screen === 'teams' && data.teams) {
         document.getElementById('all-teams-grid').innerHTML = data.teams.map(t =>
-            `<div class="p-card" style="padding:1.1rem 1.75rem;font-size:1.5rem;font-weight:700;text-align:center;color:#1e293b;">${t.name}</div>`
+            `<div class="island" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">${t.name}</div>`
         ).join('');
     }
     if (data.screen === 'tour_results' && data.scores) renderResults('tour-results-pres', data.scores);
@@ -466,9 +560,9 @@ socket.on('timer_started', (data) => updateTimer(data.seconds));
 socket.on('timer_paused', (data) => updateTimer(data.remaining));
 socket.on('timer_stopped', () => {
     const el = document.getElementById('timer-pres');
-    if (el) { el.textContent = '0'; el.style.color = '#ef4444'; }
+    if (el) { el.textContent = '0'; el.classList.add('danger'); }
 });
-socket.on('play_sound', (data) => new Audio(data.path).play().catch(() => {}));
+socket.on('play_sound', () => {});
 socket.on('scores_updated', () => {});
 
 socket.on('answer_submitted', (data) => {
@@ -485,29 +579,30 @@ socket.on('answer_submitted', (data) => {
 socket.on('quiz_ended', () => location.reload());
 socket.on('quiz_activated', () => location.reload());
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────────
 function updateTimer(remaining) {
     const el = document.getElementById('timer-pres');
     if (!el) return;
     el.textContent = remaining;
-    el.style.color = remaining <= 10 ? '#ef4444' : '#f59e0b';
+    el.classList.toggle('danger', remaining <= 10);
 }
 
 function loadQuestion(q) {
+    const screenEl = document.getElementById('screen-question');
+    screenEl.classList.toggle('image-only-mode', q.question_type === 'image_only');
+
     document.getElementById('q-text-pres').textContent = q.text || '';
     document.getElementById('q-meta-pres').textContent =
         `${q.points}\u2009балл${q.points === 1 ? '' : '(ов)'} · ${q.time_seconds}\u2009с`;
 
     const timerEl = document.getElementById('timer-pres');
     timerEl.textContent = q.time_seconds;
-    timerEl.style.color = '#f59e0b';
+    timerEl.classList.remove('danger');
 
     document.getElementById('q-image-pres').innerHTML = q.image_path
         ? `<img src="${q.image_path}">`
         : '';
-    document.getElementById('q-audio-pres').innerHTML = q.audio_path
-        ? `<audio controls autoplay src="${q.audio_path}" style="width:100%;max-width:600px;display:block;margin:0 auto 1.5rem;"></audio>`
-        : '';
+    document.getElementById('q-audio-pres').innerHTML = '';
 
     const optsEl = document.getElementById('q-options-pres');
     optsEl.innerHTML = '';
@@ -518,9 +613,23 @@ function loadQuestion(q) {
             tile.innerHTML = `<span class="opt-letter">${String.fromCharCode(0x0410 + i)}</span><span>${opt.text}</span>`;
             optsEl.appendChild(tile);
         });
+    } else if (q.answer_type === 'matching' && q.matching_items?.length) {
+        optsEl.style.gridTemplateColumns = '1fr 1fr';
+        const shuffledRights = [...q.matching_items].sort(() => Math.random() - 0.5);
+        q.matching_items.forEach((item, i) => {
+            const tile = document.createElement('div');
+            tile.className = 'opt-tile';
+            tile.style.background = '#006CDC';
+            tile.innerHTML = `<span class="opt-letter">${i + 1}</span><span>${item.left_text}</span>`;
+            optsEl.appendChild(tile);
+            const right = document.createElement('div');
+            right.className = 'opt-tile';
+            right.style.background = '#8C2CFF';
+            right.innerHTML = `<span class="opt-letter">${String.fromCharCode(0x0410 + i)}</span><span>${shuffledRights[i].right_text}</span>`;
+            optsEl.appendChild(right);
+        });
     }
 
-    if (q.sound_start_path) new Audio(q.sound_start_path).play().catch(() => {});
 }
 
 function showAnswer(q) {
@@ -529,22 +638,31 @@ function showAnswer(q) {
     const optsEl = document.getElementById('correct-options-pres');
     optsEl.innerHTML = '';
 
-    if (q.correct_answer) {
+    if (q.answer_type === 'matching' && q.matching_items?.length) {
+        correctEl.textContent = '';
+        optsEl.style.gridTemplateColumns = '1fr 1fr';
+        q.matching_items.forEach((item, i) => {
+            const left = document.createElement('div');
+            left.className = 'opt-tile';
+            left.style.background = '#006CDC';
+            left.innerHTML = `<span class="opt-letter">${i + 1}</span><span>${item.left_text}</span>`;
+            optsEl.appendChild(left);
+            const right = document.createElement('div');
+            right.className = 'opt-tile';
+            right.style.background = '#8C2CFF';
+            right.innerHTML = `<span class="opt-letter">→</span><span>${item.right_text}</span>`;
+            optsEl.appendChild(right);
+        });
+    } else if (q.correct_answer) {
         correctEl.textContent = q.correct_answer;
     } else if (q.answer_options && q.answer_options.length) {
         correctEl.textContent = '';
         q.answer_options.forEach((opt, i) => {
             const tile = document.createElement('div');
             tile.className = 'opt-tile';
-            if (opt.is_correct) {
-                tile.style.background = '#f0fdf4';
-                tile.style.borderColor = '#16a34a';
-                tile.style.borderWidth = '2px';
-            } else {
-                tile.style.opacity = '0.35';
-            }
+            if (!opt.is_correct) tile.style.opacity = '0.3';
             tile.innerHTML = `<span class="opt-letter">${String.fromCharCode(0x0410 + i)}</span><span>${opt.text}</span>
-                ${opt.is_correct ? '<span class="material-symbols-outlined" style="margin-left:auto;font-size:2rem;color:#16a34a;">check_circle</span>' : ''}`;
+                ${opt.is_correct ? '<span class="material-symbols-outlined" style="margin-left:auto;font-size:2.5rem;">check_circle</span>' : ''}`;
             optsEl.appendChild(tile);
         });
     } else {
@@ -554,27 +672,19 @@ function showAnswer(q) {
 
 function renderResults(containerId, scores) {
     const container = document.getElementById(containerId);
-    const medals = [
-        { bg: '#fef3c7', border: '#fcd34d', icon: '🥇' },
-        { bg: '#f1f5f9', border: '#cbd5e1', icon: '🥈' },
-        { bg: '#fff7ed', border: '#fdba74', icon: '🥉' },
-    ];
+    const places = ['🥇', '🥈', '🥉'];
     container.innerHTML = scores.map((s, i) => {
-        const m = medals[i];
-        const rowStyle = m
-            ? `background:${m.bg};border:1.5px solid ${m.border};`
-            : 'background:#f8fafc;border:1.5px solid #e2e8f0;';
-        const place = m
-            ? `<span style="font-size:2rem;line-height:1;">${m.icon}</span>`
-            : `<span style="color:#94a3b8;font-size:1.3rem;min-width:2.2rem;font-weight:700;">${i+1}.</span>`;
-        return `<div class="result-row" style="${rowStyle}">
-            <span style="display:flex;align-items:center;gap:1rem;">${place}${s.team_name}</span>
-            <span style="font-size:clamp(1.5rem,3vw,2rem);font-weight:900;color:#111827;">${s.score}</span>
+        const icon = places[i]
+            ? `<span style="font-size:2.5rem;line-height:1;">${places[i]}</span>`
+            : `<span style="color:#94a3b8;font-size:1.75rem;min-width:2rem;font-weight:700;text-align:right;">${i+1}.</span>`;
+        return `<div class="result-row">
+            <span style="display:flex;align-items:center;gap:1.25rem;">${icon}${s.team_name}</span>
+            <span style="font-size:clamp(1.75rem,3.5vw,2.5rem);font-weight:900;color:#006CDC;">${s.score}</span>
         </div>`;
     }).join('');
 }
 
-// ── Init ───────────────────────────────────────────────────────────────────────
+// ── Init ────────────────────────────────────────────────────────────────────────
 showScreen('{{ gs.current_screen if gs else "splash" }}');
 </script>
 {% endblock %}

@@ -6,7 +6,6 @@ import re
 from flask import (render_template, redirect, url_for, request, flash,
                    jsonify, send_file, current_app)
 from flask_login import current_user
-from werkzeug.utils import secure_filename
 from app.admin import admin_bp
 from app.auth import admin_required, judge_required
 from app.models import db, Quiz, Tour, Question, AnswerOption, MatchingItem, Team, TeamAnswer, GameState, User
@@ -66,10 +65,37 @@ def quiz_edit(quiz_id):
     return render_template('admin/quiz_builder.html', quiz=quiz)
 
 
+@admin_bp.route('/quizzes/<quiz_id>/upload-splash', methods=['POST', 'DELETE'])
+@admin_required
+def quiz_upload_splash(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    if request.method == 'DELETE':
+        quiz.splash_image = None
+        db.session.commit()
+        return jsonify({'ok': True})
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'No file'}), 400
+    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
+    if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'tif'):
+        return jsonify({'error': 'Invalid file type'}), 400
+    unique_name = f"{uuid.uuid4()}.{ext}"
+    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', quiz.id, 'images')
+    os.makedirs(upload_dir, exist_ok=True)
+    f.save(os.path.join(upload_dir, unique_name))
+    path = f'/static/uploads/{quiz.id}/images/{unique_name}'
+    quiz.splash_image = path
+    db.session.commit()
+    return jsonify({'path': path})
+
+
 @admin_bp.route('/quizzes/<quiz_id>/delete', methods=['POST'])
 @admin_required
 def quiz_delete(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
+    quiz_id_copy = quiz.id
+    from app.sockets.utils import broadcast
+    broadcast('quiz_ended', {}, quiz_id_copy)
     db.session.delete(quiz)
     db.session.commit()
     flash('Квиз удалён', 'success')
@@ -167,7 +193,7 @@ def tour_update(tour_id):
     if request.method == 'GET':
         return jsonify(_tour_dict(tour))
     data = request.json
-    for field in ('title', 'order', 'sound_mid_seconds'):
+    for field in ('title', 'order'):
         if field in data:
             setattr(tour, field, data[field])
     db.session.commit()
@@ -192,9 +218,8 @@ def tour_upload_splash(tour_id):
     f = request.files.get('file')
     if not f:
         return jsonify({'error': 'No file'}), 400
-    filename = secure_filename(f.filename)
-    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-    if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
+    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
+    if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'tif'):
         return jsonify({'error': 'Invalid file type'}), 400
     unique_name = f"{uuid.uuid4()}.{ext}"
     upload_dir = os.path.join(current_app.root_path, 'static', 'uploads',
@@ -207,33 +232,43 @@ def tour_upload_splash(tour_id):
     return jsonify({'path': path})
 
 
-# Tour sound upload
-@admin_bp.route('/tours/<tour_id>/upload-sound', methods=['POST'])
+# Quiz sound upload
+@admin_bp.route('/quizzes/<quiz_id>/upload-sound', methods=['POST'])
 @admin_required
-def tour_upload_sound(tour_id):
-    tour = Tour.query.get_or_404(tour_id)
+def quiz_upload_sound(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
     sound_type = request.form.get('type', 'sound_start')  # sound_start | sound_mid | sound_end
     f = request.files.get('file')
     if not f:
         return jsonify({'error': 'No file'}), 400
-    filename = secure_filename(f.filename)
-    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-    if ext not in ('mp3', 'wav', 'ogg', 'm4a'):
+    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
+    if ext not in ('mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'):
         return jsonify({'error': 'Invalid audio type'}), 400
     unique_name = f"{uuid.uuid4()}.{ext}"
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads',
-                               tour.quiz_id, 'audio')
+    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', quiz.id, 'audio')
     os.makedirs(upload_dir, exist_ok=True)
     f.save(os.path.join(upload_dir, unique_name))
-    path = f'/static/uploads/{tour.quiz_id}/audio/{unique_name}'
+    path = f'/static/uploads/{quiz.id}/audio/{unique_name}'
     field_map = {
         'sound_start': 'sound_start_path',
         'sound_mid': 'sound_mid_path',
         'sound_end': 'sound_end_path',
     }
-    setattr(tour, field_map.get(sound_type, 'sound_start_path'), path)
+    setattr(quiz, field_map.get(sound_type, 'sound_start_path'), path)
     db.session.commit()
     return jsonify({'path': path})
+
+
+# Quiz settings update (sound_mid_seconds etc.)
+@admin_bp.route('/quizzes/<quiz_id>/settings', methods=['PUT'])
+@admin_required
+def quiz_settings_update(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    data = request.json or {}
+    if 'sound_mid_seconds' in data:
+        quiz.sound_mid_seconds = data['sound_mid_seconds']
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 # ── Questions API ──────────────────────────────────────────────────────────────
@@ -302,15 +337,14 @@ def question_upload(question_id):
     if not f:
         return jsonify({'error': 'No file'}), 400
 
-    filename = secure_filename(f.filename)
-    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
 
     if file_type == 'image':
-        if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
+        if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'tif'):
             return jsonify({'error': 'Invalid image type'}), 400
         subdir = 'images'
     else:
-        if ext not in ('mp3', 'wav', 'ogg', 'm4a'):
+        if ext not in ('mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'):
             return jsonify({'error': 'Invalid audio type'}), 400
         subdir = 'audio'
 
@@ -329,6 +363,18 @@ def question_upload(question_id):
     setattr(q, field_map.get(file_type, 'image_path'), path)
     db.session.commit()
     return jsonify({'path': path})
+
+
+@admin_bp.route('/questions/<question_id>/set-image-url', methods=['POST'])
+@admin_required
+def question_set_image_url(question_id):
+    q = Question.query.get_or_404(question_id)
+    url = (request.json or {}).get('url', '').strip()
+    if not url:
+        return jsonify({'error': 'No URL'}), 400
+    q.image_path = url
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 # ── Answer Options ─────────────────────────────────────────────────────────────
@@ -659,6 +705,7 @@ def quiz_import_json():
                 question_type=q_data.get('question_type', 'text'),
                 answer_type=q_data.get('answer_type', 'short_text'),
                 text=q_data.get('text'),
+                image_path=q_data.get('image_path'),
                 time_seconds=q_data.get('time_seconds', 60),
                 points=q_data.get('points', 1),
                 auto_check=q_data.get('auto_check', False),
@@ -708,10 +755,6 @@ def _tour_dict(tour):
         'title': tour.title,
         'order': tour.order,
         'splash_image': tour.splash_image,
-        'sound_start_path': tour.sound_start_path,
-        'sound_mid_path': tour.sound_mid_path,
-        'sound_mid_seconds': tour.sound_mid_seconds,
-        'sound_end_path': tour.sound_end_path,
     }
 
 

@@ -33,7 +33,7 @@
                 <span class="material-symbols-outlined icon-sm">qr_code_2</span>
                 QR-код для регистрации
             </h2>
-            <img src="{{ url_for('admin.qr_code', quiz_id=quiz.id) }}" class="w-40 mx-auto" alt="QR">
+            <img src="{{ url_for('admin.qr_code', quiz_id=quiz.id) }}" class="w-72 mx-auto" alt="QR">
             <div class="text-center text-sm mt-2">
                 <a href="/play/{{ quiz.id }}" target="_blank" class="link link-primary">/play/{{ quiz.id }}</a>
             </div>

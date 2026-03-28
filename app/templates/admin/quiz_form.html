@@ -1,5 +1,5 @@
 {% extends "admin/base_admin.html" %}
-{% block title %}{{ 'Новый квиз' if not quiz else 'Редактировать квиз' }} — Бауманка.Квиз{% endblock %}
+{% block title %}{{ 'Новый квиз' if not quiz else 'Редактировать квиз' }} — Бауман.Игра{% endblock %}
 
 {% block admin_content %}
 <div class="max-w-lg">
@@ -24,6 +24,7 @@
                     <a href="{{ url_for('admin.quizzes') }}" class="btn btn-ghost">Отмена</a>
                 </div>
             </form>
+
         </div>
     </div>
 </div>

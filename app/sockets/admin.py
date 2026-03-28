@@ -60,6 +60,13 @@ def on_change_screen(data):
         if tour_id:
             gs.current_tour_id = tour_id
 
+    # Останавливаем таймер при любой смене экрана
+    if quiz.id in _timer_greenlets:
+        _timer_greenlets[quiz.id].kill()
+        del _timer_greenlets[quiz.id]
+    gs.timer_started_at = None
+    gs.timer_seconds = None
+
     db.session.commit()
 
     payload = _build_screen_payload(gs, quiz)
@@ -108,9 +115,8 @@ def on_start_timer(data):
                quiz.id)
 
     # Play start sound only on fresh start (not resume)
-    tour = q.tour
-    if tour and tour.sound_start_path and start_seconds == q.time_seconds:
-        _broadcast('play_sound', {'path': tour.sound_start_path, 'event': 'start'}, quiz.id)
+    if quiz.sound_start_path and start_seconds == q.time_seconds:
+        _broadcast('play_sound', {'path': quiz.sound_start_path, 'event': 'start'}, quiz.id)
 
     # Cancel previous timer
     if quiz.id in _timer_greenlets:
@@ -132,9 +138,9 @@ def on_start_timer(data):
 
     gl = eventlet.spawn(run_timer,
                         quiz.id, start_seconds, q.id,
-                        tour.sound_mid_seconds if tour else None,
-                        tour.sound_mid_path if tour else None,
-                        tour.sound_end_path if tour else None)
+                        quiz.sound_mid_seconds,
+                        quiz.sound_mid_path,
+                        quiz.sound_end_path)
     _timer_greenlets[quiz.id] = gl
 
 
@@ -210,7 +216,8 @@ def _build_screen_payload(gs, quiz):
     if gs.current_question_id:
         q = Question.query.get(gs.current_question_id)
         if q:
-            data['question'] = _question_payload(q)
+            reveal = gs.current_screen == 'question_answer'
+            data['question'] = _question_payload(q, reveal_answers=reveal)
 
     if gs.current_tour_id:
         tour = Tour.query.get(gs.current_tour_id)
@@ -227,7 +234,7 @@ def _build_screen_payload(gs, quiz):
     return data
 
 
-def _question_payload(q):
+def _question_payload(q, reveal_answers=False):
     return {
         'id': q.id,
         'question_type': q.question_type,
@@ -238,7 +245,7 @@ def _question_payload(q):
         'time_seconds': q.time_seconds,
         'points': q.points,
         'answer_options': [
-            {'id': o.id, 'text': o.text, 'is_correct': o.is_correct}
+            {'id': o.id, 'text': o.text, **(({'is_correct': o.is_correct}) if reveal_answers else {})}
             for o in q.answer_options
         ],
         'matching_items': [
@@ -246,10 +253,10 @@ def _question_payload(q):
             for m in q.matching_items
         ],
         'correct_answer': q.correct_answer,
-        'sound_start_path': q.tour.sound_start_path if q.tour else None,
-        'sound_mid_path': q.tour.sound_mid_path if q.tour else None,
-        'sound_mid_seconds': q.tour.sound_mid_seconds if q.tour else None,
-        'sound_end_path': q.tour.sound_end_path if q.tour else None,
+        'sound_start_path': q.tour.quiz.sound_start_path if q.tour else None,
+        'sound_mid_path': q.tour.quiz.sound_mid_path if q.tour else None,
+        'sound_mid_seconds': q.tour.quiz.sound_mid_seconds if q.tour else None,
+        'sound_end_path': q.tour.quiz.sound_end_path if q.tour else None,
     }
 
 

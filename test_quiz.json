@@ -1,0 +1,786 @@
+{
+  "title": "Тест: 5 туров по 10 вопросов",
+  "description": "Тестовый квиз для проверки всех типов ответов",
+  "tours": [
+    {
+      "title": "Тур 1 — История",
+      "order": 0,
+      "questions": [
+        {
+          "order": 0,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "В каком году была основана Москва?",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "1147",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 1,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "Как звали первого царя из династии Романовых?",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "Михаил Фёдорович",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 2,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "В каком году произошла Куликовская битва?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "1380", "is_correct": true, "order": 0},
+            {"text": "1242", "is_correct": false, "order": 1},
+            {"text": "1480", "is_correct": false, "order": 2},
+            {"text": "1612", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 3,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Кто построил Петербург?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Пётр I", "is_correct": true, "order": 0},
+            {"text": "Екатерина II", "is_correct": false, "order": 1},
+            {"text": "Иван Грозный", "is_correct": false, "order": 2},
+            {"text": "Александр I", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 4,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Выберите города, которые являлись столицами России:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Москва", "is_correct": true, "order": 0},
+            {"text": "Санкт-Петербург", "is_correct": true, "order": 1},
+            {"text": "Новгород Великий", "is_correct": false, "order": 2},
+            {"text": "Киев", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 5,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Отметьте российских императоров из династии Романовых:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Николай II", "is_correct": true, "order": 0},
+            {"text": "Александр III", "is_correct": true, "order": 1},
+            {"text": "Борис Годунов", "is_correct": false, "order": 2},
+            {"text": "Лжедмитрий I", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 6,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте правителя и его прозвище:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "Иван IV", "right_text": "Грозный", "order": 0},
+            {"left_text": "Александр I", "right_text": "Благословенный", "order": 1},
+            {"left_text": "Пётр I", "right_text": "Великий", "order": 2},
+            {"left_text": "Екатерина II", "right_text": "Великая", "order": 3}
+          ]
+        },
+        {
+          "order": 7,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте сражение и год:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "Бородинская битва", "right_text": "1812", "order": 0},
+            {"left_text": "Ледовое побоище", "right_text": "1242", "order": 1},
+            {"left_text": "Полтавская битва", "right_text": "1709", "order": 2},
+            {"left_text": "Куликовская битва", "right_text": "1380", "order": 3}
+          ]
+        },
+        {
+          "order": 8,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Кратко опишите причины Смутного времени в России (2-3 предложения).",
+          "time_seconds": 90,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": "Смутное время было вызвано пресечением династии Рюриковичей, экономическим кризисом и голодом, а также польско-литовской интервенцией.",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 9,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Объясните, в чём значение реформ Петра I для России.",
+          "time_seconds": 90,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": "Реформы Петра I модернизировали армию, флот, государственное управление и промышленность, превратив Россию в европейскую державу.",
+          "answer_options": [],
+          "matching_items": []
+        }
+      ]
+    },
+    {
+      "title": "Тур 2 — Наука и технологии",
+      "order": 1,
+      "questions": [
+        {
+          "order": 0,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "Какой учёный открыл закон всемирного тяготения?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "Ньютон",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 1,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "Чему равно число Пи с точностью до двух знаков после запятой?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "3.14",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 2,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Какой элемент имеет атомный номер 1?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Водород", "is_correct": true, "order": 0},
+            {"text": "Гелий", "is_correct": false, "order": 1},
+            {"text": "Кислород", "is_correct": false, "order": 2},
+            {"text": "Углерод", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 3,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Что измеряет амперметр?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Силу тока", "is_correct": true, "order": 0},
+            {"text": "Напряжение", "is_correct": false, "order": 1},
+            {"text": "Сопротивление", "is_correct": false, "order": 2},
+            {"text": "Мощность", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 4,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Выберите единицы измерения давления:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Паскаль", "is_correct": true, "order": 0},
+            {"text": "Атмосфера", "is_correct": true, "order": 1},
+            {"text": "Джоуль", "is_correct": false, "order": 2},
+            {"text": "Ватт", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 5,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Отметьте языки программирования, относящиеся к объектно-ориентированным:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Python", "is_correct": true, "order": 0},
+            {"text": "Java", "is_correct": true, "order": 1},
+            {"text": "Assembler", "is_correct": false, "order": 2},
+            {"text": "Brainfuck", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 6,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте учёного и его открытие:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "Менделеев", "right_text": "Периодическая таблица", "order": 0},
+            {"left_text": "Эйнштейн", "right_text": "Теория относительности", "order": 1},
+            {"left_text": "Дарвин", "right_text": "Теория эволюции", "order": 2},
+            {"left_text": "Фарадей", "right_text": "Электромагнитная индукция", "order": 3}
+          ]
+        },
+        {
+          "order": 7,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте формулу и физическую величину:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "F = ma", "right_text": "Второй закон Ньютона", "order": 0},
+            {"left_text": "E = mc²", "right_text": "Эквивалентность массы и энергии", "order": 1},
+            {"left_text": "P = UI", "right_text": "Электрическая мощность", "order": 2},
+            {"left_text": "V = IR", "right_text": "Закон Ома", "order": 3}
+          ]
+        },
+        {
+          "order": 8,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Объясните принцип работы двигателя внутреннего сгорания.",
+          "time_seconds": 90,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": "Смесь топлива и воздуха сжигается в цилиндрах, давление газов давит на поршень, преобразуя химическую энергию в механическую через кривошипно-шатунный механизм.",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 9,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "В чём разница между аналоговым и цифровым сигналом?",
+          "time_seconds": 90,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": "Аналоговый сигнал непрерывен и принимает любые значения, цифровой — дискретен и представлен набором значений (обычно 0 и 1).",
+          "answer_options": [],
+          "matching_items": []
+        }
+      ]
+    },
+    {
+      "title": "Тур 3 — География",
+      "order": 2,
+      "questions": [
+        {
+          "order": 0,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "Какая река является самой длинной в России?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "Лена",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 1,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "На каком материке расположена Антарктида?",
+          "time_seconds": 15,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "Антарктида",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 2,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Какой океан является самым большим по площади?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Тихий", "is_correct": true, "order": 0},
+            {"text": "Атлантический", "is_correct": false, "order": 1},
+            {"text": "Индийский", "is_correct": false, "order": 2},
+            {"text": "Северный Ледовитый", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 3,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Столица Австралии — это…",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Канберра", "is_correct": true, "order": 0},
+            {"text": "Сидней", "is_correct": false, "order": 1},
+            {"text": "Мельбурн", "is_correct": false, "order": 2},
+            {"text": "Брисбен", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 4,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Выберите страны, которые имеют выход к Балтийскому морю:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Финляндия", "is_correct": true, "order": 0},
+            {"text": "Эстония", "is_correct": true, "order": 1},
+            {"text": "Венгрия", "is_correct": false, "order": 2},
+            {"text": "Австрия", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 5,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Отметьте горные системы, расположенные в России:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Уральские горы", "is_correct": true, "order": 0},
+            {"text": "Кавказ", "is_correct": true, "order": 1},
+            {"text": "Альпы", "is_correct": false, "order": 2},
+            {"text": "Анды", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 6,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте страну и её столицу:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "Япония", "right_text": "Токио", "order": 0},
+            {"left_text": "Бразилия", "right_text": "Бразилиа", "order": 1},
+            {"left_text": "Канада", "right_text": "Оттава", "order": 2},
+            {"left_text": "Аргентина", "right_text": "Буэнос-Айрес", "order": 3}
+          ]
+        },
+        {
+          "order": 7,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте реку и континент:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "Нил", "right_text": "Африка", "order": 0},
+            {"left_text": "Амазонка", "right_text": "Южная Америка", "order": 1},
+            {"left_text": "Янцзы", "right_text": "Азия", "order": 2},
+            {"left_text": "Миссисипи", "right_text": "Северная Америка", "order": 3}
+          ]
+        },
+        {
+          "order": 8,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Объясните, почему Россия имеет такое разнообразие климатических зон.",
+          "time_seconds": 90,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": "Из-за огромной протяжённости с севера на юг и с запада на восток территория России охватывает арктический, субарктический, умеренный и субтропический пояса.",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 9,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Чем отличается море от океана? Приведите пример.",
+          "time_seconds": 60,
+          "points": 2,
+          "auto_check": false,
+          "correct_answer": "Море — часть океана, отделённая сушей или подводными возвышенностями, меньше по площади. Например, Чёрное море — часть Атлантического океана.",
+          "answer_options": [],
+          "matching_items": []
+        }
+      ]
+    },
+    {
+      "title": "Тур 4 — Культура и искусство",
+      "order": 3,
+      "questions": [
+        {
+          "order": 0,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "Кто написал роман «Война и мир»?",
+          "time_seconds": 15,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "Лев Толстой",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 1,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "В каком году была написана картина «Чёрный квадрат»?",
+          "time_seconds": 30,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "1915",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 2,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Кто автор «Мона Лизы»?",
+          "time_seconds": 15,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Леонардо да Винчи", "is_correct": true, "order": 0},
+            {"text": "Микеланджело", "is_correct": false, "order": 1},
+            {"text": "Рафаэль", "is_correct": false, "order": 2},
+            {"text": "Боттичелли", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 3,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Кто написал балет «Лебединое озеро»?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Чайковский", "is_correct": true, "order": 0},
+            {"text": "Прокофьев", "is_correct": false, "order": 1},
+            {"text": "Шостакович", "is_correct": false, "order": 2},
+            {"text": "Стравинский", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 4,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Выберите произведения Александра Пушкина:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Евгений Онегин", "is_correct": true, "order": 0},
+            {"text": "Капитанская дочка", "is_correct": true, "order": 1},
+            {"text": "Мёртвые души", "is_correct": false, "order": 2},
+            {"text": "Преступление и наказание", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 5,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Отметьте жанры живописи:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Портрет", "is_correct": true, "order": 0},
+            {"text": "Натюрморт", "is_correct": true, "order": 1},
+            {"text": "Сонет", "is_correct": false, "order": 2},
+            {"text": "Фуга", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 6,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте автора и его произведение:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "Достоевский", "right_text": "Братья Карамазовы", "order": 0},
+            {"left_text": "Булгаков", "right_text": "Мастер и Маргарита", "order": 1},
+            {"left_text": "Чехов", "right_text": "Вишнёвый сад", "order": 2},
+            {"left_text": "Гоголь", "right_text": "Мёртвые души", "order": 3}
+          ]
+        },
+        {
+          "order": 7,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте музыкальный инструмент и группу:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "Скрипка", "right_text": "Струнные", "order": 0},
+            {"left_text": "Флейта", "right_text": "Духовые деревянные", "order": 1},
+            {"left_text": "Литавры", "right_text": "Ударные", "order": 2},
+            {"left_text": "Труба", "right_text": "Духовые медные", "order": 3}
+          ]
+        },
+        {
+          "order": 8,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Опишите, в чём особенность стиля импрессионизм в живописи.",
+          "time_seconds": 90,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": "Импрессионизм передаёт мимолётные впечатления от реальности, использует световые эффекты, раздельные мазки и яркие цвета вместо чётких контуров.",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 9,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Что такое архитектурный стиль «конструктивизм»? Где он применялся?",
+          "time_seconds": 90,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": "Конструктивизм — авангардный стиль 1920-х, основанный на функциональности и геометрии без декора. Активно применялся в советской архитектуре.",
+          "answer_options": [],
+          "matching_items": []
+        }
+      ]
+    },
+    {
+      "title": "Тур 5 — Спорт и рекорды",
+      "order": 4,
+      "questions": [
+        {
+          "order": 0,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "Как называется высшая награда Олимпийских игр?",
+          "time_seconds": 15,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "Золотая медаль",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 1,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "Сколько игроков в хоккейной команде на льду одновременно (без учёта вратаря)?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": false,
+          "correct_answer": "5",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 2,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Где прошли летние Олимпийские игры 1980 года?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Москва", "is_correct": true, "order": 0},
+            {"text": "Берлин", "is_correct": false, "order": 1},
+            {"text": "Лондон", "is_correct": false, "order": 2},
+            {"text": "Токио", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 3,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "На каком покрытии проходит Уимблдонский теннисный турнир?",
+          "time_seconds": 20,
+          "points": 1,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Трава", "is_correct": true, "order": 0},
+            {"text": "Грунт", "is_correct": false, "order": 1},
+            {"text": "Хард", "is_correct": false, "order": 2},
+            {"text": "Ковёр", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 4,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Выберите дисциплины, входящие в лёгкую атлетику:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Прыжки в высоту", "is_correct": true, "order": 0},
+            {"text": "Марафон", "is_correct": true, "order": 1},
+            {"text": "Синхронное плавание", "is_correct": false, "order": 2},
+            {"text": "Бобслей", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 5,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Отметьте зимние виды спорта, входящие в программу Олимпийских игр:",
+          "time_seconds": 30,
+          "points": 2,
+          "auto_check": true,
+          "correct_answer": null,
+          "answer_options": [
+            {"text": "Биатлон", "is_correct": true, "order": 0},
+            {"text": "Керлинг", "is_correct": true, "order": 1},
+            {"text": "Водное поло", "is_correct": false, "order": 2},
+            {"text": "Триатлон", "is_correct": false, "order": 3}
+          ],
+          "matching_items": []
+        },
+        {
+          "order": 6,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте вид спорта и количество игроков в команде:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "Футбол", "right_text": "11", "order": 0},
+            {"left_text": "Волейбол", "right_text": "6", "order": 1},
+            {"left_text": "Баскетбол", "right_text": "5", "order": 2},
+            {"left_text": "Водное поло", "right_text": "7", "order": 3}
+          ]
+        },
+        {
+          "order": 7,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте страну и национальный вид спорта:",
+          "time_seconds": 60,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": null,
+          "answer_options": [],
+          "matching_items": [
+            {"left_text": "Япония", "right_text": "Сумо", "order": 0},
+            {"left_text": "Канада", "right_text": "Хоккей на льду", "order": 1},
+            {"left_text": "США", "right_text": "Американский футбол", "order": 2},
+            {"left_text": "Монголия", "right_text": "Борьба бух", "order": 3}
+          ]
+        },
+        {
+          "order": 8,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Объясните систему начисления очков в биатлоне.",
+          "time_seconds": 90,
+          "points": 3,
+          "auto_check": false,
+          "correct_answer": "В биатлоне к времени гонки прибавляется штраф за промах: в гонке преследования и масс-старте — штрафной круг 150 м, в спринте и индивидуальной гонке — 1 минута.",
+          "answer_options": [],
+          "matching_items": []
+        },
+        {
+          "order": 9,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Что такое «допинг» и почему его запрещают в спорте?",
+          "time_seconds": 60,
+          "points": 2,
+          "auto_check": false,
+          "correct_answer": "Допинг — запрещённые препараты, улучшающие спортивные результаты. Его запрещают, так как он нарушает принцип честной конкуренции и наносит вред здоровью спортсменов.",
+          "answer_options": [],
+          "matching_items": []
+        }
+      ]
+    }
+  ]
+}

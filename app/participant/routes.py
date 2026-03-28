@@ -128,10 +128,9 @@ def submit_answer():
 
     # Auto-check
     if question.auto_check and question.answer_type in ('single_choice', 'multiple_choice'):
-        from app.models import AnswerOption
         correct_ids = {o.id for o in question.answer_options if o.is_correct}
         submitted = set(answer.selected_options or [])
-        answer.is_correct = submitted == correct_ids
+        answer.is_correct = bool(submitted) and submitted == correct_ids
         answer.score = question.points if answer.is_correct else 0
         answer.auto_checked = True
     else:

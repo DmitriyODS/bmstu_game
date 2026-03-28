@@ -21,6 +21,10 @@
             Управление
         </a>
         {% endif %}
+        <button onclick="showPanel('quiz-settings')" class="btn btn-ghost btn-sm">
+            <span class="material-symbols-outlined icon-sm">settings</span>
+            Настройки
+        </button>
         <a href="{{ url_for('admin.quizzes') }}" class="btn btn-ghost btn-sm">
             <span class="material-symbols-outlined icon-sm">arrow_back</span>
             Назад
@@ -85,6 +89,70 @@
                     <p>Выберите тур или вопрос</p>
                 </div>
 
+                <!-- Quiz settings -->
+                <div id="quiz-settings" class="hidden">
+                    <h2 class="font-bold text-lg mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined icon-md text-primary">settings</span>
+                        Настройки квиза
+                    </h2>
+                    <div class="form-control mb-4">
+                        <label class="label"><span class="label-text font-medium">Картинка заставки</span></label>
+                        <p class="text-xs text-base-content/50 mb-2">Отображается на начальном экране презентации вместо логотипа</p>
+                        <input type="file" id="quiz-splash-input" accept="image/*" class="file-input file-input-bordered w-full">
+                        <div id="quiz-splash-preview" class="mt-3">
+                            {% if quiz.splash_image %}
+                            <img src="{{ quiz.splash_image }}" class="max-h-48 rounded">
+                            <button onclick="removeQuizSplash()" class="btn btn-xs btn-ghost text-error mt-2 block">Удалить</button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="divider text-sm">
+                        <span class="material-symbols-outlined icon-sm">volume_up</span>
+                        Звуки квиза
+                    </div>
+                    <p class="text-xs text-base-content/50 mb-3">Применяются ко всем вопросам во всех турах</p>
+
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <label class="label-text font-medium text-sm">Старт вопроса</label>
+                            <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
+                                   onchange="uploadQuizSound(this, 'sound_start')">
+                            <div id="quiz-sound-start-preview" class="mt-2">
+                                {% if quiz.sound_start_path %}
+                                <audio controls src="{{ quiz.sound_start_path }}" class="w-full mt-1"></audio>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <label class="label-text font-medium text-sm">Предупреждение</label>
+                            <div class="flex items-center gap-2 mt-2">
+                                <input type="number" id="quiz-sound-mid-secs" class="input input-bordered input-sm w-28"
+                                       placeholder="секунд до конца" min="1" value="{{ quiz.sound_mid_seconds or '' }}">
+                                <span class="text-xs text-base-content/50">сек. до конца</span>
+                                <button onclick="saveQuizMidSecs()" class="btn btn-xs btn-ghost">Сохранить</button>
+                            </div>
+                            <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
+                                   onchange="uploadQuizSound(this, 'sound_mid')">
+                            <div id="quiz-sound-mid-preview" class="mt-2">
+                                {% if quiz.sound_mid_path %}
+                                <audio controls src="{{ quiz.sound_mid_path }}" class="w-full mt-1"></audio>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <label class="label-text font-medium text-sm">Конец времени</label>
+                            <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
+                                   onchange="uploadQuizSound(this, 'sound_end')">
+                            <div id="quiz-sound-end-preview" class="mt-2">
+                                {% if quiz.sound_end_path %}
+                                <audio controls src="{{ quiz.sound_end_path }}" class="w-full mt-1"></audio>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tour editor -->
                 <div id="tour-editor" class="hidden">
                     <h2 class="font-bold text-lg mb-4 flex items-center gap-2">
@@ -107,37 +175,6 @@
                         <label class="label"><span class="label-text font-medium">Заставка тура</span></label>
                         <input type="file" id="tour-splash-input" accept="image/*" class="file-input file-input-bordered w-full">
                         <div id="tour-splash-preview" class="mt-2"></div>
-                    </div>
-
-                    <div class="divider text-sm">
-                        <span class="material-symbols-outlined icon-sm">volume_up</span>
-                        Звуки тура
-                    </div>
-                    <p class="text-xs text-base-content/50 mb-3">Звуки применяются ко всем вопросам этого тура</p>
-
-                    <div class="grid grid-cols-1 gap-4">
-                        <div class="bg-base-200 rounded-lg p-3">
-                            <label class="label-text font-medium text-sm">Старт вопроса</label>
-                            <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
-                                   onchange="uploadTourSound(this, 'sound_start')">
-                            <div id="tour-sound-start-preview" class="mt-2"></div>
-                        </div>
-                        <div class="bg-base-200 rounded-lg p-3">
-                            <label class="label-text font-medium text-sm">Предупреждение</label>
-                            <div class="flex items-center gap-2 mt-2">
-                                <input type="number" id="tour-sound-mid-secs" class="input input-bordered input-sm w-28" placeholder="секунд до конца" min="1">
-                                <span class="text-xs text-base-content/50">сек. до конца</span>
-                            </div>
-                            <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
-                                   onchange="uploadTourSound(this, 'sound_mid')">
-                            <div id="tour-sound-mid-preview" class="mt-2"></div>
-                        </div>
-                        <div class="bg-base-200 rounded-lg p-3">
-                            <label class="label-text font-medium text-sm">Конец времени</label>
-                            <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
-                                   onchange="uploadTourSound(this, 'sound_end')">
-                            <div id="tour-sound-end-preview" class="mt-2"></div>
-                        </div>
                     </div>
 
                     <div class="mt-4">
@@ -193,6 +230,14 @@
                     <div id="q-image-block" class="mb-4 hidden">
                         <label class="label"><span class="label-text">Картинка вопроса</span></label>
                         <input type="file" id="q-image-input" accept="image/*" class="file-input file-input-bordered w-full">
+                        <div class="flex items-center gap-2 mt-2">
+                            <input type="url" id="q-image-url" class="input input-bordered input-sm flex-1"
+                                   placeholder="или вставьте ссылку на картинку">
+                            <button type="button" onclick="setImageUrl()" class="btn btn-sm btn-ghost">
+                                <span class="material-symbols-outlined icon-sm">link</span>
+                                Применить
+                            </button>
+                        </div>
                         <div id="q-image-preview" class="mt-2"></div>
                     </div>
 
@@ -297,26 +342,19 @@ async function selectTour(tourId) {
     showPanel('tour-editor');
     document.getElementById('tour-editor-title').textContent = tour.title;
     document.getElementById('tour-title-input').value = tour.title;
-    document.getElementById('tour-sound-mid-secs').value = tour.sound_mid_seconds || '';
-
+    document.getElementById('tour-splash-input').value = '';
+    document.querySelectorAll('#tour-editor input[type="file"]').forEach(el => el.value = '');
     document.getElementById('tour-splash-preview').innerHTML =
         tour.splash_image ? `<img src="${tour.splash_image}" class="max-h-32 rounded mt-1">` : '';
-    document.getElementById('tour-sound-start-preview').innerHTML =
-        tour.sound_start_path ? `<audio controls src="${tour.sound_start_path}" class="w-full mt-1"></audio>` : '';
-    document.getElementById('tour-sound-mid-preview').innerHTML =
-        tour.sound_mid_path ? `<audio controls src="${tour.sound_mid_path}" class="w-full mt-1"></audio>` : '';
-    document.getElementById('tour-sound-end-preview').innerHTML =
-        tour.sound_end_path ? `<audio controls src="${tour.sound_end_path}" class="w-full mt-1"></audio>` : '';
 }
 
 async function saveTourTitle() {
     if (!currentTourId) return;
     const title = document.getElementById('tour-title-input').value.trim();
-    const midSecs = parseInt(document.getElementById('tour-sound-mid-secs').value) || null;
     if (!title) return;
     await fetch(`/admin/tours/${currentTourId}`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({title, sound_mid_seconds: midSecs})
+        body: JSON.stringify({title})
     });
     document.querySelectorAll(`.tour-name-${currentTourId}`).forEach(el => el.textContent = title);
     document.getElementById('tour-editor-title').textContent = title;
@@ -337,29 +375,53 @@ async function uploadTourSplash() {
     fd.append('file', input.files[0]);
     const res = await fetch(`/admin/tours/${currentTourId}/upload-splash`, {method: 'POST', body: fd});
     const data = await res.json();
-    if (data.path)
+    if (data.path) {
         document.getElementById('tour-splash-preview').innerHTML = `<img src="${data.path}" class="max-h-32 rounded mt-1">`;
+        showToast('Заставка сохранена');
+    } else {
+        showToast('Ошибка загрузки файла', 'error');
+    }
 }
 
-async function uploadTourSound(input, soundType) {
-    if (!input.files[0] || !currentTourId) return;
+async function setImageUrl() {
+    const url = document.getElementById('q-image-url').value.trim();
+    if (!url || !currentQuestionId) return;
+    const res = await fetch(`/admin/questions/${currentQuestionId}/set-image-url`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url})
+    });
+    const data = await res.json();
+    if (data.ok) {
+        document.getElementById('q-image-preview').innerHTML = `<img src="${url}" class="max-h-32 rounded">`;
+        showToast('Картинка сохранена');
+    } else {
+        showToast('Ошибка', 'error');
+    }
+}
+
+async function uploadQuizSound(input, soundType) {
+    if (!input.files[0]) return;
     const fd = new FormData();
     fd.append('file', input.files[0]);
     fd.append('type', soundType);
-    const midSecs = parseInt(document.getElementById('tour-sound-mid-secs').value) || null;
-    // Save mid_seconds together with sound upload
-    if (soundType === 'sound_mid' && midSecs) {
-        await fetch(`/admin/tours/${currentTourId}`, {
-            method: 'PUT', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({sound_mid_seconds: midSecs})
-        });
-    }
-    const res = await fetch(`/admin/tours/${currentTourId}/upload-sound`, {method: 'POST', body: fd});
+    const res = await fetch(`/admin/quizzes/${QUIZ_ID}/upload-sound`, {method: 'POST', body: fd});
     const data = await res.json();
     if (data.path) {
-        const previewId = {sound_start:'tour-sound-start-preview', sound_mid:'tour-sound-mid-preview', sound_end:'tour-sound-end-preview'}[soundType];
+        const previewId = {sound_start:'quiz-sound-start-preview', sound_mid:'quiz-sound-mid-preview', sound_end:'quiz-sound-end-preview'}[soundType];
         document.getElementById(previewId).innerHTML = `<audio controls src="${data.path}" class="w-full mt-1"></audio>`;
+        showToast('Звук сохранён');
+    } else {
+        showToast('Ошибка загрузки', 'error');
     }
+}
+
+async function saveQuizMidSecs() {
+    const midSecs = parseInt(document.getElementById('quiz-sound-mid-secs').value) || null;
+    await fetch(`/admin/quizzes/${QUIZ_ID}/settings`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sound_mid_seconds: midSecs})
+    });
+    showToast('Сохранено');
 }
 
 // ── Question ────────────────────────────────────────────────────
@@ -412,6 +474,7 @@ async function selectQuestion(qId) {
     document.getElementById('q-text').value = q.text || '';
     document.getElementById('q-correct').value = q.correct_answer || '';
 
+    document.getElementById('q-image-url').value = '';
     document.getElementById('q-image-preview').innerHTML =
         q.image_path ? `<img src="${q.image_path}" class="max-h-32 rounded">` : '';
     document.getElementById('q-audio-preview').innerHTML =
@@ -581,8 +644,33 @@ async function uploadQuestionFile(file, type) {
 
 function showPanel(panel) {
     document.getElementById('editor-placeholder').classList.toggle('hidden', panel !== 'placeholder');
+    document.getElementById('quiz-settings').classList.toggle('hidden', panel !== 'quiz-settings');
     document.getElementById('tour-editor').classList.toggle('hidden', panel !== 'tour-editor');
     document.getElementById('question-editor').classList.toggle('hidden', panel !== 'question-editor');
+}
+
+async function uploadQuizSplash() {
+    const input = document.getElementById('quiz-splash-input');
+    if (!input.files[0]) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    const res = await fetch('/admin/quizzes/{{ quiz.id }}/upload-splash', {method: 'POST', body: fd});
+    const data = await res.json();
+    if (data.path) {
+        document.getElementById('quiz-splash-preview').innerHTML =
+            `<img src="${data.path}" class="max-h-48 rounded">
+             <button onclick="removeQuizSplash()" class="btn btn-xs btn-ghost text-error mt-2 block">Удалить</button>`;
+        showToast('Картинка сохранена');
+    } else {
+        showToast('Ошибка загрузки', 'error');
+    }
+}
+
+async function removeQuizSplash() {
+    await fetch('/admin/quizzes/{{ quiz.id }}/upload-splash', {method: 'DELETE'});
+    document.getElementById('quiz-splash-preview').innerHTML = '';
+    document.getElementById('quiz-splash-input').value = '';
+    showToast('Картинка удалена');
 }
 
 function highlightActive(qId, tourId) {
@@ -592,10 +680,10 @@ function highlightActive(qId, tourId) {
     if (tourId) document.querySelector(`[data-tour-id="${tourId}"]`)?.classList.add('ring-2', 'ring-primary');
 }
 
-function showToast(msg) {
+function showToast(msg, type = 'success') {
     const div = document.createElement('div');
     div.className = 'toast toast-end z-50';
-    div.innerHTML = `<div class="alert alert-success text-sm"><span>${msg}</span></div>`;
+    div.innerHTML = `<div class="alert alert-${type} text-sm"><span>${msg}</span></div>`;
     document.body.appendChild(div);
     setTimeout(() => div.remove(), 2500);
 }
@@ -608,6 +696,7 @@ function escHtml(str) {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tour-splash-input').addEventListener('change', uploadTourSplash);
+    document.getElementById('quiz-splash-input').addEventListener('change', uploadQuizSplash);
 });
 </script>
 {% endblock %}

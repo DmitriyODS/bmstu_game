@@ -32,9 +32,14 @@ class Quiz(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=gen_uuid)
     title = db.Column(db.String(256), nullable=False)
     description = db.Column(db.Text)
+    splash_image = db.Column(db.String(512))
     is_active = db.Column(db.Boolean, nullable=False, default=False)
     status = db.Column(db.String(16), nullable=False, default='draft')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    sound_start_path = db.Column(db.String(512))
+    sound_mid_path = db.Column(db.String(512))
+    sound_mid_seconds = db.Column(db.Integer)
+    sound_end_path = db.Column(db.String(512))
 
     tours = db.relationship('Tour', backref='quiz', cascade='all, delete-orphan',
                             order_by='Tour.order')
@@ -51,10 +56,6 @@ class Tour(db.Model):
     title = db.Column(db.String(256), nullable=False)
     order = db.Column(db.Integer, nullable=False, default=0)
     splash_image = db.Column(db.String(512))
-    sound_start_path = db.Column(db.String(512))
-    sound_mid_path = db.Column(db.String(512))
-    sound_mid_seconds = db.Column(db.Integer)
-    sound_end_path = db.Column(db.String(512))
 
     questions = db.relationship('Question', backref='tour', cascade='all, delete-orphan',
                                  order_by='Question.order')

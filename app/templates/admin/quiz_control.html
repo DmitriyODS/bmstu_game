@@ -21,6 +21,7 @@
             <span class="material-symbols-outlined icon-sm">desktop_windows</span>
             Презентация
         </a>
+
         <a href="/judge/" target="_blank" class="btn btn-outline btn-sm">
             <span class="material-symbols-outlined icon-sm">balance</span>
             Судьи
@@ -140,6 +141,12 @@
     {# ── Правая часть: управление ── #}
     <div class="flex flex-col gap-4 sticky top-4">
 
+        {# Разблокировка звука #}
+        <div id="audio-unlock-banner" class="alert alert-warning shadow cursor-pointer" onclick="unlockAudio()">
+            <span class="material-symbols-outlined">volume_off</span>
+            <span class="text-sm">Нажмите, чтобы включить звук</span>
+        </div>
+
         {# Активный вопрос + таймер #}
         <div class="card bg-base-100 shadow" id="active-question-card">
             <div class="card-body">
@@ -167,10 +174,7 @@
                             <span class="material-symbols-outlined icon-sm">play_arrow</span>
                             Старт
                         </button>
-                        <button onclick="pauseTimer()" class="btn btn-warning btn-sm">
-                            <span class="material-symbols-outlined icon-sm">pause</span>
-                            Пауза
-                        </button>
+
                         <button onclick="resetTimer()" class="btn btn-ghost btn-sm">
                             <span class="material-symbols-outlined icon-sm">refresh</span>
                             Сброс
@@ -234,6 +238,8 @@
 <script>
 const QUIZ_ID = '{{ quiz.id }}';
 let currentQuestionId = null;
+let currentQuestionAudioPath = null;
+let currentQuestionTimeSeconds = null;
 let answersCount = 0;
 let answeredTeams = new Set();
 const totalTeams = {{ quiz.teams|length }};
@@ -244,7 +250,6 @@ const socket = io('/admin');
 
 socket.on('screen_changed', (data) => {
     updateScreenBadge(data.screen);
-    highlightScreenBtn(data.screen, data);
 
     if (data.screen === 'question' && data.question) {
         setActiveQuestion(data.question);
@@ -259,12 +264,19 @@ socket.on('screen_changed', (data) => {
             // keep showing last active question for convenience
         }
     }
+
+    highlightScreenBtn(data.screen, data);
 });
 
-socket.on('timer_started', (data) => updateTimerDisplay(data.seconds));
+socket.on('timer_started', (data) => {
+    updateTimerDisplay(data.seconds);
+    if (currentQuestionAudioPath) {
+        playQuestionAudio(currentQuestionAudioPath, currentQuestionTimeSeconds);
+    }
+});
 socket.on('timer_tick', (data) => updateTimerDisplay(data.remaining));
-socket.on('timer_paused', (data) => updateTimerDisplay(data.remaining));
-socket.on('timer_stopped', () => updateTimerDisplay(0));
+socket.on('timer_paused', (data) => { updateTimerDisplay(data.remaining); stopQuestionAudio(); });
+socket.on('timer_stopped', () => { updateTimerDisplay(0); stopQuestionAudio(); });
 
 socket.on('answer_submitted', (data) => {
     if (!answeredTeams.has(data.team_id)) {
@@ -315,6 +327,9 @@ function highlightScreenBtn(screen, data) {
 
 function setActiveQuestion(q) {
     currentQuestionId = q.id;
+    currentQuestionAudioPath = q.audio_path || null;
+    currentQuestionTimeSeconds = q.time_seconds || null;
+    stopQuestionAudio();
     document.getElementById('no-question-hint').classList.add('hidden');
     document.getElementById('question-controls').classList.remove('hidden');
 
@@ -393,6 +408,41 @@ function showAnswer() {
     if (!currentQuestionId) return;
     changeScreen('question_answer', {question_id: currentQuestionId});
 }
+
+// ── Audio ──────────────────────────────────────────────────────────────────────
+let _audioUnlocked = false;
+let _currentAudio = null;
+
+function unlockAudio() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume();
+    _audioUnlocked = true;
+    document.getElementById('audio-unlock-banner').style.display = 'none';
+}
+
+function playSound(path) {
+    new Audio(path).play().catch(() => {});
+}
+
+function playQuestionAudio(path, maxSeconds) {
+    stopQuestionAudio();
+    const audio = new Audio(path);
+    _currentAudio = audio;
+    audio.play().catch(() => {});
+    if (maxSeconds) {
+        setTimeout(() => { if (_currentAudio === audio) stopQuestionAudio(); }, maxSeconds * 1000);
+    }
+}
+
+function stopQuestionAudio() {
+    if (_currentAudio) {
+        _currentAudio.pause();
+        _currentAudio.currentTime = 0;
+        _currentAudio = null;
+    }
+}
+
+socket.on('play_sound', (data) => playSound(data.path));
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 {% if gs and gs.current_screen %}
