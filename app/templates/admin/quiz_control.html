@@ -72,8 +72,8 @@
 
                 {# Заголовок тура #}
                 <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-base-200">
-                    <span class="font-bold text-base">{{ tour.title }}</span>
-                    <div class="flex gap-2">
+                    <span class="font-bold text-base truncate min-w-0 flex-1 mr-2">{{ tour.title }}</span>
+                    <div class="flex gap-2 shrink-0">
                         <button onclick="showTourSplash('{{ tour.id }}')"
                                 class="btn btn-xs btn-ghost screen-btn" data-screen="tour_splash" data-tour-id="{{ tour.id }}">
                             <span class="material-symbols-outlined icon-sm">photo_library</span>

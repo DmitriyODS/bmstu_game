@@ -188,6 +188,15 @@ body { overflow: hidden; background: #f8fafc; }
     gap: 1.25rem;
     padding: 2.5rem 3rem;
 }
+#q-text-answer-pres:empty { display: none; }
+#q-image-answer-pres img {
+    max-height: 35vh;
+    max-width: 75vw;
+    border-radius: 1rem;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+}
 #q-text-answer-pres {
     font-size: clamp(1.4rem, 2.4vw, 2.1rem);
     color: var(--c-text);
@@ -421,6 +430,16 @@ body { overflow: hidden; background: #f8fafc; }
 #screen-question.image-only-mode #q-text-pres,
 #screen-question.image-only-mode #q-audio-pres,
 #screen-question.image-only-mode #q-options-pres { display: none !important; }
+
+/* ── TEXT + IMAGE QUESTION ────────────────────────────────────────── */
+#screen-question.text-image-mode #q-image-pres {
+    width: 100%;
+}
+#screen-question.text-image-mode #q-image-pres img {
+    max-height: 55vh;
+    width: 100%;
+    object-fit: contain;
+}
 </style>
 {% endblock %}
 
@@ -515,6 +534,7 @@ body { overflow: hidden; background: #f8fafc; }
 
     <!-- QUESTION ANSWER -->
     <div id="screen-question_answer" class="pres-screen" style="display:none">
+        <div id="q-image-answer-pres"></div>
         <p id="q-text-answer-pres"></p>
         <div class="answer-label">Правильный ответ</div>
         <div id="correct-answer-pres"></div>
@@ -717,6 +737,7 @@ function buildOptionTile(letter, text, opts) {
 function loadQuestion(q) {
     const screenEl = document.getElementById('screen-question');
     screenEl.classList.toggle('image-only-mode', q.question_type === 'image_only');
+    screenEl.classList.toggle('text-image-mode', q.question_type === 'text_image');
 
     document.getElementById('q-text-pres').textContent = q.text || '';
     document.getElementById('q-meta-pres').textContent =
@@ -734,7 +755,12 @@ function loadQuestion(q) {
         img.src = q.image_path;
         imgWrap.appendChild(img);
     }
-    document.getElementById('q-audio-pres').innerHTML = '';
+    const audioPres = document.getElementById('q-audio-pres');
+    if (q.question_type === 'audio') {
+        audioPres.innerHTML = `<span class="material-symbols-outlined" style="font-size:min(38vw,38vh);color:var(--c-primary);opacity:0.8;display:block;text-align:center;line-height:1;">music_note</span>`;
+    } else {
+        audioPres.innerHTML = '';
+    }
 
     const optsEl = document.getElementById('q-options-pres');
     optsEl.innerHTML = '';
@@ -769,6 +795,13 @@ function loadQuestion(q) {
 }
 
 function showAnswer(q) {
+    const imgAnswerEl = document.getElementById('q-image-answer-pres');
+    if (q.image_path && ['image_only', 'text_image'].includes(q.question_type)) {
+        imgAnswerEl.innerHTML = `<img src="${escHtml(q.image_path)}" alt="">`;
+    } else {
+        imgAnswerEl.innerHTML = '';
+    }
+
     document.getElementById('q-text-answer-pres').textContent = q.text || '';
     const correctEl = document.getElementById('correct-answer-pres');
     const optsEl = document.getElementById('correct-options-pres');

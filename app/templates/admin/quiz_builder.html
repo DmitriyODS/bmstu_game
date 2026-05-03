@@ -32,12 +32,12 @@
     </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
     <!-- Левая панель: список туров и вопросов -->
-    <div class="lg:col-span-1 flex flex-col gap-2">
-        <div id="tours-list" class="flex flex-col gap-2">
+    <div class="lg:col-span-1 flex flex-col gap-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-130px)] lg:overflow-hidden">
+        <div id="tours-list" class="flex flex-col gap-2 lg:overflow-y-auto lg:flex-1">
             {% for tour in quiz.tours %}
-            <div class="card bg-base-100 shadow-sm tour-card" data-tour-id="{{ tour.id }}">
+            <div class="card bg-base-100 shadow-sm tour-card" data-tour-id="{{ tour.id }}" draggable="true">
                 <div class="card-body p-3">
                     <!-- Tour header -->
                     <div class="flex items-center gap-2">
@@ -271,7 +271,7 @@
 
                     <div id="q-correct-block" class="mb-4 hidden">
                         <label class="label"><span class="label-text">Правильный ответ (для судей)</span></label>
-                        <input type="text" id="q-correct" class="input input-bordered w-full">
+                        <textarea id="q-correct" class="textarea textarea-bordered w-full" rows="2"></textarea>
                     </div>
 
                     <div class="flex gap-2 pt-2 border-t border-base-200">
@@ -311,6 +311,7 @@ function createTourCard(tour) {
     const div = document.createElement('div');
     div.className = 'card bg-base-100 shadow-sm tour-card';
     div.dataset.tourId = tour.id;
+    div.draggable = true;
     div.innerHTML = `
         <div class="card-body p-3">
             <div class="flex items-center gap-2">
@@ -392,7 +393,7 @@ async function setImageUrl() {
     });
     const data = await res.json();
     if (data.ok) {
-        document.getElementById('q-image-preview').innerHTML = `<img src="${url}" class="max-h-32 rounded">`;
+        document.getElementById('q-image-preview').innerHTML = `<img src="${url}" class="max-h-32 w-full object-contain rounded">`;
         showToast('Картинка сохранена');
     } else {
         showToast('Ошибка', 'error');
@@ -476,9 +477,18 @@ async function selectQuestion(qId) {
 
     document.getElementById('q-image-url').value = '';
     document.getElementById('q-image-preview').innerHTML =
-        q.image_path ? `<img src="${q.image_path}" class="max-h-32 rounded">` : '';
-    document.getElementById('q-audio-preview').innerHTML =
-        q.audio_path ? `<audio controls src="${q.audio_path}" class="w-full mt-1"></audio>` : '';
+        q.image_path ? `<img src="${q.image_path}" class="max-h-32 w-full object-contain rounded">` : '';
+    if (q.audio_path) {
+        const fn = q.audio_path.split('/').pop();
+        document.getElementById('q-audio-preview').innerHTML =
+            `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
+                <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
+                <span class="truncate">${escHtml(fn)}</span>
+            </div>
+            <audio controls src="${q.audio_path}" class="w-full mt-1"></audio>`;
+    } else {
+        document.getElementById('q-audio-preview').innerHTML = '';
+    }
 
     // Reset file inputs
     document.getElementById('q-image-input').value = '';
@@ -635,9 +645,16 @@ async function uploadQuestionFile(file, type) {
     const res = await fetch(`/admin/questions/${currentQuestionId}/upload`, {method: 'POST', body: fd});
     const data = await res.json();
     if (type === 'image' && data.path)
-        document.getElementById('q-image-preview').innerHTML = `<img src="${data.path}" class="max-h-32 rounded">`;
-    if (type === 'audio' && data.path)
-        document.getElementById('q-audio-preview').innerHTML = `<audio controls src="${data.path}" class="w-full mt-1"></audio>`;
+        document.getElementById('q-image-preview').innerHTML = `<img src="${data.path}" class="max-h-32 w-full object-contain rounded">`;
+    if (type === 'audio' && data.path) {
+        const fn = data.path.split('/').pop();
+        document.getElementById('q-audio-preview').innerHTML =
+            `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
+                <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
+                <span class="truncate">${escHtml(fn)}</span>
+            </div>
+            <audio controls src="${data.path}" class="w-full mt-1"></audio>`;
+    }
 }
 
 // ── UI helpers ──────────────────────────────────────────────────
@@ -692,11 +709,111 @@ function escHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Drag & Drop ──────────────────────────────────────────────────
+
+let _dndSrc = null;
+let _dndType = null;
+
+function _dndClearOver() {
+    document.querySelectorAll('[data-dnd-over]').forEach(el => {
+        el.removeAttribute('data-dnd-over');
+        el.classList.remove('ring-2', 'ring-primary', 'ring-offset-1');
+    });
+}
+
+function initDnD() {
+    const root = document.getElementById('tours-list');
+    if (!root) return;
+
+    root.addEventListener('dragstart', (e) => {
+        const qItem = e.target.closest('.question-item');
+        const tourCard = e.target.closest('.tour-card');
+        if (qItem) {
+            _dndSrc = qItem; _dndType = 'question';
+            e.dataTransfer.effectAllowed = 'move';
+            e.stopPropagation();
+            setTimeout(() => qItem.classList.add('opacity-40'), 0);
+        } else if (tourCard) {
+            _dndSrc = tourCard; _dndType = 'tour';
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => tourCard.classList.add('opacity-40'), 0);
+        }
+    });
+
+    root.addEventListener('dragend', () => {
+        if (_dndSrc) _dndSrc.classList.remove('opacity-40');
+        _dndClearOver();
+        _dndSrc = null; _dndType = null;
+    });
+
+    root.addEventListener('dragover', (e) => {
+        if (!_dndSrc) return;
+        if (_dndType === 'question') {
+            const item = e.target.closest('.question-item');
+            if (item && item !== _dndSrc && item.closest('ul') === _dndSrc.closest('ul')) {
+                e.preventDefault(); e.stopPropagation();
+                _dndClearOver();
+                item.setAttribute('data-dnd-over', '1');
+                item.classList.add('ring-2', 'ring-primary', 'ring-offset-1');
+            }
+        } else if (_dndType === 'tour') {
+            if (e.target.closest('.question-item')) return;
+            const card = e.target.closest('.tour-card');
+            if (card && card !== _dndSrc) {
+                e.preventDefault();
+                _dndClearOver();
+                card.setAttribute('data-dnd-over', '1');
+                card.classList.add('ring-2', 'ring-primary', 'ring-offset-1');
+            }
+        }
+    });
+
+    root.addEventListener('drop', async (e) => {
+        if (!_dndSrc) return;
+        e.preventDefault();
+
+        if (_dndType === 'question') {
+            e.stopPropagation();
+            const item = e.target.closest('.question-item');
+            if (!item || item === _dndSrc) return;
+            const ul = _dndSrc.closest('ul');
+            if (!ul || !ul.contains(item)) return;
+            const srcIdx = [...ul.children].indexOf(_dndSrc);
+            const dstIdx = [...ul.children].indexOf(item);
+            if (srcIdx < dstIdx) item.after(_dndSrc); else item.before(_dndSrc);
+            const orderData = [...ul.querySelectorAll('.question-item')].map((el, i) => ({id: el.dataset.qId, order: i}));
+            if (orderData[0]) {
+                await fetch(`/admin/questions/${orderData[0].id}/reorder`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(orderData)
+                });
+                showToast('Порядок вопросов сохранён');
+            }
+        } else if (_dndType === 'tour') {
+            const card = e.target.closest('.tour-card');
+            if (!card || card === _dndSrc) return;
+            const cards = [...root.querySelectorAll(':scope > .tour-card')];
+            const srcIdx = cards.indexOf(_dndSrc);
+            const dstIdx = cards.indexOf(card);
+            if (srcIdx < dstIdx) card.after(_dndSrc); else card.before(_dndSrc);
+            const orderData = [...root.querySelectorAll(':scope > .tour-card')].map((el, i) => ({id: el.dataset.tourId, order: i}));
+            if (orderData[0]) {
+                await fetch(`/admin/tours/${orderData[0].id}/reorder`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(orderData)
+                });
+                showToast('Порядок туров сохранён');
+            }
+        }
+    });
+}
+
 // ── Init ─────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tour-splash-input').addEventListener('change', uploadTourSplash);
     document.getElementById('quiz-splash-input').addEventListener('change', uploadQuizSplash);
+    initDnD();
 });
 </script>
 {% endblock %}
