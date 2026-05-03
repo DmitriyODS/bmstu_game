@@ -174,7 +174,10 @@
                             <span class="material-symbols-outlined icon-sm">play_arrow</span>
                             Старт
                         </button>
-
+                        <button onclick="pauseTimer()" class="btn btn-warning btn-sm" id="btn-pause-timer">
+                            <span class="material-symbols-outlined icon-sm">pause</span>
+                            Пауза
+                        </button>
                         <button onclick="resetTimer()" class="btn btn-ghost btn-sm">
                             <span class="material-symbols-outlined icon-sm">refresh</span>
                             Сброс
@@ -207,23 +210,25 @@
             <div class="card-body">
                 <h2 class="card-title text-sm text-base-content/60 font-semibold uppercase tracking-wide">
                     Команды
-                    <span class="badge badge-ghost ml-1">{{ quiz.teams|length }}</span>
+                    <span class="badge badge-ghost ml-1 teams-counter">{{ quiz.teams|length }}</span>
                 </h2>
                 <div class="flex flex-col gap-1 mt-2 max-h-72 overflow-y-auto" id="teams-list">
                     {% for team in quiz.teams %}
                     <div class="flex items-center justify-between text-sm py-1 px-1 rounded gap-2"
                          id="team-row-{{ team.id }}">
-                        <span class="truncate">{{ team.name }}</span>
+                        <span class="truncate team-name">{{ team.name }}</span>
                         <div class="flex items-center gap-2 shrink-0">
-                            <span class="text-xs text-base-content/40 answered-mark hidden"
-                                  id="team-ans-{{ team.id }}" title="Ответил">✓</span>
+                            <span class="text-xs text-success answered-mark hidden"
+                                  id="team-ans-{{ team.id }}" title="Ответил">
+                                <span class="material-symbols-outlined" style="font-size:14px">check</span>
+                            </span>
                             <span class="badge badge-ghost badge-sm font-mono"
                                   id="team-score-{{ team.id }}">0</span>
                         </div>
                     </div>
                     {% endfor %}
                     {% if not quiz.teams %}
-                    <div class="text-sm text-base-content/40">Нет команд</div>
+                    <div class="text-sm text-base-content/40" id="teams-empty">Нет команд</div>
                     {% endif %}
                 </div>
             </div>
@@ -242,9 +247,14 @@ let currentQuestionAudioPath = null;
 let currentQuestionTimeSeconds = null;
 let answersCount = 0;
 let answeredTeams = new Set();
-const totalTeams = {{ quiz.teams|length }};
+let totalTeams = {{ quiz.teams|length }};
 
 const socket = io('/admin');
+
+function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 // ── Socket events ──────────────────────────────────────────────────────────────
 
@@ -277,6 +287,10 @@ socket.on('timer_started', (data) => {
 socket.on('timer_tick', (data) => updateTimerDisplay(data.remaining));
 socket.on('timer_paused', (data) => { updateTimerDisplay(data.remaining); stopQuestionAudio(); });
 socket.on('timer_stopped', () => { updateTimerDisplay(0); stopQuestionAudio(); });
+socket.on('timer_reset', () => {
+    updateTimerDisplay(currentQuestionTimeSeconds || '--');
+    stopQuestionAudio();
+});
 
 socket.on('answer_submitted', (data) => {
     if (!answeredTeams.has(data.team_id)) {
@@ -294,6 +308,44 @@ socket.on('scores_updated', (data) => {
         });
     }
 });
+
+socket.on('team_registered', (data) => {
+    if (document.getElementById(`team-row-${data.team_id}`)) return;
+    addTeamRow(data.team_id, data.name);
+    totalTeams++;
+    document.querySelectorAll('.teams-counter').forEach(el => el.textContent = totalTeams);
+    document.getElementById('teams-total').textContent = totalTeams;
+    const prog = document.getElementById('answers-progress');
+    prog.max = Math.max(totalTeams, 1);
+    // Удаляем заглушку «Нет команд», если была
+    const empty = document.getElementById('teams-empty');
+    if (empty) empty.remove();
+});
+
+socket.on('team_name_updated', (data) => {
+    const row = document.getElementById(`team-row-${data.team_id}`);
+    if (row) {
+        const nameEl = row.querySelector('.team-name');
+        if (nameEl) nameEl.textContent = data.name;
+    }
+});
+
+function addTeamRow(teamId, name) {
+    const list = document.getElementById('teams-list');
+    if (!list) return;
+    const row = document.createElement('div');
+    row.id = `team-row-${teamId}`;
+    row.className = 'flex items-center justify-between text-sm py-1 px-1 rounded gap-2';
+    row.innerHTML = `
+        <span class="truncate team-name">${escHtml(name)}</span>
+        <div class="flex items-center gap-2 shrink-0">
+            <span class="text-xs text-success answered-mark hidden" id="team-ans-${escHtml(teamId)}" title="Ответил">
+                <span class="material-symbols-outlined" style="font-size:14px">check</span>
+            </span>
+            <span class="badge badge-ghost badge-sm font-mono" id="team-score-${escHtml(teamId)}">0</span>
+        </div>`;
+    list.appendChild(row);
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -401,7 +453,7 @@ function pauseTimer() {
 
 function resetTimer() {
     socket.emit('reset_timer');
-    document.getElementById('timer-display').textContent = '--';
+    document.getElementById('timer-display').textContent = currentQuestionTimeSeconds ?? '--';
 }
 
 function showAnswer() {

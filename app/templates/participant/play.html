@@ -84,16 +84,16 @@
 
     <!-- QUESTION -->
     <div id="screen-question" class="hidden w-full max-w-lg">
-        <div class="flex justify-between items-center mb-4">
-            <div class="text-sm text-base-content/60" id="q-meta"></div>
-            <div class="text-3xl font-bold font-mono text-primary" id="timer">--</div>
+        <div class="flex justify-between items-center mb-3 sticky top-0 z-20 bg-base-200/95 backdrop-blur py-2 -mx-2 px-2 rounded-lg">
+            <div class="text-sm text-base-content/70 font-semibold" id="q-meta"></div>
+            <div class="text-3xl font-bold font-mono text-primary tabular-nums" id="timer">--</div>
         </div>
 
         <div class="card bg-base-100 shadow mb-4">
             <div class="card-body p-4">
                 <div id="q-image-area"></div>
                 <div id="q-audio-area"></div>
-                <p class="text-base sm:text-lg font-medium" id="q-text"></p>
+                <p class="text-base sm:text-lg font-medium leading-snug break-words" id="q-text"></p>
             </div>
         </div>
 
@@ -106,10 +106,10 @@
 
         <div id="answer-area" class="mb-4 hidden"></div>
 
-        <div id="answer-submitted" class="hidden">
+        <div id="answer-submitted" class="hidden mb-2">
             <div class="alert alert-success">
                 <span class="material-symbols-outlined icon-sm">check_circle</span>
-                <span>Ответ принят! Вы можете изменить его, пока идёт таймер.</span>
+                <span class="text-sm">Ответ принят. Можно изменить, пока идёт таймер.</span>
             </div>
         </div>
 
@@ -122,14 +122,16 @@
     </div>
 
     <!-- QUESTION ANSWER -->
-    <div id="screen-question_answer" class="hidden text-center w-full max-w-lg">
+    <div id="screen-question_answer" class="hidden w-full max-w-lg">
         <div class="card bg-base-100 shadow">
             <div class="card-body">
                 <h2 class="card-title justify-center text-success">
                     <span class="material-symbols-outlined icon-md">check_circle</span>
                     Правильный ответ
                 </h2>
-                <p class="text-xl sm:text-2xl font-bold mt-2" id="correct-answer-text"></p>
+                <p class="text-base text-base-content/60 text-center mt-1 mb-3 break-words" id="correct-question-text"></p>
+                <div id="correct-answer-text" class="text-xl sm:text-2xl font-bold text-center break-words"></div>
+                <div id="correct-answer-list" class="flex flex-col gap-2 mt-2"></div>
             </div>
         </div>
     </div>
@@ -168,6 +170,11 @@ let timerExpired = false;
 let timerStarted = false;
 
 const socket = io('/participant');
+
+function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 function showScreen(name) {
     document.querySelectorAll('[id^="screen-"]').forEach(el => el.classList.add('hidden'));
@@ -238,6 +245,22 @@ socket.on('timer_stopped', () => {
     document.getElementById('answer-area')?.classList.add('opacity-50', 'pointer-events-none');
 });
 
+socket.on('timer_reset', () => {
+    // Полный сброс — ждём заново старта
+    timerStarted = false;
+    timerExpired = false;
+    const t = document.getElementById('timer');
+    if (t && currentQuestion) {
+        t.textContent = currentQuestion.time_seconds;
+        t.className = 'text-3xl font-bold font-mono text-primary';
+    }
+    document.getElementById('waiting-timer')?.classList.remove('hidden');
+    document.getElementById('answer-area')?.classList.add('hidden');
+    document.getElementById('answer-area')?.classList.remove('opacity-50', 'pointer-events-none');
+    document.getElementById('answer-submitted')?.classList.add('hidden');
+    document.getElementById('timer-expired')?.classList.add('hidden');
+});
+
 socket.on('registration_opened', () => location.reload());
 socket.on('registration_closed', () => location.reload());
 socket.on('team_registered', () => {});
@@ -269,13 +292,21 @@ function loadQuestion(q) {
     const imgArea = document.getElementById('q-image-area');
     imgArea.innerHTML = '';
     if (q.image_path) {
-        imgArea.innerHTML = `<img src="${q.image_path}" class="rounded max-h-48 w-full object-contain mx-auto mb-3">`;
+        const img = document.createElement('img');
+        img.src = q.image_path;
+        img.className = 'rounded max-h-48 w-full object-contain mx-auto mb-3';
+        imgArea.appendChild(img);
     }
 
     const audArea = document.getElementById('q-audio-area');
     audArea.innerHTML = '';
     if (q.audio_path) {
-        audArea.innerHTML = `<audio controls autoplay src="${q.audio_path}" class="w-full mb-3"></audio>`;
+        const audio = document.createElement('audio');
+        audio.src = q.audio_path;
+        audio.controls = true;
+        audio.autoplay = true;
+        audio.className = 'w-full mb-3';
+        audArea.appendChild(audio);
     }
 
     renderAnswerArea(q);
@@ -286,26 +317,35 @@ function renderAnswerArea(q) {
     area.innerHTML = '';
 
     if (q.answer_type === 'single_choice') {
+        const btns = [];
         q.answer_options.forEach(opt => {
             const btn = document.createElement('button');
-            btn.className = 'btn btn-outline w-full mb-2 text-left justify-start';
+            btn.type = 'button';
+            btn.className = 'btn btn-outline w-full mb-2 text-left justify-start whitespace-normal h-auto py-3';
             btn.textContent = opt.text;
             btn.onclick = () => {
-                area.querySelectorAll('button').forEach(b => b.classList.remove('btn-primary'));
-                btn.classList.add('btn-primary');
+                btns.forEach(b => { b.classList.remove('btn-primary'); b.classList.add('btn-outline'); });
+                btn.classList.add('btn-primary'); btn.classList.remove('btn-outline');
                 submitAnswer({selected_options: [opt.id]});
             };
+            btns.push(btn);
             area.appendChild(btn);
         });
     } else if (q.answer_type === 'multiple_choice') {
         const selected = new Set();
         q.answer_options.forEach(opt => {
             const btn = document.createElement('button');
-            btn.className = 'btn btn-outline w-full mb-2 text-left justify-start';
+            btn.type = 'button';
+            btn.className = 'btn btn-outline w-full mb-2 text-left justify-start whitespace-normal h-auto py-3';
             btn.textContent = opt.text;
             btn.onclick = () => {
-                if (selected.has(opt.id)) { selected.delete(opt.id); btn.classList.remove('btn-primary'); }
-                else { selected.add(opt.id); btn.classList.add('btn-primary'); }
+                if (selected.has(opt.id)) {
+                    selected.delete(opt.id);
+                    btn.classList.remove('btn-primary'); btn.classList.add('btn-outline');
+                } else {
+                    selected.add(opt.id);
+                    btn.classList.add('btn-primary'); btn.classList.remove('btn-outline');
+                }
                 submitAnswer({selected_options: [...selected]});
             };
             area.appendChild(btn);
@@ -314,14 +354,14 @@ function renderAnswerArea(q) {
         area.innerHTML = `
             <div class="flex gap-2">
                 <input type="text" id="text-answer" class="input input-bordered flex-1" placeholder="Ваш ответ..." maxlength="255">
-                <button onclick="submitText()" class="btn btn-primary">
+                <button type="button" onclick="submitText()" class="btn btn-primary">
                     <span class="material-symbols-outlined icon-sm">send</span>
                 </button>
             </div>`;
     } else if (q.answer_type === 'long_text') {
         area.innerHTML = `
             <textarea id="text-answer" class="textarea textarea-bordered w-full mb-2" rows="4" placeholder="Ваш ответ..."></textarea>
-            <button onclick="submitText()" class="btn btn-primary w-full">
+            <button type="button" onclick="submitText()" class="btn btn-primary w-full">
                 <span class="material-symbols-outlined icon-sm">send</span>
                 Отправить
             </button>`;
@@ -331,30 +371,55 @@ function renderAnswerArea(q) {
 }
 
 function renderMatching(q, area) {
-    const items = q.matching_items;
+    const items = q.matching_items || [];
+    // Перемешиваем правые элементы для случайного порядка вариантов
     const rights = [...items].sort(() => Math.random() - 0.5);
 
-    const optionsHtml = rights.map(r =>
-        `<option value="${r.id}">${r.right_text}</option>`
-    ).join('');
+    const list = document.createElement('div');
+    list.className = 'flex flex-col gap-3';
 
-    const rowsHtml = items.map(item => `
-        <div class="flex items-center gap-2">
-            <div class="flex-1 p-2 bg-base-200 rounded border text-sm font-medium leading-tight">${item.left_text}</div>
-            <span class="text-base-content/40 shrink-0">→</span>
-            <select class="select select-bordered select-sm flex-1 matching-select" data-left-id="${item.id}">
-                <option value="">— выбрать —</option>
-                ${optionsHtml}
-            </select>
-        </div>
-    `).join('');
+    items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'flex items-stretch gap-2';
 
-    area.innerHTML = `
-        <div class="flex flex-col gap-3">${rowsHtml}</div>
-        <button onclick="submitMatching()" class="btn btn-primary w-full mt-3">
-            <span class="material-symbols-outlined icon-sm">send</span>
-            Отправить
-        </button>`;
+        const left = document.createElement('div');
+        left.className = 'flex-1 min-w-0 p-2 bg-base-200 rounded-lg border border-base-300 text-sm font-medium leading-snug flex items-center break-words';
+        left.textContent = item.left_text;
+
+        const arrow = document.createElement('span');
+        arrow.className = 'text-base-content/40 shrink-0 self-center material-symbols-outlined';
+        arrow.style.fontSize = '20px';
+        arrow.textContent = 'arrow_right_alt';
+
+        const select = document.createElement('select');
+        select.className = 'select select-bordered select-sm flex-1 min-w-0 matching-select';
+        select.dataset.leftId = item.id;
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = '— выбрать —';
+        select.appendChild(empty);
+        rights.forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r.id;
+            opt.textContent = r.right_text;
+            select.appendChild(opt);
+        });
+        select.onchange = submitMatching;
+
+        row.appendChild(left);
+        row.appendChild(arrow);
+        row.appendChild(select);
+        list.appendChild(row);
+    });
+
+    area.appendChild(list);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-primary w-full mt-3';
+    btn.innerHTML = '<span class="material-symbols-outlined icon-sm">send</span> Отправить';
+    btn.onclick = submitMatching;
+    area.appendChild(btn);
 }
 
 function submitMatching() {
@@ -384,15 +449,49 @@ async function submitAnswer(answerData) {
 }
 
 function showCorrectAnswer(q) {
-    const el = document.getElementById('correct-answer-text');
-    if (q.correct_answer) {
-        el.textContent = q.correct_answer;
-    } else if (q.answer_options) {
-        const correct = q.answer_options.filter(o => o.is_correct).map(o => o.text).join(', ');
-        el.textContent = correct || '—';
-    } else {
-        el.textContent = '—';
+    const textEl = document.getElementById('correct-answer-text');
+    const listEl = document.getElementById('correct-answer-list');
+    const qTextEl = document.getElementById('correct-question-text');
+    qTextEl.textContent = q.text || '';
+    qTextEl.classList.toggle('hidden', !q.text);
+    textEl.textContent = '';
+    listEl.innerHTML = '';
+
+    if (q.answer_type === 'matching' && Array.isArray(q.matching_items) && q.matching_items.length) {
+        const items = [...q.matching_items].sort((a, b) => (a.order||0) - (b.order||0));
+        items.forEach(it => {
+            const row = document.createElement('div');
+            row.className = 'flex items-stretch gap-2';
+            const left = document.createElement('div');
+            left.className = 'flex-1 min-w-0 p-2 bg-base-200 rounded-lg border border-base-300 text-sm font-medium flex items-center break-words';
+            left.textContent = it.left_text;
+            const arrow = document.createElement('span');
+            arrow.className = 'shrink-0 self-center text-success material-symbols-outlined';
+            arrow.style.fontSize = '20px';
+            arrow.textContent = 'arrow_right_alt';
+            const right = document.createElement('div');
+            right.className = 'flex-1 min-w-0 p-2 bg-success/15 border border-success/40 rounded-lg text-sm font-medium text-success flex items-center break-words';
+            right.textContent = it.right_text;
+            row.appendChild(left);
+            row.appendChild(arrow);
+            row.appendChild(right);
+            listEl.appendChild(row);
+        });
+        return;
     }
+    if (Array.isArray(q.answer_options) && q.answer_options.length && q.answer_options.some(o => 'is_correct' in o)) {
+        const correctOpts = q.answer_options.filter(o => o.is_correct);
+        if (correctOpts.length) {
+            correctOpts.forEach(o => {
+                const div = document.createElement('div');
+                div.className = 'p-3 bg-success/15 border border-success/40 rounded-lg text-success font-semibold text-center break-words';
+                div.textContent = o.text;
+                listEl.appendChild(div);
+            });
+            return;
+        }
+    }
+    textEl.textContent = q.correct_answer || '—';
 }
 
 function renderResults(containerId, scores) {
@@ -408,9 +507,9 @@ function renderResults(containerId, scores) {
     html += '<div class="flex flex-col gap-2">';
     scores.forEach(s => {
         const isMe = s.team_id === TEAM_ID;
-        html += `<div class="flex justify-between items-center p-3 rounded ${isMe ? 'bg-primary text-primary-content' : 'bg-base-100'}">
-            <span>${s.place}. ${s.team_name}</span>
-            <span class="font-bold">${s.score}</span>
+        html += `<div class="flex justify-between items-center p-3 rounded-lg shadow-sm ${isMe ? 'bg-primary text-primary-content' : 'bg-base-100'}">
+            <span class="truncate"><span class="font-mono opacity-60 mr-2">${s.place}.</span>${escHtml(s.team_name)}</span>
+            <span class="font-bold ml-2 shrink-0">${s.score}</span>
         </div>`;
     });
     html += '</div>';

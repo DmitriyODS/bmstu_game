@@ -1,5 +1,15 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Команды — {{ quiz.title }}{% endblock %}
+{% block scripts %}
+<script>
+const QUIZ_ID = '{{ quiz.id }}';
+{% if quiz.is_active %}
+const socket = io('/admin');
+socket.on('team_registered', () => location.reload());
+socket.on('team_name_updated', () => location.reload());
+{% endif %}
+</script>
+{% endblock %}
 
 {% block admin_content %}
 <div class="flex justify-between items-center mb-6">

@@ -162,9 +162,12 @@ def quiz_control(quiz_id):
 @admin_required
 def tour_create(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
-    max_order = db.session.query(db.func.max(Tour.order)).filter_by(quiz_id=quiz_id).scalar() or -1
+    max_order = db.session.query(db.func.max(Tour.order)).filter_by(quiz_id=quiz_id).scalar()
+    if max_order is None:
+        max_order = -1
     count = Tour.query.filter_by(quiz_id=quiz_id).count()
-    title = request.json.get('title', f'Тур {count + 1}')
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or f'Тур {count + 1}').strip() or f'Тур {count + 1}'
     tour = Tour(quiz_id=quiz_id, title=title, order=max_order + 1)
     db.session.add(tour)
     db.session.commit()
@@ -192,7 +195,7 @@ def tour_update(tour_id):
         return jsonify({'ok': True})
     if request.method == 'GET':
         return jsonify(_tour_dict(tour))
-    data = request.json
+    data = request.get_json(silent=True) or {}
     for field in ('title', 'order'):
         if field in data:
             setattr(tour, field, data[field])
@@ -203,9 +206,10 @@ def tour_update(tour_id):
 @admin_bp.route('/tours/<tour_id>/reorder', methods=['POST'])
 @admin_required
 def tour_reorder(tour_id):
-    data = request.json  # [{id, order}, ...]
+    data = request.get_json(silent=True) or []
     for item in data:
-        Tour.query.filter_by(id=item['id']).update({'order': item['order']})
+        if 'id' in item and 'order' in item:
+            Tour.query.filter_by(id=item['id']).update({'order': item['order']})
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -277,8 +281,10 @@ def quiz_settings_update(quiz_id):
 @admin_required
 def question_create(tour_id):
     tour = Tour.query.get_or_404(tour_id)
-    max_order = db.session.query(db.func.max(Question.order)).filter_by(tour_id=tour_id).scalar() or -1
-    data = request.json or {}
+    max_order = db.session.query(db.func.max(Question.order)).filter_by(tour_id=tour_id).scalar()
+    if max_order is None:
+        max_order = -1
+    data = request.get_json(silent=True) or {}
     q = Question(
         tour_id=tour_id,
         order=max_order + 1,
@@ -309,11 +315,14 @@ def question_update(question_id):
         return jsonify({'ok': True})
     if request.method == 'GET':
         return jsonify(_question_dict(q))
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     for field in ('question_type', 'answer_type', 'text', 'time_seconds', 'points',
                   'auto_check', 'correct_answer', 'order'):
         if field in data:
             setattr(q, field, data[field])
+    # auto_check имеет смысл только для вариантов; принудительно нормализуем
+    if q.answer_type not in ('single_choice', 'multiple_choice'):
+        q.auto_check = False
     db.session.commit()
     return jsonify(_question_dict(q))
 
@@ -321,9 +330,10 @@ def question_update(question_id):
 @admin_bp.route('/questions/<question_id>/reorder', methods=['POST'])
 @admin_required
 def question_reorder(question_id):
-    data = request.json  # [{id, order}, ...]
+    data = request.get_json(silent=True) or []
     for item in data:
-        Question.query.filter_by(id=item['id']).update({'order': item['order']})
+        if 'id' in item and 'order' in item:
+            Question.query.filter_by(id=item['id']).update({'order': item['order']})
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -386,8 +396,10 @@ def answer_options(question_id):
     if request.method == 'GET':
         return jsonify([{'id': o.id, 'text': o.text, 'is_correct': o.is_correct, 'order': o.order}
                         for o in q.answer_options])
-    data = request.json
-    max_order = db.session.query(db.func.max(AnswerOption.order)).filter_by(question_id=question_id).scalar() or -1
+    data = request.get_json(silent=True) or {}
+    max_order = db.session.query(db.func.max(AnswerOption.order)).filter_by(question_id=question_id).scalar()
+    if max_order is None:
+        max_order = -1
     opt = AnswerOption(
         question_id=question_id,
         text=data.get('text', ''),
@@ -407,11 +419,11 @@ def option_update(option_id):
         db.session.delete(opt)
         db.session.commit()
         return jsonify({'ok': True})
-    data = request.json
+    data = request.get_json(silent=True) or {}
     if 'text' in data:
         opt.text = data['text']
     if 'is_correct' in data:
-        opt.is_correct = data['is_correct']
+        opt.is_correct = bool(data['is_correct'])
     db.session.commit()
     return jsonify({'id': opt.id, 'text': opt.text, 'is_correct': opt.is_correct})
 
@@ -425,8 +437,10 @@ def matching_items(question_id):
     if request.method == 'GET':
         return jsonify([{'id': m.id, 'left_text': m.left_text, 'right_text': m.right_text, 'order': m.order}
                         for m in q.matching_items])
-    data = request.json
-    max_order = db.session.query(db.func.max(MatchingItem.order)).filter_by(question_id=question_id).scalar() or -1
+    data = request.get_json(silent=True) or {}
+    max_order = db.session.query(db.func.max(MatchingItem.order)).filter_by(question_id=question_id).scalar()
+    if max_order is None:
+        max_order = -1
     item = MatchingItem(
         question_id=question_id,
         left_text=data.get('left_text', ''),
@@ -446,7 +460,7 @@ def matching_update(item_id):
         db.session.delete(item)
         db.session.commit()
         return jsonify({'ok': True})
-    data = request.json
+    data = request.get_json(silent=True) or {}
     if 'left_text' in data:
         item.left_text = data['left_text']
     if 'right_text' in data:
@@ -652,7 +666,6 @@ def quiz_export_json(quiz_id):
                 'points': q.points,
                 'auto_check': q.auto_check,
                 'correct_answer': q.correct_answer,
-                'sound_mid_seconds': q.sound_mid_seconds,
                 'answer_options': [
                     {'text': o.text, 'is_correct': o.is_correct, 'order': o.order}
                     for o in q.answer_options
@@ -706,6 +719,7 @@ def quiz_import_json():
                 answer_type=q_data.get('answer_type', 'short_text'),
                 text=q_data.get('text'),
                 image_path=q_data.get('image_path'),
+                audio_path=q_data.get('audio_path'),
                 time_seconds=q_data.get('time_seconds', 60),
                 points=q_data.get('points', 1),
                 auto_check=q_data.get('auto_check', False),

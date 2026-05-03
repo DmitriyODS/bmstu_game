@@ -91,17 +91,20 @@ body { overflow: hidden; background: #f8fafc; }
 #timer-pres.danger { background: #ef4444; }
 
 #q-text-pres {
-    font-size: clamp(2.5rem, 5vw, 4.75rem);
+    font-size: clamp(2rem, 4.2vw, 4.25rem);
     font-weight: 700;
     color: var(--c-text);
     line-height: 1.25;
-    padding: 2rem 2.5rem;
+    padding: 1.5rem 2.5rem;
     background: var(--c-card);
     border: 1.5px solid var(--c-border);
     border-radius: 1.5rem;
     text-align: center;
     box-shadow: var(--c-shadow);
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
+#q-text-pres:empty { display: none; }
 #q-image-pres img {
     max-height: 34vh;
     max-width: 100%;
@@ -123,55 +126,123 @@ body { overflow: hidden; background: #f8fafc; }
     padding: 1.5rem 2rem;
     font-size: clamp(1.5rem, 2.8vw, 2.5rem);
     font-weight: 700;
-    color: #fff;
+    color: var(--c-text);
+    background: var(--c-card);
+    border: 1.5px solid var(--c-border);
     min-height: 7rem;
     box-shadow: var(--c-shadow);
+    transition: background 0.3s, border-color 0.3s, color 0.3s, opacity 0.3s;
 }
-.opt-tile:nth-child(4n+1) { background: var(--c-primary); }
-.opt-tile:nth-child(4n+2) { background: var(--c-secondary); }
-.opt-tile:nth-child(4n+3) { background: var(--c-accent); }
-.opt-tile:nth-child(4n+4) { background: #059669; }
+.opt-tile.opt-correct {
+    background: #ecfdf5;
+    border-color: #22c55e;
+    color: #166534;
+    box-shadow: 0 0 0 2px rgba(34,197,94,0.25), var(--c-shadow);
+}
+.opt-tile.opt-wrong {
+    opacity: 0.45;
+}
 .opt-letter {
     font-size: clamp(1.5rem, 2.8vw, 2.5rem);
     font-weight: 900;
-    opacity: 0.6;
+    color: var(--c-primary);
     min-width: 2rem;
     flex-shrink: 0;
+}
+.opt-tile.opt-correct .opt-letter { color: #22c55e; }
+.opt-check {
+    margin-left: auto;
+    color: #22c55e;
+    font-size: 2.5rem;
+    flex-shrink: 0;
+}
+.opt-tile .opt-text {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+}
+
+/* ── Matching tiles (на экране вопроса и ответа) ─────────────── */
+.match-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 1.25rem;
+    align-items: stretch;
+}
+.match-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--c-muted);
+    font-size: 2.5rem;
+}
+#q-options-pres.matching-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
 }
 
 /* ── QUESTION ANSWER ──────────────────────────────────────────────── */
 #screen-question_answer {
     text-align: center;
-    gap: 1.5rem;
+    gap: 1.25rem;
+    padding: 2.5rem 3rem;
 }
 #q-text-answer-pres {
-    font-size: clamp(1.5rem, 2.8vw, 2.5rem);
-    color: var(--c-muted);
-    max-width: 72vw;
-    line-height: 1.4;
+    font-size: clamp(1.4rem, 2.4vw, 2.1rem);
+    color: var(--c-text);
+    font-weight: 600;
+    max-width: 80vw;
+    line-height: 1.35;
     background: var(--c-card);
     border: 1.5px solid var(--c-border);
     border-radius: 1.5rem;
     padding: 1.25rem 2rem;
+    box-shadow: var(--c-shadow);
+    word-break: break-word;
 }
 .answer-label {
     font-size: clamp(1.2rem, 2.2vw, 1.75rem);
     font-weight: 800;
-    color: var(--c-primary);
+    color: #22c55e;
     text-transform: uppercase;
     letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
 }
-#correct-answer-pres {
-    font-size: clamp(3rem, 7vw, 6rem);
+.answer-label::before {
+    content: 'check_circle';
+    font-family: 'Material Symbols Outlined';
+    font-size: 1.5em;
+    font-variation-settings: 'FILL' 1;
+    line-height: 1;
+}
+#correct-answer-pres:not(:empty) {
+    font-size: clamp(2.5rem, 6vw, 5rem);
     font-weight: 900;
-    color: var(--c-text);
+    color: #166534;
+    background: #ecfdf5;
+    border: 2px solid #22c55e;
+    border-radius: 1.5rem;
+    padding: 1.5rem 2.5rem;
+    box-shadow: 0 4px 24px rgba(34,197,94,0.18);
+    word-break: break-word;
+    max-width: 85vw;
+    line-height: 1.15;
 }
 #correct-options-pres {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1.25rem;
     width: 100%;
-    max-width: 80vw;
+    max-width: 85vw;
+}
+#correct-options-pres.matching-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    max-width: 90vw;
 }
 
 /* ── REGISTRATION ─────────────────────────────────────────────────── */
@@ -271,12 +342,15 @@ body { overflow: hidden; background: #f8fafc; }
     position: absolute;
     bottom: 0; left: 0; right: 0;
     z-index: 50;
-    background: rgba(255,255,255,0.96);
+    background: rgba(255,255,255,0.97);
     backdrop-filter: blur(16px);
     border-top: 1.5px solid var(--c-border);
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
     padding: 0.85rem 2.5rem 1rem;
     transform: translateY(100%);
     transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+    max-height: 35vh;
+    overflow-y: auto;
 }
 #answers-panel.visible { transform: translateY(0); }
 .ap-header {
@@ -442,7 +516,7 @@ body { overflow: hidden; background: #f8fafc; }
     <!-- QUESTION ANSWER -->
     <div id="screen-question_answer" class="pres-screen" style="display:none">
         <p id="q-text-answer-pres"></p>
-        <div class="answer-label">Правильный ответ:</div>
+        <div class="answer-label">Правильный ответ</div>
         <div id="correct-answer-pres"></div>
         <div id="correct-options-pres"></div>
     </div>
@@ -489,6 +563,11 @@ body { overflow: hidden; background: #f8fafc; }
 const QUIZ_ID = '{{ quiz.id }}';
 const socket = io('/presentation');
 
+function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 
 // ── Screen ──────────────────────────────────────────────────────────────────────
 function showScreen(name) {
@@ -532,7 +611,7 @@ socket.on('screen_changed', (data) => {
     if (data.screen === 'question_answer' && data.question) showAnswer(data.question);
     if (data.screen === 'teams' && data.teams) {
         document.getElementById('all-teams-grid').innerHTML = data.teams.map(t =>
-            `<div class="island" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">${t.name}</div>`
+            `<div class="island" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">${escHtml(t.name)}</div>`
         ).join('');
     }
     if (data.screen === 'tour_results' && data.scores) renderResults('tour-results-pres', data.scores);
@@ -542,6 +621,7 @@ socket.on('screen_changed', (data) => {
 socket.on('team_registered', (data) => {
     const list = document.getElementById('teams-list');
     if (!list) return;
+    if (document.getElementById(`team-${data.team_id}`)) return;
     const div = document.createElement('div');
     div.className = 'team-reg-card';
     div.id = `team-${data.team_id}`;
@@ -549,6 +629,8 @@ socket.on('team_registered', (data) => {
     list.appendChild(div);
     const c = document.getElementById('teams-count');
     if (c) c.textContent = parseInt(c.textContent || '0') + 1;
+    const total = document.getElementById('answers-panel-total');
+    if (total) total.textContent = parseInt(total.textContent || '0') + 1;
 });
 socket.on('team_name_updated', (data) => {
     const el = document.getElementById(`team-${data.team_id}`);
@@ -562,16 +644,27 @@ socket.on('timer_stopped', () => {
     const el = document.getElementById('timer-pres');
     if (el) { el.textContent = '0'; el.classList.add('danger'); }
 });
+socket.on('timer_reset', () => {
+    const el = document.getElementById('timer-pres');
+    if (el && _currentTimeSeconds != null) {
+        el.textContent = _currentTimeSeconds;
+        el.classList.remove('danger');
+    }
+});
 socket.on('play_sound', () => {});
 socket.on('scores_updated', () => {});
 
 socket.on('answer_submitted', (data) => {
     const chips = document.getElementById('answers-chips');
-    if (chips.querySelector(`[data-team-id="${data.team_id}"]`)) return;
+    if (chips.querySelector(`[data-team-id="${CSS.escape(String(data.team_id))}"]`)) return;
     const chip = document.createElement('div');
     chip.className = 'answered-chip';
     chip.dataset.teamId = data.team_id;
-    chip.innerHTML = `<span class="material-symbols-outlined chip-check">check_small</span>${data.team_name}`;
+    const icon = document.createElement('span');
+    icon.className = 'material-symbols-outlined chip-check';
+    icon.textContent = 'check_small';
+    chip.appendChild(icon);
+    chip.appendChild(document.createTextNode(data.team_name));
     chips.appendChild(chip);
     document.getElementById('answers-panel-count').textContent = chips.children.length;
 });
@@ -587,6 +680,40 @@ function updateTimer(remaining) {
     el.classList.toggle('danger', remaining <= 10);
 }
 
+// Сохраняем последний перемешанный порядок правых столбцов matching,
+// чтобы экран ответов воспроизводил тот же порядок, что и экран вопроса.
+let _lastMatchingShuffleId = null;
+let _lastShuffledRights = [];
+let _currentTimeSeconds = null;
+
+function buildOptionTile(letter, text, opts) {
+    opts = opts || {};
+    const tile = document.createElement('div');
+    tile.className = 'opt-tile';
+    if (opts.correct) tile.classList.add('opt-correct');
+    if (opts.dim) tile.classList.add('opt-wrong');
+
+    if (letter !== null && letter !== undefined) {
+        const l = document.createElement('span');
+        l.className = 'opt-letter';
+        l.textContent = letter;
+        tile.appendChild(l);
+    }
+
+    const t = document.createElement('span');
+    t.className = 'opt-text';
+    t.textContent = text;
+    tile.appendChild(t);
+
+    if (opts.correct) {
+        const ic = document.createElement('span');
+        ic.className = 'material-symbols-outlined opt-check fill-1';
+        ic.textContent = 'check_circle';
+        tile.appendChild(ic);
+    }
+    return tile;
+}
+
 function loadQuestion(q) {
     const screenEl = document.getElementById('screen-question');
     screenEl.classList.toggle('image-only-mode', q.question_type === 'image_only');
@@ -595,41 +722,50 @@ function loadQuestion(q) {
     document.getElementById('q-meta-pres').textContent =
         `${q.points}\u2009балл${q.points === 1 ? '' : '(ов)'} · ${q.time_seconds}\u2009с`;
 
+    _currentTimeSeconds = q.time_seconds;
     const timerEl = document.getElementById('timer-pres');
     timerEl.textContent = q.time_seconds;
     timerEl.classList.remove('danger');
 
-    document.getElementById('q-image-pres').innerHTML = q.image_path
-        ? `<img src="${q.image_path}">`
-        : '';
+    const imgWrap = document.getElementById('q-image-pres');
+    imgWrap.innerHTML = '';
+    if (q.image_path) {
+        const img = document.createElement('img');
+        img.src = q.image_path;
+        imgWrap.appendChild(img);
+    }
     document.getElementById('q-audio-pres').innerHTML = '';
 
     const optsEl = document.getElementById('q-options-pres');
     optsEl.innerHTML = '';
+    optsEl.classList.remove('matching-mode');
+    optsEl.style.gridTemplateColumns = '';
+
     if (['single_choice', 'multiple_choice'].includes(q.answer_type)) {
+        const cols = q.answer_options.length <= 2 ? '1fr' : '1fr 1fr';
+        optsEl.style.gridTemplateColumns = cols;
         q.answer_options.forEach((opt, i) => {
-            const tile = document.createElement('div');
-            tile.className = 'opt-tile';
-            tile.innerHTML = `<span class="opt-letter">${String.fromCharCode(0x0410 + i)}</span><span>${opt.text}</span>`;
-            optsEl.appendChild(tile);
+            optsEl.appendChild(buildOptionTile(String.fromCharCode(0x0410 + i), opt.text));
         });
-    } else if (q.answer_type === 'matching' && q.matching_items?.length) {
-        optsEl.style.gridTemplateColumns = '1fr 1fr';
-        const shuffledRights = [...q.matching_items].sort(() => Math.random() - 0.5);
+    } else if (q.answer_type === 'matching' && q.matching_items && q.matching_items.length) {
+        optsEl.classList.add('matching-mode');
+        if (_lastMatchingShuffleId !== q.id) {
+            _lastMatchingShuffleId = q.id;
+            _lastShuffledRights = [...q.matching_items].sort(() => Math.random() - 0.5);
+        }
         q.matching_items.forEach((item, i) => {
-            const tile = document.createElement('div');
-            tile.className = 'opt-tile';
-            tile.style.background = '#006CDC';
-            tile.innerHTML = `<span class="opt-letter">${i + 1}</span><span>${item.left_text}</span>`;
-            optsEl.appendChild(tile);
-            const right = document.createElement('div');
-            right.className = 'opt-tile';
-            right.style.background = '#8C2CFF';
-            right.innerHTML = `<span class="opt-letter">${String.fromCharCode(0x0410 + i)}</span><span>${shuffledRights[i].right_text}</span>`;
-            optsEl.appendChild(right);
+            const row = document.createElement('div');
+            row.className = 'match-row';
+            row.appendChild(buildOptionTile(`${i + 1}`, item.left_text));
+            const arrow = document.createElement('div');
+            arrow.className = 'match-arrow material-symbols-outlined';
+            arrow.textContent = 'arrow_right_alt';
+            row.appendChild(arrow);
+            const right = _lastShuffledRights[i] || item;
+            row.appendChild(buildOptionTile(String.fromCharCode(0x0410 + i), right.right_text));
+            optsEl.appendChild(row);
         });
     }
-
 }
 
 function showAnswer(q) {
@@ -637,34 +773,37 @@ function showAnswer(q) {
     const correctEl = document.getElementById('correct-answer-pres');
     const optsEl = document.getElementById('correct-options-pres');
     optsEl.innerHTML = '';
+    optsEl.classList.remove('matching-mode');
+    optsEl.style.gridTemplateColumns = '';
+    correctEl.textContent = '';
 
-    if (q.answer_type === 'matching' && q.matching_items?.length) {
-        correctEl.textContent = '';
-        optsEl.style.gridTemplateColumns = '1fr 1fr';
+    if (q.answer_type === 'matching' && q.matching_items && q.matching_items.length) {
+        optsEl.classList.add('matching-mode');
         q.matching_items.forEach((item, i) => {
-            const left = document.createElement('div');
-            left.className = 'opt-tile';
-            left.style.background = '#006CDC';
-            left.innerHTML = `<span class="opt-letter">${i + 1}</span><span>${item.left_text}</span>`;
-            optsEl.appendChild(left);
-            const right = document.createElement('div');
-            right.className = 'opt-tile';
-            right.style.background = '#8C2CFF';
-            right.innerHTML = `<span class="opt-letter">→</span><span>${item.right_text}</span>`;
-            optsEl.appendChild(right);
+            const row = document.createElement('div');
+            row.className = 'match-row';
+            row.appendChild(buildOptionTile(`${i + 1}`, item.left_text));
+            const arrow = document.createElement('div');
+            arrow.className = 'match-arrow material-symbols-outlined';
+            arrow.style.color = '#22c55e';
+            arrow.textContent = 'arrow_right_alt';
+            row.appendChild(arrow);
+            row.appendChild(buildOptionTile(null, item.right_text, {correct: true}));
+            optsEl.appendChild(row);
+        });
+    } else if (Array.isArray(q.answer_options) && q.answer_options.length
+               && q.answer_options.some(o => 'is_correct' in o)) {
+        const cols = q.answer_options.length <= 2 ? '1fr' : '1fr 1fr';
+        optsEl.style.gridTemplateColumns = cols;
+        q.answer_options.forEach((opt, i) => {
+            optsEl.appendChild(buildOptionTile(
+                String.fromCharCode(0x0410 + i),
+                opt.text,
+                {correct: !!opt.is_correct, dim: !opt.is_correct}
+            ));
         });
     } else if (q.correct_answer) {
         correctEl.textContent = q.correct_answer;
-    } else if (q.answer_options && q.answer_options.length) {
-        correctEl.textContent = '';
-        q.answer_options.forEach((opt, i) => {
-            const tile = document.createElement('div');
-            tile.className = 'opt-tile';
-            if (!opt.is_correct) tile.style.opacity = '0.3';
-            tile.innerHTML = `<span class="opt-letter">${String.fromCharCode(0x0410 + i)}</span><span>${opt.text}</span>
-                ${opt.is_correct ? '<span class="material-symbols-outlined" style="margin-left:auto;font-size:2.5rem;">check_circle</span>' : ''}`;
-            optsEl.appendChild(tile);
-        });
     } else {
         correctEl.textContent = '—';
     }

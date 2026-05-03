@@ -28,26 +28,27 @@
     </div>
 
     <!-- Filters -->
-    <div class="flex flex-wrap gap-2 sm:gap-3 mb-4">
+    <div class="flex flex-wrap gap-2 sm:gap-3 mb-4 items-center">
         <select id="filter-tour" class="select select-bordered select-sm" onchange="onFilterChange()">
             <option value="">Все туры</option>
             {% for tour in tours %}
             <option value="{{ tour.id }}">{{ tour.title }}</option>
             {% endfor %}
         </select>
-        <select id="filter-question" class="select select-bordered select-sm" onchange="onFilterChange()">
+        <select id="filter-question" class="select select-bordered select-sm max-w-xs" onchange="onFilterChange()">
             <option value="">Все вопросы</option>
         </select>
         <label class="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" id="filter-unchecked" class="checkbox checkbox-sm" onchange="onFilterChange()">
             <span class="text-sm">Только непроверенные</span>
         </label>
+        <span id="queue-info" class="text-xs text-base-content/50 ml-auto hidden sm:inline"></span>
     </div>
 
     <!-- TINDER MODE -->
     <div id="mode-tinder">
         <div id="card-container" class="flex justify-center">
-            <div id="card-placeholder" class="card w-full max-w-md bg-base-100 shadow-xl">
+            <div class="card w-full max-w-md bg-base-100 shadow-xl">
                 <div class="card-body text-center py-16">
                     <div class="loading loading-spinner loading-lg mx-auto mb-4"></div>
                     <p class="text-base-content/60">Загрузка...</p>
@@ -58,7 +59,7 @@
 
     <!-- TABLE MODE -->
     <div id="mode-table" class="hidden">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto bg-base-100 rounded-box shadow">
             <table class="table table-zebra w-full" id="answers-table">
                 <thead>
                     <tr>
@@ -68,7 +69,7 @@
                         <th>Правильный</th>
                         <th>Статус</th>
                         <th>Баллы</th>
-                        <th>Действия</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody id="answers-tbody"></tbody>
@@ -79,27 +80,28 @@
 
 <!-- Modal for table cell edit -->
 <dialog id="answer-modal" class="modal">
-    <div class="modal-box w-full max-w-md">
-        <h3 class="font-bold text-lg mb-4" id="modal-team"></h3>
-        <p class="text-sm text-base-content/60 mb-2" id="modal-question"></p>
-        <div class="bg-base-200 rounded p-3 mb-2">
-            <span class="text-xs text-base-content/60">Ответ команды:</span>
-            <p class="font-medium" id="modal-answer"></p>
+    <div class="modal-box w-full max-w-lg">
+        <h3 class="font-bold text-lg mb-1" id="modal-team"></h3>
+        <p class="text-sm text-base-content/60 mb-3" id="modal-question"></p>
+        <div class="bg-base-200 rounded-lg p-3 mb-2">
+            <span class="text-xs uppercase tracking-wide text-base-content/60 font-semibold">Ответ команды</span>
+            <div class="font-medium mt-1" id="modal-answer"></div>
         </div>
-        <div class="bg-success/10 rounded p-3 mb-4">
-            <span class="text-xs text-base-content/60">Правильный ответ:</span>
-            <p class="font-medium text-success" id="modal-correct"></p>
+        <div class="bg-success/10 border border-success/30 rounded-lg p-3 mb-4">
+            <span class="text-xs uppercase tracking-wide text-success font-semibold">Правильный ответ</span>
+            <div class="font-medium text-success mt-1" id="modal-correct"></div>
         </div>
         <div class="flex gap-3 items-center mb-4">
             <span class="text-sm">Баллы:</span>
-            <input type="number" id="modal-score" class="input input-bordered input-sm w-24" placeholder="Баллы">
+            <input type="number" id="modal-score" min="0" class="input input-bordered input-sm w-24">
+            <span class="text-xs text-base-content/50" id="modal-max-points"></span>
         </div>
-        <div class="flex gap-3">
-            <button onclick="modalCheck(true)" class="btn btn-success flex-1">
+        <div class="flex gap-2 flex-wrap">
+            <button onclick="modalCheck(true)" class="btn btn-success flex-1 min-w-32">
                 <span class="material-symbols-outlined icon-sm">check_circle</span>
                 Верно
             </button>
-            <button onclick="modalCheck(false)" class="btn btn-error flex-1">
+            <button onclick="modalCheck(false)" class="btn btn-error flex-1 min-w-32">
                 <span class="material-symbols-outlined icon-sm">cancel</span>
                 Неверно
             </button>
@@ -114,10 +116,15 @@
 <script>
 let mode = localStorage.getItem('judge_mode') || 'tinder';
 let currentCard = null;
-let modalAnswerId = null;
+let modalAnswer = null;
 const socket = io('/judge');
 
 setMode(mode);
+
+function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 function setMode(m) {
     mode = m;
@@ -150,14 +157,17 @@ async function updateQuestionFilter() {
     const currentVal = sel.value;
     sel.innerHTML = '<option value="">Все вопросы</option>';
     if (!tourId) return;
-    const res = await fetch(`/judge/answers?tour_id=${tourId}`);
+    const res = await fetch(`/judge/answers?tour_id=${encodeURIComponent(tourId)}`);
     const data = await res.json();
-    const seen = new Set();
+    const seen = new Map();
     data.answers.forEach(a => {
-        if (!seen.has(a.question_id)) {
-            seen.add(a.question_id);
-            sel.innerHTML += `<option value="${a.question_id}">${a.question_text}</option>`;
-        }
+        if (!seen.has(a.question_id)) seen.set(a.question_id, a.question_text_short || a.question_text || '(без текста)');
+    });
+    [...seen.entries()].forEach(([id, text]) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = text;
+        sel.appendChild(opt);
     });
     if ([...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
 }
@@ -171,13 +181,41 @@ async function loadNextCard() {
     renderCard(currentCard);
 }
 
+function renderAnswerContent(answer) {
+    if (answer.answer_type === 'matching' && Array.isArray(answer.matching_rendered) && answer.matching_rendered.length) {
+        return `<div class="flex flex-col gap-1.5 mt-1">${
+            answer.matching_rendered.map(p => `
+                <div class="flex items-center gap-2 text-sm sm:text-base">
+                    <span class="flex-1 min-w-0 break-words bg-base-100 rounded px-2 py-1 border border-base-300">${escHtml(p.left_text)}</span>
+                    <span class="material-symbols-outlined text-base-content/40 shrink-0" style="font-size:18px">arrow_right_alt</span>
+                    <span class="flex-1 min-w-0 break-words rounded px-2 py-1 border ${p.is_correct ? 'bg-success/15 border-success/40 text-success' : 'bg-error/10 border-error/30 text-error'}">${escHtml(p.right_text)}</span>
+                </div>`).join('')
+        }</div>`;
+    }
+    return `<p class="text-base sm:text-lg font-bold mt-1 break-words whitespace-pre-wrap">${escHtml(answer.answer_display || '(пусто)')}</p>`;
+}
+
+function renderCorrectContent(answer) {
+    if (answer.answer_type === 'matching' && Array.isArray(answer.correct_pairs) && answer.correct_pairs.length) {
+        return `<div class="flex flex-col gap-1.5 mt-1">${
+            answer.correct_pairs.map(p => `
+                <div class="flex items-center gap-2 text-sm sm:text-base">
+                    <span class="flex-1 min-w-0 break-words bg-base-100 rounded px-2 py-1 border border-success/30">${escHtml(p.left_text)}</span>
+                    <span class="material-symbols-outlined text-success shrink-0" style="font-size:18px">arrow_right_alt</span>
+                    <span class="flex-1 min-w-0 break-words bg-success/15 rounded px-2 py-1 border border-success/40 text-success">${escHtml(p.right_text)}</span>
+                </div>`).join('')
+        }</div>`;
+    }
+    return `<p class="font-medium text-success mt-1 break-words whitespace-pre-wrap">${escHtml(answer.correct_display || '—')}</p>`;
+}
+
 function renderCard(answer) {
     const container = document.getElementById('card-container');
     if (!answer) {
         container.innerHTML = `
             <div class="card w-full max-w-md bg-base-100 shadow-xl">
                 <div class="card-body text-center py-16">
-                    <span class="material-symbols-outlined icon-2xl text-success mb-4 block fill-1">check_circle</span>
+                    <span class="material-symbols-outlined text-success mb-3 block fill-1" style="font-size:64px">check_circle</span>
                     <p class="text-xl font-bold">Всё проверено!</p>
                     <p class="text-base-content/60 mt-2">Нет ответов для проверки</p>
                     <button onclick="loadNextCard()" class="btn btn-outline btn-sm mt-4">
@@ -189,32 +227,38 @@ function renderCard(answer) {
         return;
     }
 
-    const defaultScore = answer.question_points;
+    const defaultScore = answer.score || answer.question_points;
     container.innerHTML = `
-        <div class="card w-full max-w-md bg-base-100 shadow-xl">
-            <div class="card-body">
-                <div class="text-sm text-base-content/60 mb-1">${answer.team_name}</div>
-                <p class="text-base font-medium mb-3">${answer.question_text}</p>
-                <div class="bg-base-200 rounded-lg p-4 mb-3 min-h-16">
-                    <span class="text-xs text-base-content/60">Ответ:</span>
-                    <p class="text-lg font-bold mt-1">${answer.answer_display || '(пусто)'}</p>
+        <div class="card w-full max-w-xl bg-base-100 shadow-xl">
+            <div class="card-body p-5">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <div class="badge badge-primary badge-lg font-semibold">${escHtml(answer.team_name)}</div>
+                    <div class="text-xs text-base-content/50">макс. ${answer.question_points} балл${answer.question_points === 1 ? '' : 'ов'}</div>
                 </div>
+                <p class="text-base font-medium mb-4 leading-snug break-words">${escHtml(answer.question_text || '(без текста)')}</p>
+
+                <div class="bg-base-200 rounded-lg p-3 mb-3">
+                    <span class="text-xs uppercase tracking-wide text-base-content/60 font-semibold">Ответ команды</span>
+                    ${renderAnswerContent(answer)}
+                </div>
+
                 <div class="bg-success/10 border border-success/30 rounded-lg p-3 mb-4">
-                    <span class="text-xs text-success">Правильный ответ:</span>
-                    <p class="font-medium text-success">${answer.correct_answer || '—'}</p>
+                    <span class="text-xs uppercase tracking-wide text-success font-semibold">Правильный ответ</span>
+                    ${renderCorrectContent(answer)}
                 </div>
+
                 <div class="flex items-center gap-3 mb-4">
-                    <span class="text-sm">Баллы:</span>
-                    <input type="number" id="card-score" value="${defaultScore}" min="0"
+                    <label class="text-sm">Баллы:</label>
+                    <input type="number" id="card-score" value="${defaultScore}" min="0" max="${answer.question_points}"
                            class="input input-bordered input-sm w-24">
-                    <span class="text-xs text-base-content/50">макс. ${answer.question_points}</span>
                 </div>
-                <div class="flex gap-3">
-                    <button onclick="judgeCard(false)" class="btn btn-error flex-1">
+
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="judgeCard(false)" class="btn btn-error">
                         <span class="material-symbols-outlined icon-sm">cancel</span>
                         Неверно
                     </button>
-                    <button onclick="judgeCard(true)" class="btn btn-success flex-1">
+                    <button onclick="judgeCard(true)" class="btn btn-success">
                         <span class="material-symbols-outlined icon-sm">check_circle</span>
                         Верно
                     </button>
@@ -225,11 +269,13 @@ function renderCard(answer) {
 
 async function judgeCard(isCorrect) {
     if (!currentCard) return;
-    const score = parseInt(document.getElementById('card-score')?.value ?? 0);
+    const scoreEl = document.getElementById('card-score');
+    const raw = scoreEl ? scoreEl.value : '';
+    const score = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
     await fetch(`/judge/check/${currentCard.id}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({is_correct: isCorrect, score})
+        body: JSON.stringify({is_correct: isCorrect, score: isCorrect ? score : 0})
     });
     loadNextCard();
 }
@@ -244,49 +290,71 @@ async function loadTable() {
 
 function renderTable(answers) {
     const tbody = document.getElementById('answers-tbody');
+    document.getElementById('queue-info').textContent =
+        answers.length ? `Всего: ${answers.length}` : '';
     if (!answers.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-base-content/50">Нет ответов</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-base-content/50 py-8">Нет ответов</td></tr>';
         return;
     }
-    tbody.innerHTML = answers.map(a => {
+    tbody.innerHTML = answers.map((a, idx) => {
         const statusBadge = a.is_correct === true
-            ? '<span class="badge badge-success"><span class="material-symbols-outlined" style="font-size:13px">check</span></span>'
+            ? '<span class="badge badge-success badge-sm gap-1"><span class="material-symbols-outlined" style="font-size:12px">check</span>верно</span>'
             : a.is_correct === false
-            ? '<span class="badge badge-error"><span class="material-symbols-outlined" style="font-size:13px">close</span></span>'
-            : '<span class="badge badge-ghost">?</span>';
-        return `<tr>
-            <td>${a.team_name}</td>
-            <td class="max-w-xs truncate text-sm">${a.question_text}</td>
-            <td class="max-w-xs truncate">${a.answer_display || ''}</td>
-            <td class="text-success text-sm">${a.correct_answer || '—'}</td>
-            <td>${statusBadge} ${a.auto_checked ? '<span class="badge badge-xs badge-outline">авто</span>' : ''}</td>
-            <td>${a.score}</td>
-            <td><button onclick="openModal(${JSON.stringify(a).replace(/"/g,'&quot;')})" class="btn btn-xs btn-outline">Изменить</button></td>
+            ? '<span class="badge badge-error badge-sm gap-1"><span class="material-symbols-outlined" style="font-size:12px">close</span>неверно</span>'
+            : '<span class="badge badge-ghost badge-sm">не проверено</span>';
+        const autoBadge = a.auto_checked ? '<span class="badge badge-xs badge-outline ml-1">авто</span>' : '';
+        const answerCell = a.answer_type === 'matching'
+            ? `<details class="text-xs"><summary class="cursor-pointer text-primary">${(a.matching_rendered||[]).length} пар</summary>
+                 <div class="mt-1 space-y-0.5">${(a.matching_rendered||[]).map(p =>
+                    `<div>${escHtml(p.left_text)} <span class="text-base-content/40">→</span> <span class="${p.is_correct?'text-success':'text-error'}">${escHtml(p.right_text)}</span></div>`
+                 ).join('')}</div></details>`
+            : `<span class="line-clamp-2">${escHtml(a.answer_display || '')}</span>`;
+        return `<tr data-idx="${idx}">
+            <td class="font-medium">${escHtml(a.team_name)}</td>
+            <td class="max-w-xs"><span class="line-clamp-2 text-sm">${escHtml(a.question_text_short || a.question_text || '')}</span></td>
+            <td class="max-w-xs">${answerCell}</td>
+            <td class="text-success text-sm max-w-xs"><span class="line-clamp-2">${escHtml(a.correct_display || '—')}</span></td>
+            <td>${statusBadge}${autoBadge}</td>
+            <td class="font-mono">${a.score}</td>
+            <td><button data-act="edit" class="btn btn-xs btn-outline">Изменить</button></td>
         </tr>`;
     }).join('');
+
+    // Делегированный обработчик — без раскрытия объектов в строки HTML (XSS-safe)
+    tbody.querySelectorAll('button[data-act="edit"]').forEach((btn, i) => {
+        btn.onclick = () => openModal(answers[i]);
+    });
 }
 
 function openModal(answer) {
-    modalAnswerId = answer.id;
+    modalAnswer = answer;
     document.getElementById('modal-team').textContent = answer.team_name;
-    document.getElementById('modal-question').textContent = answer.question_text;
-    document.getElementById('modal-answer').textContent = answer.answer_display || '(пусто)';
-    document.getElementById('modal-correct').textContent = answer.correct_answer || '—';
-    document.getElementById('modal-score').value = answer.score ?? answer.question_points;
+    document.getElementById('modal-question').textContent = answer.question_text || '';
+    document.getElementById('modal-answer').innerHTML = renderAnswerContent(answer);
+    document.getElementById('modal-correct').innerHTML = renderCorrectContent(answer);
+    document.getElementById('modal-score').value = (answer.score != null && answer.is_correct !== null) ? answer.score : answer.question_points;
+    document.getElementById('modal-score').max = answer.question_points;
+    document.getElementById('modal-max-points').textContent = `макс. ${answer.question_points}`;
     document.getElementById('answer-modal').showModal();
 }
 
 async function modalCheck(isCorrect) {
-    if (!modalAnswerId) return;
-    const score = parseInt(document.getElementById('modal-score').value ?? 0);
-    await fetch(`/judge/check/${modalAnswerId}`, {
+    if (!modalAnswer) return;
+    const raw = document.getElementById('modal-score').value;
+    const score = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
+    await fetch(`/judge/check/${modalAnswer.id}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({is_correct: isCorrect, score})
+        body: JSON.stringify({is_correct: isCorrect, score: isCorrect ? score : 0})
     });
     document.getElementById('answer-modal').close();
     loadTable();
 }
+
+socket.on('answer_submitted', () => {
+    if (mode === 'tinder' && !currentCard) loadNextCard();
+    else if (mode === 'table') loadTable();
+});
 
 socket.on('answer_checked', () => {
     if (mode === 'table') loadTable();

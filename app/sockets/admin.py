@@ -123,7 +123,9 @@ def on_start_timer(data):
         _timer_greenlets[quiz.id].kill()
 
     def run_timer(quiz_id, total_seconds, q_id, mid_seconds, sound_mid, sound_end):
-        for remaining in range(total_seconds, -1, -1):
+        # Идём от total_seconds-1 до 0, шлём tick каждую секунду.
+        # 'timer_started' уже отправлено с total_seconds, поэтому первый tick = total-1.
+        for remaining in range(total_seconds - 1, -1, -1):
             eventlet.sleep(1)
             _broadcast('timer_tick', {'remaining': remaining}, quiz_id)
 
@@ -174,7 +176,9 @@ def on_reset_timer():
     gs = GameState.query.filter_by(quiz_id=quiz.id).first()
     if gs:
         gs.timer_started_at = None
+        gs.timer_seconds = None  # полный сброс — следующий старт начнёт заново
         db.session.commit()
+    _broadcast('timer_reset', {}, quiz.id)
     _broadcast('timer_stopped', {}, quiz.id)
 
 
@@ -235,6 +239,8 @@ def _build_screen_payload(gs, quiz):
 
 
 def _question_payload(q, reveal_answers=False):
+    options_sorted = sorted(q.answer_options, key=lambda o: (o.order, o.id))
+    matching_sorted = sorted(q.matching_items, key=lambda m: (m.order, m.id))
     return {
         'id': q.id,
         'question_type': q.question_type,
@@ -245,14 +251,15 @@ def _question_payload(q, reveal_answers=False):
         'time_seconds': q.time_seconds,
         'points': q.points,
         'answer_options': [
-            {'id': o.id, 'text': o.text, **(({'is_correct': o.is_correct}) if reveal_answers else {})}
-            for o in q.answer_options
+            {'id': o.id, 'text': o.text, 'order': o.order,
+             **({'is_correct': o.is_correct} if reveal_answers else {})}
+            for o in options_sorted
         ],
         'matching_items': [
-            {'id': m.id, 'left_text': m.left_text, 'right_text': m.right_text}
-            for m in q.matching_items
+            {'id': m.id, 'left_text': m.left_text, 'right_text': m.right_text, 'order': m.order}
+            for m in matching_sorted
         ],
-        'correct_answer': q.correct_answer,
+        'correct_answer': q.correct_answer if reveal_answers else None,
         'sound_start_path': q.tour.quiz.sound_start_path if q.tour else None,
         'sound_mid_path': q.tour.quiz.sound_mid_path if q.tour else None,
         'sound_mid_seconds': q.tour.quiz.sound_mid_seconds if q.tour else None,
