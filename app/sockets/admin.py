@@ -1,6 +1,6 @@
 import eventlet
 from datetime import datetime
-from flask import request
+from flask import request, current_app
 from flask_login import current_user
 from flask_socketio import join_room, emit
 
@@ -10,6 +10,24 @@ from app.models import db, Quiz, Tour, Question, Team, TeamAnswer, GameState
 from app.sockets.utils import broadcast as _broadcast
 
 _timer_greenlets = {}  # quiz_id -> greenlet
+_audio_pre_timer_greenlets = {}  # quiz_id -> greenlet (плеер играет, потом стартует таймер)
+
+
+def _cancel_audio_pre_timer(quiz_id):
+    gl = _audio_pre_timer_greenlets.pop(quiz_id, None)
+    if gl:
+        gl.kill()
+
+
+def _cancel_timer(quiz_id):
+    gl = _timer_greenlets.pop(quiz_id, None)
+    if gl:
+        gl.kill()
+
+
+def _broadcast_stop_audio(quiz_id):
+    socketio.emit('stop_screen_audio', {}, room=quiz_id, namespace='/presentation')
+    socketio.emit('stop_screen_audio', {}, room=quiz_id, namespace='/admin')
 
 
 @socketio.on('connect', namespace='/admin')
@@ -60,10 +78,12 @@ def on_change_screen(data):
         if tour_id:
             gs.current_tour_id = tour_id
 
-    # Останавливаем таймер при любой смене экрана
-    if quiz.id in _timer_greenlets:
-        _timer_greenlets[quiz.id].kill()
-        del _timer_greenlets[quiz.id]
+    # Останавливаем таймер и pre-timer greenlet при любой смене экрана.
+    # Аудио на презентации остановит сам screen_changed-обработчик,
+    # отдельный stop_screen_audio здесь слать нельзя — он убил бы фоновый
+    # трек, который showAnswer запускает на question_answer.
+    _cancel_audio_pre_timer(quiz.id)
+    _cancel_timer(quiz.id)
     gs.timer_started_at = None
     gs.timer_seconds = None
 
@@ -93,57 +113,75 @@ def on_start_timer(data):
     gs = GameState.query.filter_by(quiz_id=quiz.id).first()
     if not gs:
         return
-
     question_id = data.get('question_id', gs.current_question_id)
-    q = Question.query.get(question_id)
-    if not q:
+    if not question_id:
         return
+    # Ручной старт отменяет висящий pre-timer (если играет аудио).
+    _cancel_audio_pre_timer(quiz.id)
+    _start_timer_internal(quiz.id, question_id)
 
-    # Resume from paused state if same question, otherwise start fresh
-    if (gs.timer_started_at is None and gs.timer_seconds
-            and gs.current_question_id == question_id):
-        start_seconds = gs.timer_seconds  # resume from saved remaining
+
+def _run_timer_loop(quiz_id, total_seconds, mid_seconds, sound_mid, sound_end):
+    # Идём от total_seconds-1 до 0, шлём tick каждую секунду.
+    # 'timer_started' уже отправлено с total_seconds, поэтому первый tick = total-1.
+    for remaining in range(total_seconds - 1, -1, -1):
+        eventlet.sleep(1)
+        _broadcast('timer_tick', {'remaining': remaining}, quiz_id)
+
+        if mid_seconds and remaining == mid_seconds and sound_mid:
+            _broadcast('play_sound', {'path': sound_mid, 'event': 'mid'}, quiz_id)
+
+        if remaining == 0:
+            if sound_end:
+                _broadcast('play_sound', {'path': sound_end, 'event': 'end'}, quiz_id)
+            _broadcast('timer_stopped', {}, quiz_id)
+            break
+
+
+def _start_timer_internal(quiz_id, question_id, app=None):
+    """Запуск таймера. Можно вызвать как из обработчика сокета (с request context),
+    так и из greenlet — в этом случае надо передать app для открытия app_context."""
+    def _do(quiz_id, question_id):
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return
+        gs = GameState.query.filter_by(quiz_id=quiz_id).first()
+        if not gs:
+            return
+        q = Question.query.get(question_id)
+        if not q:
+            return
+
+        # Resume from paused state if same question, otherwise start fresh
+        if (gs.timer_started_at is None and gs.timer_seconds
+                and gs.current_question_id == question_id):
+            start_seconds = gs.timer_seconds
+        else:
+            start_seconds = q.time_seconds
+
+        gs.timer_started_at = datetime.utcnow()
+        gs.timer_seconds = start_seconds
+        db.session.commit()
+
+        _broadcast('timer_started',
+                   {'seconds': start_seconds, 'started_at': gs.timer_started_at.isoformat()},
+                   quiz_id)
+
+        if quiz.sound_start_path and start_seconds == q.time_seconds:
+            _broadcast('play_sound', {'path': quiz.sound_start_path, 'event': 'start'}, quiz_id)
+
+        _cancel_timer(quiz_id)
+        gl = eventlet.spawn(
+            _run_timer_loop, quiz_id, start_seconds,
+            quiz.sound_mid_seconds, quiz.sound_mid_path, quiz.sound_end_path,
+        )
+        _timer_greenlets[quiz_id] = gl
+
+    if app is not None:
+        with app.app_context():
+            _do(quiz_id, question_id)
     else:
-        start_seconds = q.time_seconds    # fresh start
-
-    gs.timer_started_at = datetime.utcnow()
-    gs.timer_seconds = start_seconds
-    db.session.commit()
-
-    _broadcast('timer_started',
-               {'seconds': start_seconds, 'started_at': gs.timer_started_at.isoformat()},
-               quiz.id)
-
-    # Play start sound only on fresh start (not resume)
-    if quiz.sound_start_path and start_seconds == q.time_seconds:
-        _broadcast('play_sound', {'path': quiz.sound_start_path, 'event': 'start'}, quiz.id)
-
-    # Cancel previous timer
-    if quiz.id in _timer_greenlets:
-        _timer_greenlets[quiz.id].kill()
-
-    def run_timer(quiz_id, total_seconds, q_id, mid_seconds, sound_mid, sound_end):
-        # Идём от total_seconds-1 до 0, шлём tick каждую секунду.
-        # 'timer_started' уже отправлено с total_seconds, поэтому первый tick = total-1.
-        for remaining in range(total_seconds - 1, -1, -1):
-            eventlet.sleep(1)
-            _broadcast('timer_tick', {'remaining': remaining}, quiz_id)
-
-            if mid_seconds and remaining == mid_seconds and sound_mid:
-                _broadcast('play_sound', {'path': sound_mid, 'event': 'mid'}, quiz_id)
-
-            if remaining == 0:
-                if sound_end:
-                    _broadcast('play_sound', {'path': sound_end, 'event': 'end'}, quiz_id)
-                _broadcast('timer_stopped', {}, quiz_id)
-                break
-
-    gl = eventlet.spawn(run_timer,
-                        quiz.id, start_seconds, q.id,
-                        quiz.sound_mid_seconds,
-                        quiz.sound_mid_path,
-                        quiz.sound_end_path)
-    _timer_greenlets[quiz.id] = gl
+        _do(quiz_id, question_id)
 
 
 @socketio.on('pause_timer', namespace='/admin')
@@ -151,9 +189,10 @@ def on_pause_timer():
     quiz = Quiz.query.filter_by(is_active=True).first()
     if not quiz:
         return
-    if quiz.id in _timer_greenlets:
-        _timer_greenlets[quiz.id].kill()
-        del _timer_greenlets[quiz.id]
+    # Отменяем и pre-timer (если ещё играет аудио): пауза должна замораживать всё.
+    _cancel_audio_pre_timer(quiz.id)
+    _cancel_timer(quiz.id)
+    _broadcast_stop_audio(quiz.id)
 
     gs = GameState.query.filter_by(quiz_id=quiz.id).first()
     if gs and gs.timer_started_at and gs.timer_seconds:
@@ -170,9 +209,10 @@ def on_reset_timer():
     quiz = Quiz.query.filter_by(is_active=True).first()
     if not quiz:
         return
-    if quiz.id in _timer_greenlets:
-        _timer_greenlets[quiz.id].kill()
-        del _timer_greenlets[quiz.id]
+    _cancel_audio_pre_timer(quiz.id)
+    _cancel_timer(quiz.id)
+    _broadcast_stop_audio(quiz.id)
+
     gs = GameState.query.filter_by(quiz_id=quiz.id).first()
     if gs:
         gs.timer_started_at = None
@@ -182,12 +222,59 @@ def on_reset_timer():
     _broadcast('timer_stopped', {}, quiz.id)
 
 
-@socketio.on('play_question_audio', namespace='/admin')
-def on_play_question_audio(data):
+@socketio.on('play_audio_then_timer', namespace='/admin')
+def on_play_audio_then_timer(data):
+    """Атомарно: транслирует play_question_audio на /presentation, ждёт duration_ms,
+    потом запускает таймер. Greenlet хранится в _audio_pre_timer_greenlets и может
+    быть отменён через stop_screen_audio / reset_timer / pause_timer / change_screen
+    / start_timer (ручной старт)."""
     quiz = Quiz.query.filter_by(is_active=True).first()
     if not quiz:
         return
-    socketio.emit('play_question_audio', data, room=quiz.id, namespace='/presentation')
+    gs = GameState.query.filter_by(quiz_id=quiz.id).first()
+    if not gs:
+        return
+
+    question_id = data.get('question_id', gs.current_question_id)
+    q = Question.query.get(question_id)
+    if not q:
+        return
+
+    duration_ms = int(data.get('duration_ms') or 0)
+    audio_payload = {
+        'path': data.get('path') or q.audio_path,
+        'trim_start': data.get('trim_start') or 0,
+        'trim_end': data.get('trim_end'),
+    }
+
+    # Если уже есть pre-timer greenlet или таймер — отменяем (пере-старт).
+    _cancel_audio_pre_timer(quiz.id)
+    _cancel_timer(quiz.id)
+
+    # play_question_audio handler на презентации сам глушит старое аудио в начале,
+    # поэтому отдельный stop_screen_audio здесь не нужен.
+    socketio.emit('play_question_audio', audio_payload, room=quiz.id, namespace='/presentation')
+    # Сообщаем админкам что pre-timer стартовал — для отображения прогресса.
+    socketio.emit('audio_pre_timer_started',
+                  {'question_id': q.id, 'duration_ms': duration_ms},
+                  room=quiz.id, namespace='/admin')
+
+    app = current_app._get_current_object()
+
+    def run_pre_timer(quiz_id, q_id, wait_ms):
+        try:
+            eventlet.sleep(max(0, wait_ms) / 1000.0)
+        except Exception:
+            return
+        # Аудио проиграно — стартуем штатный таймер.
+        # Удаляем себя из словаря чтобы start_timer не убил себя же при pop.
+        _audio_pre_timer_greenlets.pop(quiz_id, None)
+        socketio.emit('audio_pre_timer_finished', {'question_id': q_id},
+                      room=quiz_id, namespace='/admin')
+        _start_timer_internal(quiz_id, q_id, app=app)
+
+    gl = eventlet.spawn(run_pre_timer, quiz.id, q.id, duration_ms)
+    _audio_pre_timer_greenlets[quiz.id] = gl
 
 
 @socketio.on('stop_screen_audio', namespace='/admin')
@@ -195,7 +282,10 @@ def on_stop_screen_audio():
     quiz = Quiz.query.filter_by(is_active=True).first()
     if not quiz:
         return
-    socketio.emit('stop_screen_audio', {}, room=quiz.id, namespace='/presentation')
+    # Полная отмена: убиваем pre-timer greenlet (если стартует таймер после
+    # окончания аудио — отменяем), а таймер не трогаем (если уже идёт — пусть идёт).
+    _cancel_audio_pre_timer(quiz.id)
+    _broadcast_stop_audio(quiz.id)
 
 
 @socketio.on('disconnect', namespace='/admin')

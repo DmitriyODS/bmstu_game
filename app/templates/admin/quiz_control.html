@@ -274,6 +274,8 @@ function escHtml(s) {
 // ── Socket events ──────────────────────────────────────────────────────────────
 
 socket.on('screen_changed', (data) => {
+    // Любая смена экрана отменяет pre-timer (сервер сделает это сам); сбросим UI.
+    resetAudioPlayBtn();
     updateScreenBadge(data.screen);
 
     if (data.screen === 'question' && data.question) {
@@ -294,12 +296,31 @@ socket.on('screen_changed', (data) => {
 });
 
 socket.on('timer_started', (data) => {
+    // Аудио (если оно играло перед таймером) уже завершилось — снимаем прогресс.
+    resetAudioPlayBtn();
     updateTimerDisplay(data.seconds);
 });
 socket.on('timer_tick', (data) => updateTimerDisplay(data.remaining));
 socket.on('timer_paused', (data) => updateTimerDisplay(data.remaining));
 socket.on('timer_stopped', () => updateTimerDisplay(0));
-socket.on('timer_reset', () => updateTimerDisplay(currentQuestionTimeSeconds || '--'));
+socket.on('timer_reset', () => {
+    resetAudioPlayBtn();
+    updateTimerDisplay(currentQuestionTimeSeconds || '--');
+});
+
+// Сервер шлёт это всем админкам после stop/reset/pause — нужно убрать локальный прогресс-бар.
+socket.on('stop_screen_audio', () => resetAudioPlayBtn());
+
+// Сервер шлёт когда стартует pre-timer на другой вкладке админки — синхронизируемся.
+socket.on('audio_pre_timer_started', (data) => {
+    if (data && data.duration_ms != null) startAudioProgress(data.duration_ms);
+    const btn = document.getElementById('btn-play-audio-timer');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="material-symbols-outlined icon-sm">pause_circle</span> Воспроизведение...`;
+    }
+});
+socket.on('audio_pre_timer_finished', () => resetAudioPlayBtn());
 
 socket.on('answer_submitted', (data) => {
     if (!answeredTeams.has(data.team_id)) {
@@ -393,7 +414,6 @@ function setActiveQuestion(q) {
     currentQuestionType = q.question_type || null;
     currentQuestionTrimStart = q.audio_trim_start || 0;
     currentQuestionTrimEnd = q.audio_trim_end || null;
-    if (_audioPlayInterval) { clearInterval(_audioPlayInterval); _audioPlayInterval = null; }
     resetAudioPlayBtn();
     document.getElementById('no-question-hint').classList.add('hidden');
     document.getElementById('question-controls').classList.remove('hidden');
@@ -420,68 +440,90 @@ function setActiveQuestion(q) {
     document.querySelectorAll('.answered-mark').forEach(el => el.classList.add('hidden'));
 }
 
+// Локальный интервал только для отрисовки прогресс-бара.
+// Запуск/остановка таймера — на сервере.
+let _audioProgressInterval = null;
+
+function clearAudioProgress() {
+    if (_audioProgressInterval) {
+        clearInterval(_audioProgressInterval);
+        _audioProgressInterval = null;
+    }
+}
+
 function resetAudioPlayBtn() {
+    clearAudioProgress();
     const btn = document.getElementById('btn-play-audio-timer');
     if (btn) {
         btn.disabled = false;
         btn.innerHTML = `<span class="material-symbols-outlined icon-sm">play_circle</span> Воспроизвести → Таймер`;
     }
-    document.getElementById('audio-play-progress').classList.add('hidden');
-    document.getElementById('audio-progress-bar').value = 0;
+    const progressDiv = document.getElementById('audio-play-progress');
+    const progressBar = document.getElementById('audio-progress-bar');
+    if (progressDiv) progressDiv.classList.add('hidden');
+    if (progressBar) progressBar.value = 0;
 }
 
-let _audioPlayInterval = null;
+function startAudioProgress(durationMs) {
+    clearAudioProgress();
+    const progressDiv = document.getElementById('audio-play-progress');
+    const progressBar = document.getElementById('audio-progress-bar');
+    if (!progressDiv || !progressBar) return;
+    progressDiv.classList.remove('hidden');
+    progressBar.value = 0;
+    if (durationMs <= 0) return;
+    const startTs = Date.now();
+    _audioProgressInterval = setInterval(() => {
+        const elapsed = Date.now() - startTs;
+        progressBar.value = Math.min(100, (elapsed / durationMs) * 100);
+        if (elapsed >= durationMs) clearAudioProgress();
+    }, 100);
+}
 
-function playAudioAndTimer() {
+async function playAudioAndTimer() {
     if (!currentQuestionId || !currentQuestionAudioPath) return;
     const trimStart = currentQuestionTrimStart || 0;
     const trimEnd = currentQuestionTrimEnd;
 
     const btn = document.getElementById('btn-play-audio-timer');
-    const progressDiv = document.getElementById('audio-play-progress');
-    const progressBar = document.getElementById('audio-progress-bar');
-
     btn.disabled = true;
     btn.innerHTML = `<span class="material-symbols-outlined icon-sm">pause_circle</span> Воспроизведение...`;
-    progressDiv.classList.remove('hidden');
 
-    socket.emit('play_question_audio', {
-        path: currentQuestionAudioPath,
-        trim_start: trimStart,
-        trim_end: trimEnd
-    });
-
-    const startTimerAfter = (durationMs) => {
-        if (_audioPlayInterval) clearInterval(_audioPlayInterval);
-        const startTs = Date.now();
-        if (durationMs > 0) {
-            _audioPlayInterval = setInterval(() => {
-                const elapsed = Date.now() - startTs;
-                progressBar.value = Math.min(100, (elapsed / durationMs) * 100);
-            }, 100);
-            setTimeout(() => {
-                if (_audioPlayInterval) { clearInterval(_audioPlayInterval); _audioPlayInterval = null; }
-                resetAudioPlayBtn();
-                startTimer();
-            }, durationMs);
-        } else {
-            resetAudioPlayBtn();
-            startTimer();
-        }
-    };
-
+    // Считаем длительность: либо trimEnd-trimStart, либо длительность файла - trimStart.
+    let durationMs = 0;
     if (trimEnd && trimEnd > trimStart) {
-        startTimerAfter((trimEnd - trimStart) * 1000);
+        durationMs = (trimEnd - trimStart) * 1000;
     } else {
         const player = document.getElementById('question-audio-preview');
-        const doStart = () => startTimerAfter(Math.max(0, (player.duration - trimStart)) * 1000);
-        if (player.duration > 0) {
-            doStart();
-        } else {
-            player.addEventListener('loadedmetadata', doStart, {once: true});
-            if (!player.src) { player.src = currentQuestionAudioPath; player.load(); }
-        }
+        const dur = await new Promise((resolve) => {
+            if (player.duration > 0 && !isNaN(player.duration)) {
+                resolve(player.duration);
+            } else {
+                const onMeta = () => resolve(player.duration || 0);
+                player.addEventListener('loadedmetadata', onMeta, {once: true});
+                if (!player.src) { player.src = currentQuestionAudioPath; }
+                player.load();
+            }
+        });
+        durationMs = Math.max(0, (dur - trimStart)) * 1000;
     }
+
+    startAudioProgress(durationMs);
+
+    socket.emit('play_audio_then_timer', {
+        question_id: currentQuestionId,
+        path: currentQuestionAudioPath,
+        trim_start: trimStart,
+        trim_end: trimEnd,
+        duration_ms: Math.round(durationMs),
+    });
+}
+
+function stopScreenAudioCmd() {
+    // Локально сбрасываем UI прогресса; сервер также пришлёт stop_screen_audio
+    // и убьёт pre-timer greenlet, чтобы таймер не стартовал.
+    resetAudioPlayBtn();
+    socket.emit('stop_screen_audio');
 }
 
 function updateTimerDisplay(remaining) {
@@ -546,10 +588,6 @@ function resetTimer() {
 function showAnswer() {
     if (!currentQuestionId) return;
     changeScreen('question_answer', {question_id: currentQuestionId});
-}
-
-function stopScreenAudioCmd() {
-    socket.emit('stop_screen_audio');
 }
 
 
