@@ -190,6 +190,10 @@
                             <progress class="progress progress-success w-full" id="audio-progress-bar" value="0" max="100"></progress>
                             <div class="text-xs text-center text-base-content/40 mt-0.5">Воспроизведение...</div>
                         </div>
+                        <button onclick="stopScreenAudioCmd()" class="btn btn-error btn-outline btn-sm w-full gap-1 mt-1">
+                            <span class="material-symbols-outlined icon-sm">stop_circle</span>
+                            Остановить звук на экране
+                        </button>
                     </div>
 
                     <button onclick="showAnswer()" class="btn btn-info btn-sm w-full mt-3">
@@ -389,6 +393,8 @@ function setActiveQuestion(q) {
     currentQuestionType = q.question_type || null;
     currentQuestionTrimStart = q.audio_trim_start || 0;
     currentQuestionTrimEnd = q.audio_trim_end || null;
+    if (_audioPlayInterval) { clearInterval(_audioPlayInterval); _audioPlayInterval = null; }
+    resetAudioPlayBtn();
     document.getElementById('no-question-hint').classList.add('hidden');
     document.getElementById('question-controls').classList.remove('hidden');
 
@@ -540,6 +546,10 @@ function resetTimer() {
 function showAnswer() {
     if (!currentQuestionId) return;
     changeScreen('question_answer', {question_id: currentQuestionId});
+}
+
+function stopScreenAudioCmd() {
+    socket.emit('stop_screen_audio');
 }
 
 

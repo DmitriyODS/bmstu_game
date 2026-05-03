@@ -619,6 +619,12 @@ function stopScreenAudio() {
     }
 }
 
+function stopAllScreenAudio() {
+    stopScreenAudio();
+    const bgAudio = document.getElementById('pres-bg-audio');
+    if (bgAudio) { bgAudio.pause(); bgAudio.remove(); }
+}
+
 function unlockScreenAudio() {
     document.getElementById('audio-unlock-overlay').style.display = 'none';
 }
@@ -658,6 +664,7 @@ function resetAnswersPanel() {
 
 // ── Sockets ─────────────────────────────────────────────────────────────────────
 socket.on('screen_changed', (data) => {
+    stopAllScreenAudio();
     showScreen(data.screen);
 
     if (data.screen === 'tour_splash' && data.tour) {
@@ -710,14 +717,14 @@ socket.on('team_name_updated', (data) => {
 
 socket.on('timer_tick', (data) => updateTimer(data.remaining));
 socket.on('timer_started', (data) => updateTimer(data.seconds));
-socket.on('timer_paused', (data) => { updateTimer(data.remaining); stopScreenAudio(); });
+socket.on('timer_paused', (data) => { updateTimer(data.remaining); stopAllScreenAudio(); });
 socket.on('timer_stopped', () => {
-    stopScreenAudio();
+    stopAllScreenAudio();
     const el = document.getElementById('timer-pres');
     if (el) { el.textContent = '0'; el.classList.add('danger'); }
 });
 socket.on('timer_reset', () => {
-    stopScreenAudio();
+    stopAllScreenAudio();
     const el = document.getElementById('timer-pres');
     if (el && _currentTimeSeconds != null) {
         el.textContent = _currentTimeSeconds;
@@ -741,6 +748,7 @@ socket.on('play_question_audio', (data) => {
         audio.addEventListener('ended', () => { if (_screenAudio === audio) _screenAudio = null; }, {once: true});
     }
 });
+socket.on('stop_screen_audio', () => stopAllScreenAudio());
 socket.on('scores_updated', () => {});
 
 socket.on('answer_submitted', (data) => {
