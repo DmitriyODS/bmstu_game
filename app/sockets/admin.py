@@ -163,6 +163,7 @@ def _start_timer_internal(quiz_id, question_id, app=None):
         gs.timer_seconds = start_seconds
         db.session.commit()
 
+        _broadcast_stop_audio(quiz_id)
         _broadcast('timer_started',
                    {'seconds': start_seconds, 'started_at': gs.timer_started_at.isoformat()},
                    quiz_id)

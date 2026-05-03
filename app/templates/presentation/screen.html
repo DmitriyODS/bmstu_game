@@ -714,7 +714,7 @@ socket.on('team_name_updated', (data) => {
 });
 
 socket.on('timer_tick', (data) => updateTimer(data.remaining));
-socket.on('timer_started', (data) => updateTimer(data.seconds));
+socket.on('timer_started', (data) => { stopAllScreenAudio(); updateTimer(data.seconds); });
 socket.on('timer_paused', (data) => { updateTimer(data.remaining); stopAllScreenAudio(); });
 socket.on('timer_stopped', () => {
     stopAllScreenAudio();
