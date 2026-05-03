@@ -5,8 +5,10 @@ SERVER="ubuntu@171.22.180.77"
 REMOTE_DIR="~/bmstu_quiz"
 
 # Пушим локальные изменения на GitHub
-if [[ $(git status --porcelain) ]]; then
+# Проверяем только tracked-изменения (не untracked)
+if [[ $(git status --porcelain | grep -v '^??') ]]; then
     echo "⚠  Есть незакоммиченные изменения — сначала сделай commit."
+    git status --short | grep -v '^??'
     exit 1
 fi
 
