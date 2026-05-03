@@ -621,8 +621,6 @@ function stopScreenAudio() {
 
 function stopAllScreenAudio() {
     stopScreenAudio();
-    const bgAudio = document.getElementById('pres-bg-audio');
-    if (bgAudio) { bgAudio.pause(); bgAudio.remove(); }
 }
 
 function unlockScreenAudio() {
@@ -879,18 +877,18 @@ function loadQuestion(q) {
 }
 
 function showAnswer(q) {
-    // Воспроизводим аудио при показе ответа для audio-вопросов
-    const prevBgAudio = document.getElementById('pres-bg-audio');
-    if (prevBgAudio) { prevBgAudio.pause(); prevBgAudio.remove(); }
+    stopAllScreenAudio();
     if (q.question_type === 'audio' && q.audio_path) {
         const bgAudio = new Audio(q.audio_path);
-        bgAudio.id = 'pres-bg-audio';
+        _screenAudio = bgAudio;
         const trimStart = q.audio_trim_start || 0;
         const trimEnd = q.audio_trim_end;
         bgAudio.currentTime = trimStart;
         bgAudio.play().catch(() => {});
         if (trimEnd && trimEnd > trimStart) {
-            setTimeout(() => bgAudio.pause(), (trimEnd - trimStart) * 1000);
+            setTimeout(() => { if (_screenAudio === bgAudio) stopAllScreenAudio(); }, (trimEnd - trimStart) * 1000);
+        } else {
+            bgAudio.addEventListener('ended', () => { if (_screenAudio === bgAudio) _screenAudio = null; }, {once: true});
         }
     }
 
