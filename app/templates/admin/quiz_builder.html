@@ -292,10 +292,18 @@
                                 <input type="range" id="q-trim-end" class="range range-xs flex-1" min="0" step="0.1" value="0" oninput="onTrimChange()">
                                 <span class="text-xs font-mono text-right w-14" id="trim-end-val">—</span>
                             </div>
-                            <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-2 flex-wrap">
                                 <button type="button" onclick="previewTrim()" class="btn btn-xs btn-outline gap-1">
                                     <span class="material-symbols-outlined" style="font-size:12px">play_arrow</span>
                                     Предпрослушать
+                                </button>
+                                <button type="button" onclick="stopTrimPreview()" class="btn btn-xs btn-outline gap-1">
+                                    <span class="material-symbols-outlined" style="font-size:12px">stop</span>
+                                    Остановить
+                                </button>
+                                <button type="button" onclick="resetTrim()" class="btn btn-xs btn-outline gap-1">
+                                    <span class="material-symbols-outlined" style="font-size:12px">restart_alt</span>
+                                    Сбросить
                                 </button>
                                 <span class="text-xs text-base-content/40">Длит.: <span id="trim-dur-label">—</span></span>
                             </div>
@@ -915,6 +923,21 @@ function previewTrim() {
     if (endVal > startVal) {
         _trimTimeout = setTimeout(() => audio.pause(), (endVal - startVal) * 1000);
     }
+}
+
+function stopTrimPreview() {
+    const audio = document.getElementById('q-trim-preview-audio');
+    audio.pause();
+    if (_trimTimeout) { clearTimeout(_trimTimeout); _trimTimeout = null; }
+}
+
+function resetTrim() {
+    const audio = document.getElementById('q-trim-preview-audio');
+    if (!audio.duration) return;
+    stopTrimPreview();
+    document.getElementById('q-trim-start').value = 0;
+    document.getElementById('q-trim-end').value = audio.duration.toFixed(1);
+    onTrimChange();
 }
 
 // ── Drag & Drop ──────────────────────────────────────────────────

@@ -141,12 +141,6 @@
     {# ── Правая часть: управление ── #}
     <div class="flex flex-col gap-4 sticky top-4">
 
-        {# Разблокировка звука #}
-        <div id="audio-unlock-banner" class="alert alert-warning shadow cursor-pointer" onclick="unlockAudio()">
-            <span class="material-symbols-outlined">volume_off</span>
-            <span class="text-sm">Нажмите, чтобы включить звук</span>
-        </div>
-
         {# Активный вопрос + таймер #}
         <div class="card bg-base-100 shadow" id="active-question-card">
             <div class="card-body">
@@ -187,7 +181,7 @@
                     {# Аудио-секция (только для вопросов типа audio) #}
                     <div id="audio-question-section" class="hidden mt-3 pt-3 border-t border-base-200">
                         <div class="text-xs text-base-content/50 mb-2 font-semibold uppercase tracking-wide">Аудио вопрос</div>
-                        <audio id="question-audio-preview" class="w-full mb-2 hidden" preload="none"></audio>
+                        <audio id="question-audio-preview" preload="metadata" class="hidden"></audio>
                         <button onclick="playAudioAndTimer()" class="btn btn-success btn-sm w-full gap-1 mb-1" id="btn-play-audio-timer">
                             <span class="material-symbols-outlined icon-sm">play_circle</span>
                             Воспроизвести → Таймер
@@ -297,19 +291,11 @@ socket.on('screen_changed', (data) => {
 
 socket.on('timer_started', (data) => {
     updateTimerDisplay(data.seconds);
-    // Для audio-вопросов аудио играет ДО таймера через playAudioAndTimer()
-    if (currentQuestionAudioPath && currentQuestionType !== 'audio') {
-        playQuestionAudio(currentQuestionAudioPath, currentQuestionTimeSeconds,
-                          currentQuestionTrimStart, currentQuestionTrimEnd);
-    }
 });
 socket.on('timer_tick', (data) => updateTimerDisplay(data.remaining));
-socket.on('timer_paused', (data) => { updateTimerDisplay(data.remaining); stopQuestionAudio(); });
-socket.on('timer_stopped', () => { updateTimerDisplay(0); stopQuestionAudio(); });
-socket.on('timer_reset', () => {
-    updateTimerDisplay(currentQuestionTimeSeconds || '--');
-    stopQuestionAudio();
-});
+socket.on('timer_paused', (data) => updateTimerDisplay(data.remaining));
+socket.on('timer_stopped', () => updateTimerDisplay(0));
+socket.on('timer_reset', () => updateTimerDisplay(currentQuestionTimeSeconds || '--'));
 
 socket.on('answer_submitted', (data) => {
     if (!answeredTeams.has(data.team_id)) {
@@ -403,7 +389,6 @@ function setActiveQuestion(q) {
     currentQuestionType = q.question_type || null;
     currentQuestionTrimStart = q.audio_trim_start || 0;
     currentQuestionTrimEnd = q.audio_trim_end || null;
-    stopQuestionAudio();
     document.getElementById('no-question-hint').classList.add('hidden');
     document.getElementById('question-controls').classList.remove('hidden');
 
@@ -443,11 +428,8 @@ let _audioPlayInterval = null;
 
 function playAudioAndTimer() {
     if (!currentQuestionId || !currentQuestionAudioPath) return;
-    const player = document.getElementById('question-audio-preview');
     const trimStart = currentQuestionTrimStart || 0;
     const trimEnd = currentQuestionTrimEnd;
-
-    player.currentTime = trimStart;
 
     const btn = document.getElementById('btn-play-audio-timer');
     const progressDiv = document.getElementById('audio-play-progress');
@@ -457,29 +439,42 @@ function playAudioAndTimer() {
     btn.innerHTML = `<span class="material-symbols-outlined icon-sm">pause_circle</span> Воспроизведение...`;
     progressDiv.classList.remove('hidden');
 
-    player.play().catch(() => { resetAudioPlayBtn(); return; });
+    socket.emit('play_question_audio', {
+        path: currentQuestionAudioPath,
+        trim_start: trimStart,
+        trim_end: trimEnd
+    });
 
-    const duration = trimEnd ? trimEnd - trimStart : null;
-
-    if (_audioPlayInterval) clearInterval(_audioPlayInterval);
-    if (duration) {
-        _audioPlayInterval = setInterval(() => {
-            const elapsed = player.currentTime - trimStart;
-            progressBar.value = Math.min(100, (elapsed / duration) * 100);
-        }, 100);
-    }
-
-    const finish = () => {
-        player.pause();
-        if (_audioPlayInterval) { clearInterval(_audioPlayInterval); _audioPlayInterval = null; }
-        resetAudioPlayBtn();
-        startTimer();
+    const startTimerAfter = (durationMs) => {
+        if (_audioPlayInterval) clearInterval(_audioPlayInterval);
+        const startTs = Date.now();
+        if (durationMs > 0) {
+            _audioPlayInterval = setInterval(() => {
+                const elapsed = Date.now() - startTs;
+                progressBar.value = Math.min(100, (elapsed / durationMs) * 100);
+            }, 100);
+            setTimeout(() => {
+                if (_audioPlayInterval) { clearInterval(_audioPlayInterval); _audioPlayInterval = null; }
+                resetAudioPlayBtn();
+                startTimer();
+            }, durationMs);
+        } else {
+            resetAudioPlayBtn();
+            startTimer();
+        }
     };
 
-    if (duration) {
-        setTimeout(finish, duration * 1000);
+    if (trimEnd && trimEnd > trimStart) {
+        startTimerAfter((trimEnd - trimStart) * 1000);
     } else {
-        player.addEventListener('ended', finish, {once: true});
+        const player = document.getElementById('question-audio-preview');
+        const doStart = () => startTimerAfter(Math.max(0, (player.duration - trimStart)) * 1000);
+        if (player.duration > 0) {
+            doStart();
+        } else {
+            player.addEventListener('loadedmetadata', doStart, {once: true});
+            if (!player.src) { player.src = currentQuestionAudioPath; player.load(); }
+        }
     }
 }
 
@@ -547,44 +542,6 @@ function showAnswer() {
     changeScreen('question_answer', {question_id: currentQuestionId});
 }
 
-// ── Audio ──────────────────────────────────────────────────────────────────────
-let _audioUnlocked = false;
-let _currentAudio = null;
-
-function unlockAudio() {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    ctx.resume();
-    _audioUnlocked = true;
-    document.getElementById('audio-unlock-banner').style.display = 'none';
-}
-
-function playSound(path) {
-    new Audio(path).play().catch(() => {});
-}
-
-function playQuestionAudio(path, maxSeconds, trimStart, trimEnd) {
-    stopQuestionAudio();
-    const audio = new Audio(path);
-    _currentAudio = audio;
-    const ts = trimStart || 0;
-    const te = trimEnd || null;
-    audio.currentTime = ts;
-    audio.play().catch(() => {});
-    const duration = te ? (te - ts) * 1000 : (maxSeconds ? maxSeconds * 1000 : null);
-    if (duration) {
-        setTimeout(() => { if (_currentAudio === audio) stopQuestionAudio(); }, duration);
-    }
-}
-
-function stopQuestionAudio() {
-    if (_currentAudio) {
-        _currentAudio.pause();
-        _currentAudio.currentTime = 0;
-        _currentAudio = null;
-    }
-}
-
-socket.on('play_sound', (data) => playSound(data.path));
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 {% if gs and gs.current_screen %}

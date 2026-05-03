@@ -464,6 +464,13 @@ body { overflow: hidden; background: #f8fafc; }
 {% block content %}
 <div id="pres-app">
 
+    <!-- Audio unlock overlay -->
+    <div id="audio-unlock-overlay" onclick="unlockScreenAudio()"
+         style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-direction:column;gap:1rem;">
+        <span class="material-symbols-outlined" style="font-size:5rem;color:#fff;">volume_up</span>
+        <span style="color:#fff;font-size:1.75rem;font-weight:700;">Нажмите для включения звука</span>
+    </div>
+
     <!-- SPLASH -->
     <div id="screen-splash" class="pres-screen text-center">
         {% if quiz.splash_image %}
@@ -602,6 +609,20 @@ body { overflow: hidden; background: #f8fafc; }
 const QUIZ_ID = '{{ quiz.id }}';
 const socket = io('/presentation');
 
+let _screenAudio = null;
+
+function stopScreenAudio() {
+    if (_screenAudio) {
+        _screenAudio.pause();
+        _screenAudio.currentTime = 0;
+        _screenAudio = null;
+    }
+}
+
+function unlockScreenAudio() {
+    document.getElementById('audio-unlock-overlay').style.display = 'none';
+}
+
 function renderFormatted(text) {
     if (!text) return '';
     const parts = text.split('---col---');
@@ -689,19 +710,37 @@ socket.on('team_name_updated', (data) => {
 
 socket.on('timer_tick', (data) => updateTimer(data.remaining));
 socket.on('timer_started', (data) => updateTimer(data.seconds));
-socket.on('timer_paused', (data) => updateTimer(data.remaining));
+socket.on('timer_paused', (data) => { updateTimer(data.remaining); stopScreenAudio(); });
 socket.on('timer_stopped', () => {
+    stopScreenAudio();
     const el = document.getElementById('timer-pres');
     if (el) { el.textContent = '0'; el.classList.add('danger'); }
 });
 socket.on('timer_reset', () => {
+    stopScreenAudio();
     const el = document.getElementById('timer-pres');
     if (el && _currentTimeSeconds != null) {
         el.textContent = _currentTimeSeconds;
         el.classList.remove('danger');
     }
 });
-socket.on('play_sound', () => {});
+socket.on('play_sound', (data) => {
+    if (data && data.path) new Audio(data.path).play().catch(() => {});
+});
+socket.on('play_question_audio', (data) => {
+    stopScreenAudio();
+    const audio = new Audio(data.path);
+    _screenAudio = audio;
+    const trimStart = data.trim_start || 0;
+    const trimEnd = data.trim_end;
+    audio.currentTime = trimStart;
+    audio.play().catch(() => {});
+    if (trimEnd && trimEnd > trimStart) {
+        setTimeout(() => { if (_screenAudio === audio) stopScreenAudio(); }, (trimEnd - trimStart) * 1000);
+    } else {
+        audio.addEventListener('ended', () => { if (_screenAudio === audio) _screenAudio = null; }, {once: true});
+    }
+});
 socket.on('scores_updated', () => {});
 
 socket.on('answer_submitted', (data) => {

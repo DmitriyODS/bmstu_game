@@ -182,6 +182,14 @@ def on_reset_timer():
     _broadcast('timer_stopped', {}, quiz.id)
 
 
+@socketio.on('play_question_audio', namespace='/admin')
+def on_play_question_audio(data):
+    quiz = Quiz.query.filter_by(is_active=True).first()
+    if not quiz:
+        return
+    socketio.emit('play_question_audio', data, room=quiz.id, namespace='/presentation')
+
+
 @socketio.on('disconnect', namespace='/admin')
 def on_disconnect():
     pass

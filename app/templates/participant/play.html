@@ -320,24 +320,6 @@ function loadQuestion(q) {
 
     const audArea = document.getElementById('q-audio-area');
     audArea.innerHTML = '';
-    if (q.audio_path) {
-        const audio = document.createElement('audio');
-        audio.src = q.audio_path;
-        audio.controls = true;
-        audio.className = 'w-full mb-3';
-        const trimStart = q.audio_trim_start || 0;
-        const trimEnd = q.audio_trim_end;
-        audio.addEventListener('loadedmetadata', () => {
-            audio.currentTime = trimStart;
-            audio.play().catch(() => {});
-        }, {once: true});
-        if (trimEnd) {
-            audio.addEventListener('timeupdate', () => {
-                if (audio.currentTime >= trimEnd) audio.pause();
-            });
-        }
-        audArea.appendChild(audio);
-    }
 
     renderAnswerArea(q);
 }
@@ -479,21 +461,6 @@ async function submitAnswer(answerData) {
 }
 
 function showCorrectAnswer(q) {
-    // Воспроизводим аудио при показе ответа для audio-вопросов
-    if (q.question_type === 'audio' && q.audio_path) {
-        const bgAudio = new Audio(q.audio_path);
-        const trimStart = q.audio_trim_start || 0;
-        const trimEnd = q.audio_trim_end;
-        bgAudio.addEventListener('loadedmetadata', () => {
-            bgAudio.currentTime = trimStart;
-            bgAudio.play().catch(() => {});
-            if (trimEnd && trimEnd > trimStart) {
-                setTimeout(() => bgAudio.pause(), (trimEnd - trimStart) * 1000);
-            }
-        }, {once: true});
-        bgAudio.load();
-    }
-
     const textEl = document.getElementById('correct-answer-text');
     const listEl = document.getElementById('correct-answer-list');
     const qTextEl = document.getElementById('correct-question-text');
