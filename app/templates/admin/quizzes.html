@@ -4,11 +4,11 @@
 {% block admin_content %}
 <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl sm:text-3xl font-bold">Квизы</h1>
-    <div class="flex gap-2">
+    <div class="flex gap-2 flex-wrap">
         <button class="btn btn-outline btn-sm sm:btn-md"
                 onclick="document.getElementById('import-modal').showModal()">
             <span class="material-symbols-outlined icon-sm">upload</span>
-            <span class="hidden sm:inline">Импорт JSON</span>
+            <span class="hidden sm:inline">Импорт</span>
         </button>
         <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary btn-sm sm:btn-md">
             <span class="material-symbols-outlined icon-sm">add</span>
@@ -19,17 +19,42 @@
 
 <dialog id="import-modal" class="modal">
     <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Импорт квиза из JSON</h3>
-        <form method="POST" action="{{ url_for('admin.quiz_import_json') }}" enctype="multipart/form-data">
-            <input type="file" name="file" accept=".json" class="file-input file-input-bordered w-full mb-4" required>
-            <div class="modal-action mt-0">
-                <button type="button" class="btn" onclick="document.getElementById('import-modal').close()">Отмена</button>
-                <button type="submit" class="btn btn-primary">Импортировать</button>
-            </div>
-        </form>
+        <h3 class="font-bold text-lg mb-4">Импорт квиза</h3>
+        <div class="tabs tabs-bordered mb-4">
+            <button class="tab tab-active" id="tab-zip" onclick="switchImportTab('zip')">ZIP (с медиафайлами)</button>
+            <button class="tab" id="tab-json" onclick="switchImportTab('json')">JSON (только структура)</button>
+        </div>
+        <div id="import-tab-zip">
+            <p class="text-sm text-base-content/60 mb-3">Полный архив с вопросами, изображениями и аудио</p>
+            <form method="POST" action="{{ url_for('admin.quiz_import_zip') }}" enctype="multipart/form-data">
+                <input type="file" name="file" accept=".zip" class="file-input file-input-bordered w-full mb-4" required>
+                <div class="modal-action mt-0">
+                    <button type="button" class="btn" onclick="document.getElementById('import-modal').close()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Импортировать</button>
+                </div>
+            </form>
+        </div>
+        <div id="import-tab-json" class="hidden">
+            <p class="text-sm text-base-content/60 mb-3">Только структура квиза без медиафайлов</p>
+            <form method="POST" action="{{ url_for('admin.quiz_import_json') }}" enctype="multipart/form-data">
+                <input type="file" name="file" accept=".json" class="file-input file-input-bordered w-full mb-4" required>
+                <div class="modal-action mt-0">
+                    <button type="button" class="btn" onclick="document.getElementById('import-modal').close()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Импортировать</button>
+                </div>
+            </form>
+        </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
+<script>
+function switchImportTab(tab) {
+    document.getElementById('import-tab-zip').classList.toggle('hidden', tab !== 'zip');
+    document.getElementById('import-tab-json').classList.toggle('hidden', tab !== 'json');
+    document.getElementById('tab-zip').classList.toggle('tab-active', tab === 'zip');
+    document.getElementById('tab-json').classList.toggle('tab-active', tab === 'json');
+}
+</script>
 
 {% if quizzes %}
 <div class="grid gap-4">
@@ -78,6 +103,10 @@
                     <a href="{{ url_for('admin.export_excel', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
                         <span class="material-symbols-outlined icon-sm">download</span>
                         <span class="hidden sm:inline">Excel</span>
+                    </a>
+                    <a href="{{ url_for('admin.quiz_export_zip', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
+                        <span class="material-symbols-outlined icon-sm">folder_zip</span>
+                        <span class="hidden sm:inline">ZIP</span>
                     </a>
                     <a href="{{ url_for('admin.quiz_export_json', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
                         <span class="material-symbols-outlined icon-sm">data_object</span>

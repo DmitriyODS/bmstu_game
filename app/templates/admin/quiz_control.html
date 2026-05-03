@@ -184,7 +184,21 @@
                         </button>
                     </div>
 
-                    <button onclick="showAnswer()" class="btn btn-info btn-sm w-full">
+                    {# Аудио-секция (только для вопросов типа audio) #}
+                    <div id="audio-question-section" class="hidden mt-3 pt-3 border-t border-base-200">
+                        <div class="text-xs text-base-content/50 mb-2 font-semibold uppercase tracking-wide">Аудио вопрос</div>
+                        <audio id="question-audio-preview" class="w-full mb-2 hidden" preload="none"></audio>
+                        <button onclick="playAudioAndTimer()" class="btn btn-success btn-sm w-full gap-1 mb-1" id="btn-play-audio-timer">
+                            <span class="material-symbols-outlined icon-sm">play_circle</span>
+                            Воспроизвести → Таймер
+                        </button>
+                        <div id="audio-play-progress" class="hidden mt-1">
+                            <progress class="progress progress-success w-full" id="audio-progress-bar" value="0" max="100"></progress>
+                            <div class="text-xs text-center text-base-content/40 mt-0.5">Воспроизведение...</div>
+                        </div>
+                    </div>
+
+                    <button onclick="showAnswer()" class="btn btn-info btn-sm w-full mt-3">
                         <span class="material-symbols-outlined icon-sm">check_circle</span>
                         Показать ответ
                     </button>
@@ -245,6 +259,9 @@ const QUIZ_ID = '{{ quiz.id }}';
 let currentQuestionId = null;
 let currentQuestionAudioPath = null;
 let currentQuestionTimeSeconds = null;
+let currentQuestionType = null;
+let currentQuestionTrimStart = 0;
+let currentQuestionTrimEnd = null;
 let answersCount = 0;
 let answeredTeams = new Set();
 let totalTeams = {{ quiz.teams|length }};
@@ -280,8 +297,10 @@ socket.on('screen_changed', (data) => {
 
 socket.on('timer_started', (data) => {
     updateTimerDisplay(data.seconds);
-    if (currentQuestionAudioPath) {
-        playQuestionAudio(currentQuestionAudioPath, currentQuestionTimeSeconds);
+    // Для audio-вопросов аудио играет ДО таймера через playAudioAndTimer()
+    if (currentQuestionAudioPath && currentQuestionType !== 'audio') {
+        playQuestionAudio(currentQuestionAudioPath, currentQuestionTimeSeconds,
+                          currentQuestionTrimStart, currentQuestionTrimEnd);
     }
 });
 socket.on('timer_tick', (data) => updateTimerDisplay(data.remaining));
@@ -381,6 +400,9 @@ function setActiveQuestion(q) {
     currentQuestionId = q.id;
     currentQuestionAudioPath = q.audio_path || null;
     currentQuestionTimeSeconds = q.time_seconds || null;
+    currentQuestionType = q.question_type || null;
+    currentQuestionTrimStart = q.audio_trim_start || 0;
+    currentQuestionTrimEnd = q.audio_trim_end || null;
     stopQuestionAudio();
     document.getElementById('no-question-hint').classList.add('hidden');
     document.getElementById('question-controls').classList.remove('hidden');
@@ -393,8 +415,72 @@ function setActiveQuestion(q) {
     timerEl.textContent = q.time_seconds;
     timerEl.className = 'text-7xl font-mono font-bold leading-none text-primary';
 
+    // Аудио-секция
+    const audioSection = document.getElementById('audio-question-section');
+    audioSection.classList.toggle('hidden', q.question_type !== 'audio');
+    if (q.question_type === 'audio' && q.audio_path) {
+        const player = document.getElementById('question-audio-preview');
+        player.src = q.audio_path;
+        player.classList.remove('hidden');
+        resetAudioPlayBtn();
+    }
+
     // Reset answered marks
     document.querySelectorAll('.answered-mark').forEach(el => el.classList.add('hidden'));
+}
+
+function resetAudioPlayBtn() {
+    const btn = document.getElementById('btn-play-audio-timer');
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span class="material-symbols-outlined icon-sm">play_circle</span> Воспроизвести → Таймер`;
+    }
+    document.getElementById('audio-play-progress').classList.add('hidden');
+    document.getElementById('audio-progress-bar').value = 0;
+}
+
+let _audioPlayInterval = null;
+
+function playAudioAndTimer() {
+    if (!currentQuestionId || !currentQuestionAudioPath) return;
+    const player = document.getElementById('question-audio-preview');
+    const trimStart = currentQuestionTrimStart || 0;
+    const trimEnd = currentQuestionTrimEnd;
+
+    player.currentTime = trimStart;
+
+    const btn = document.getElementById('btn-play-audio-timer');
+    const progressDiv = document.getElementById('audio-play-progress');
+    const progressBar = document.getElementById('audio-progress-bar');
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="material-symbols-outlined icon-sm">pause_circle</span> Воспроизведение...`;
+    progressDiv.classList.remove('hidden');
+
+    player.play().catch(() => { resetAudioPlayBtn(); return; });
+
+    const duration = trimEnd ? trimEnd - trimStart : null;
+
+    if (_audioPlayInterval) clearInterval(_audioPlayInterval);
+    if (duration) {
+        _audioPlayInterval = setInterval(() => {
+            const elapsed = player.currentTime - trimStart;
+            progressBar.value = Math.min(100, (elapsed / duration) * 100);
+        }, 100);
+    }
+
+    const finish = () => {
+        player.pause();
+        if (_audioPlayInterval) { clearInterval(_audioPlayInterval); _audioPlayInterval = null; }
+        resetAudioPlayBtn();
+        startTimer();
+    };
+
+    if (duration) {
+        setTimeout(finish, duration * 1000);
+    } else {
+        player.addEventListener('ended', finish, {once: true});
+    }
 }
 
 function updateTimerDisplay(remaining) {
@@ -476,13 +562,17 @@ function playSound(path) {
     new Audio(path).play().catch(() => {});
 }
 
-function playQuestionAudio(path, maxSeconds) {
+function playQuestionAudio(path, maxSeconds, trimStart, trimEnd) {
     stopQuestionAudio();
     const audio = new Audio(path);
     _currentAudio = audio;
+    const ts = trimStart || 0;
+    const te = trimEnd || null;
+    audio.currentTime = ts;
     audio.play().catch(() => {});
-    if (maxSeconds) {
-        setTimeout(() => { if (_currentAudio === audio) stopQuestionAudio(); }, maxSeconds * 1000);
+    const duration = te ? (te - ts) * 1000 : (maxSeconds ? maxSeconds * 1000 : null);
+    if (duration) {
+        setTimeout(() => { if (_currentAudio === audio) stopQuestionAudio(); }, duration);
     }
 }
 

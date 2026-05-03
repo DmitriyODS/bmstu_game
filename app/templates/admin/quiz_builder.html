@@ -49,6 +49,9 @@
                         <button onclick="selectTour('{{ tour.id }}')" class="btn btn-xs btn-ghost" title="Настройки тура">
                             <span class="material-symbols-outlined icon-sm">settings</span>
                         </button>
+                        <button onclick="toggleTourCollapse('{{ tour.id }}')" class="btn btn-xs btn-ghost" title="Свернуть/развернуть">
+                            <span class="material-symbols-outlined icon-sm tour-collapse-icon-{{ tour.id }}">expand_less</span>
+                        </button>
                         <button onclick="deleteTour('{{ tour.id }}')" class="btn btn-xs btn-ghost text-error" title="Удалить тур">
                             <span class="material-symbols-outlined icon-sm">delete</span>
                         </button>
@@ -59,7 +62,7 @@
                         <li class="question-item flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer group"
                             data-q-id="{{ q.id }}" onclick="selectQuestion('{{ q.id }}')" draggable="true">
                             <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:14px">drag_indicator</span>
-                            <span class="material-symbols-outlined text-base-content/50 shrink-0" style="font-size:14px">{{ {'text':'text_fields','text_image':'image','image_only':'image','audio':'music_note'}.get(q.question_type,'text_fields') }}</span>
+                            <span class="material-symbols-outlined text-base-content/50 shrink-0" style="font-size:14px">{{ {'text':'text_fields','text_image':'image','image_only':'image','audio':'music_note','formatted_text':'format_color_text'}.get(q.question_type,'text_fields') }}</span>
                             <span class="flex-1 text-xs truncate q-label-{{ q.id }}">{{ (q.text or '(без текста)')[:40] }}</span>
                             <button onclick="event.stopPropagation(); deleteQuestion('{{ q.id }}')"
                                     class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error shrink-0">
@@ -197,6 +200,7 @@
                             <label class="label"><span class="label-text">Тип вопроса</span></label>
                             <select id="q-type" class="select select-bordered select-sm" onchange="onQTypeChange()">
                                 <option value="text">Текст</option>
+                                <option value="formatted_text">Форматированный текст</option>
                                 <option value="text_image">Текст + картинка</option>
                                 <option value="image_only">Только картинка</option>
                                 <option value="audio">Аудио</option>
@@ -227,6 +231,33 @@
                         <textarea id="q-text" class="textarea textarea-bordered" rows="3"></textarea>
                     </div>
 
+                    <div id="q-formatted-block" class="mb-4 hidden">
+                        <label class="label"><span class="label-text">Форматированный текст</span></label>
+                        <div class="flex flex-wrap gap-1 mb-2 bg-base-200 p-1.5 rounded-lg">
+                            <button type="button" onclick="insertFmt('**','**')" class="btn btn-xs btn-ghost font-bold" title="Жирный">B</button>
+                            <button type="button" onclick="insertFmt('*','*')" class="btn btn-xs btn-ghost italic" title="Курсив">I</button>
+                            <div class="divider divider-horizontal mx-0 my-0"></div>
+                            <button type="button" onclick="insertFmt('# ','')" class="btn btn-xs btn-ghost text-xs">H1</button>
+                            <button type="button" onclick="insertFmt('## ','')" class="btn btn-xs btn-ghost text-xs">H2</button>
+                            <button type="button" onclick="insertFmt('### ','')" class="btn btn-xs btn-ghost text-xs">H3</button>
+                            <div class="divider divider-horizontal mx-0 my-0"></div>
+                            <button type="button" onclick="insertCols(2)" class="btn btn-xs btn-ghost text-xs" title="Разбить на 2 колонки">2 кол.</button>
+                            <button type="button" onclick="insertCols(3)" class="btn btn-xs btn-ghost text-xs" title="Разбить на 3 колонки">3 кол.</button>
+                            <div class="divider divider-horizontal mx-0 my-0"></div>
+                            <button type="button" onclick="insertFmt('- ','')" class="btn btn-xs btn-ghost text-xs">• список</button>
+                        </div>
+                        <textarea id="q-formatted-text" class="textarea textarea-bordered w-full font-mono text-sm" rows="10"
+                                  placeholder="Введите текст в формате Markdown. Разделите ---col--- для колонок."
+                                  oninput="updateFmtPreview()"></textarea>
+                        <div class="mt-2 border border-base-300 rounded-lg overflow-hidden">
+                            <div class="bg-base-200 px-3 py-1 text-xs text-base-content/50 font-medium flex items-center gap-1">
+                                <span class="material-symbols-outlined" style="font-size:14px">preview</span>
+                                Предпросмотр
+                            </div>
+                            <div id="q-formatted-preview" class="p-3 min-h-12 text-sm formatted-content prose max-w-none"></div>
+                        </div>
+                    </div>
+
                     <div id="q-image-block" class="mb-4 hidden">
                         <label class="label"><span class="label-text">Картинка вопроса</span></label>
                         <input type="file" id="q-image-input" accept="image/*" class="file-input file-input-bordered w-full">
@@ -245,6 +276,30 @@
                         <label class="label"><span class="label-text">Аудиофайл вопроса</span></label>
                         <input type="file" id="q-audio-input" accept="audio/*" class="file-input file-input-bordered w-full">
                         <div id="q-audio-preview" class="mt-2"></div>
+                        <div id="q-audio-trim-section" class="mt-3 bg-base-200 rounded-lg p-3 hidden">
+                            <div class="text-xs font-semibold text-base-content/70 mb-3 flex items-center gap-1">
+                                <span class="material-symbols-outlined" style="font-size:14px">content_cut</span>
+                                Обрезка трека
+                            </div>
+                            <audio id="q-trim-preview-audio" preload="metadata" class="hidden"></audio>
+                            <div class="flex items-center gap-3 mb-2">
+                                <span class="text-xs text-base-content/50 shrink-0 w-16 text-right">Начало</span>
+                                <input type="range" id="q-trim-start" class="range range-xs flex-1" min="0" step="0.1" value="0" oninput="onTrimChange()">
+                                <span class="text-xs font-mono text-right w-14" id="trim-start-val">0.0 с</span>
+                            </div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <span class="text-xs text-base-content/50 shrink-0 w-16 text-right">Конец</span>
+                                <input type="range" id="q-trim-end" class="range range-xs flex-1" min="0" step="0.1" value="0" oninput="onTrimChange()">
+                                <span class="text-xs font-mono text-right w-14" id="trim-end-val">—</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button type="button" onclick="previewTrim()" class="btn btn-xs btn-outline gap-1">
+                                    <span class="material-symbols-outlined" style="font-size:12px">play_arrow</span>
+                                    Предпрослушать
+                                </button>
+                                <span class="text-xs text-base-content/40">Длит.: <span id="trim-dur-label">—</span></span>
+                            </div>
+                        </div>
                     </div>
 
                     <div id="q-options-block" class="mb-4 hidden">
@@ -289,6 +344,17 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+.formatted-content .fmt-cols { display: grid; gap: 1rem; }
+.formatted-content .fmt-cols-2 { grid-template-columns: 1fr 1fr; }
+.formatted-content .fmt-cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.formatted-content p { margin-bottom: 0.5em; }
+.formatted-content strong { font-weight: 700; }
+.formatted-content em { font-style: italic; }
+.formatted-content h1,.formatted-content h2,.formatted-content h3 { font-weight: 700; margin-bottom: 0.3em; }
+.formatted-content ul,.formatted-content ol { padding-left: 1.2em; margin-bottom: 0.5em; }
+</style>
 <script>
 const QUIZ_ID = '{{ quiz.id }}';
 let currentTourId = null;
@@ -322,6 +388,9 @@ function createTourCard(tour) {
                 </button>
                 <button onclick="selectTour('${tour.id}')" class="btn btn-xs btn-ghost" title="Настройки тура">
                     <span class="material-symbols-outlined icon-sm">settings</span>
+                </button>
+                <button onclick="toggleTourCollapse('${tour.id}')" class="btn btn-xs btn-ghost" title="Свернуть/развернуть">
+                    <span class="material-symbols-outlined icon-sm tour-collapse-icon-${tour.id}">expand_less</span>
                 </button>
                 <button onclick="deleteTour('${tour.id}')" class="btn btn-xs btn-ghost text-error" title="Удалить тур">
                     <span class="material-symbols-outlined icon-sm">delete</span>
@@ -447,7 +516,7 @@ function appendQuestionToList(tourId, q) {
     li.dataset.qId = q.id;
     li.draggable = true;
     li.onclick = () => selectQuestion(q.id);
-    const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note'};
+    const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note',formatted_text:'format_color_text'};
     li.innerHTML = `
         <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:14px">drag_indicator</span>
         <span class="material-symbols-outlined text-base-content/50 shrink-0" style="font-size:14px">${iconMap[q.question_type]||'text_fields'}</span>
@@ -474,18 +543,22 @@ async function selectQuestion(qId) {
     document.getElementById('q-points').value = q.points;
     document.getElementById('q-text').value = q.text || '';
     document.getElementById('q-correct').value = q.correct_answer || '';
+    document.getElementById('q-formatted-text').value = q.question_type === 'formatted_text' ? (q.text || '') : '';
 
     document.getElementById('q-image-url').value = '';
     document.getElementById('q-image-preview').innerHTML =
         q.image_path ? `<img src="${q.image_path}" class="max-h-32 w-full object-contain rounded">` : '';
+
+    document.getElementById('q-audio-trim-section').classList.add('hidden');
     if (q.audio_path) {
-        const fn = q.audio_path.split('/').pop();
+        const fn = q.audio_original_name || q.audio_path.split('/').pop();
         document.getElementById('q-audio-preview').innerHTML =
             `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
                 <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
                 <span class="truncate">${escHtml(fn)}</span>
             </div>
             <audio controls src="${q.audio_path}" class="w-full mt-1"></audio>`;
+        initAudioTrim(q.audio_path, q.audio_trim_start, q.audio_trim_end);
     } else {
         document.getElementById('q-audio-preview').innerHTML = '';
     }
@@ -501,9 +574,11 @@ async function selectQuestion(qId) {
 
 function onQTypeChange() {
     const type = document.getElementById('q-type').value;
-    document.getElementById('q-text-block').classList.toggle('hidden', type === 'image_only');
+    document.getElementById('q-text-block').classList.toggle('hidden', ['image_only', 'formatted_text'].includes(type));
+    document.getElementById('q-formatted-block').classList.toggle('hidden', type !== 'formatted_text');
     document.getElementById('q-image-block').classList.toggle('hidden', !['text_image','image_only'].includes(type));
     document.getElementById('q-audio-block').classList.toggle('hidden', type !== 'audio');
+    if (type === 'formatted_text') updateFmtPreview();
 }
 
 function onAnswerTypeChange() {
@@ -604,14 +679,26 @@ async function deleteMatching(mId, btn) {
 
 async function saveQuestion() {
     if (!currentQuestionId) return;
+    const qType = document.getElementById('q-type').value;
+    const textVal = qType === 'formatted_text'
+        ? document.getElementById('q-formatted-text').value
+        : document.getElementById('q-text').value;
+
+    const trimSection = document.getElementById('q-audio-trim-section');
+    const trimStart = trimSection.classList.contains('hidden') ? 0 : parseFloat(document.getElementById('q-trim-start').value) || 0;
+    const trimEndEl = document.getElementById('q-trim-end');
+    const trimEnd = trimSection.classList.contains('hidden') ? null : (parseFloat(trimEndEl.value) || null);
+
     const body = {
-        question_type: document.getElementById('q-type').value,
+        question_type: qType,
         answer_type: document.getElementById('q-answer-type').value,
-        text: document.getElementById('q-text').value,
+        text: textVal,
         time_seconds: parseInt(document.getElementById('q-time').value),
         points: parseInt(document.getElementById('q-points').value),
         correct_answer: document.getElementById('q-correct').value,
         auto_check: ['single_choice','multiple_choice'].includes(document.getElementById('q-answer-type').value),
+        audio_trim_start: trimStart,
+        audio_trim_end: trimEnd,
     };
     await fetch(`/admin/questions/${currentQuestionId}`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
@@ -619,7 +706,7 @@ async function saveQuestion() {
     });
     const label = document.querySelector(`.q-label-${currentQuestionId}`);
     if (label) {
-        const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note'};
+        const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note',formatted_text:'format_color_text'};
         const icon = iconMap[body.question_type] || 'text_fields';
         label.closest('li').querySelector('.material-symbols-outlined:nth-child(2)').textContent = icon;
         label.textContent = (body.text || '(без текста)').substring(0, 40);
@@ -647,13 +734,14 @@ async function uploadQuestionFile(file, type) {
     if (type === 'image' && data.path)
         document.getElementById('q-image-preview').innerHTML = `<img src="${data.path}" class="max-h-32 w-full object-contain rounded">`;
     if (type === 'audio' && data.path) {
-        const fn = data.path.split('/').pop();
+        const fn = data.original_name || data.path.split('/').pop();
         document.getElementById('q-audio-preview').innerHTML =
             `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
                 <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
                 <span class="truncate">${escHtml(fn)}</span>
             </div>
             <audio controls src="${data.path}" class="w-full mt-1"></audio>`;
+        initAudioTrim(data.path, 0, null);
     }
 }
 
@@ -707,6 +795,126 @@ function showToast(msg, type = 'success') {
 
 function escHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Tour collapse ────────────────────────────────────────────────
+
+function toggleTourCollapse(tourId) {
+    const ul = document.getElementById(`questions-${tourId}`);
+    if (!ul) return;
+    const collapsed = ul.classList.toggle('hidden');
+    document.querySelectorAll(`.tour-collapse-icon-${tourId}`).forEach(ic => {
+        ic.textContent = collapsed ? 'expand_more' : 'expand_less';
+    });
+    const states = JSON.parse(localStorage.getItem('tourCollapsed') || '{}');
+    states[tourId] = collapsed;
+    localStorage.setItem('tourCollapsed', JSON.stringify(states));
+}
+
+function restoreTourCollapseStates() {
+    const states = JSON.parse(localStorage.getItem('tourCollapsed') || '{}');
+    for (const [tourId, collapsed] of Object.entries(states)) {
+        if (!collapsed) continue;
+        const ul = document.getElementById(`questions-${tourId}`);
+        if (ul) ul.classList.add('hidden');
+        document.querySelectorAll(`.tour-collapse-icon-${tourId}`).forEach(ic => {
+            ic.textContent = 'expand_more';
+        });
+    }
+}
+
+// ── Formatted text editor ─────────────────────────────────────────
+
+function renderFormatted(text) {
+    if (!text) return '';
+    const parts = text.split('---col---');
+    if (parts.length > 1) {
+        const cols = Math.min(parts.length, 3);
+        const rendered = parts.map(p => `<div>${marked.parse(p.trim())}</div>`).join('');
+        return `<div class="fmt-cols fmt-cols-${cols}">${rendered}</div>`;
+    }
+    return marked.parse(text);
+}
+
+function updateFmtPreview() {
+    const text = document.getElementById('q-formatted-text').value;
+    const preview = document.getElementById('q-formatted-preview');
+    if (typeof marked !== 'undefined') {
+        preview.innerHTML = renderFormatted(text);
+    }
+}
+
+function insertFmt(before, after) {
+    const ta = document.getElementById('q-formatted-text');
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = ta.value.substring(start, end);
+    const replacement = before + selected + after;
+    ta.value = ta.value.substring(0, start) + replacement + ta.value.substring(end);
+    ta.selectionStart = start + before.length;
+    ta.selectionEnd = start + before.length + selected.length;
+    ta.focus();
+    updateFmtPreview();
+}
+
+function insertCols(cols) {
+    const ta = document.getElementById('q-formatted-text');
+    const cursor = ta.selectionEnd;
+    const sep = '\n\n---col---\n\n';
+    const insertText = sep.repeat(cols - 1);
+    ta.value = ta.value.substring(0, cursor) + insertText + ta.value.substring(cursor);
+    ta.selectionStart = ta.selectionEnd = cursor + insertText.length;
+    ta.focus();
+    updateFmtPreview();
+}
+
+// ── Audio trim ────────────────────────────────────────────────────
+
+function initAudioTrim(audioPath, trimStart, trimEnd) {
+    const trimSection = document.getElementById('q-audio-trim-section');
+    trimSection.classList.remove('hidden');
+    const previewAudio = document.getElementById('q-trim-preview-audio');
+    previewAudio.src = audioPath;
+    previewAudio.load();
+    previewAudio.addEventListener('loadedmetadata', function onLoad() {
+        previewAudio.removeEventListener('loadedmetadata', onLoad);
+        const dur = previewAudio.duration;
+        if (!isFinite(dur) || dur <= 0) return;
+        const startRange = document.getElementById('q-trim-start');
+        const endRange = document.getElementById('q-trim-end');
+        startRange.max = dur.toFixed(1);
+        endRange.max = dur.toFixed(1);
+        startRange.value = (trimStart != null && trimStart > 0) ? trimStart : 0;
+        endRange.value = (trimEnd != null && trimEnd > 0 && trimEnd <= dur) ? trimEnd : dur.toFixed(1);
+        onTrimChange();
+    });
+}
+
+function onTrimChange() {
+    const startVal = parseFloat(document.getElementById('q-trim-start').value) || 0;
+    let endVal = parseFloat(document.getElementById('q-trim-end').value) || 0;
+    if (endVal < startVal) {
+        endVal = startVal;
+        document.getElementById('q-trim-end').value = startVal;
+    }
+    document.getElementById('trim-start-val').textContent = startVal.toFixed(1) + ' с';
+    document.getElementById('trim-end-val').textContent = endVal.toFixed(1) + ' с';
+    document.getElementById('trim-dur-label').textContent = Math.max(0, endVal - startVal).toFixed(1) + ' с';
+}
+
+let _trimTimeout = null;
+
+function previewTrim() {
+    const audio = document.getElementById('q-trim-preview-audio');
+    if (!audio.src) return;
+    if (_trimTimeout) clearTimeout(_trimTimeout);
+    const startVal = parseFloat(document.getElementById('q-trim-start').value) || 0;
+    const endVal = parseFloat(document.getElementById('q-trim-end').value) || 0;
+    audio.currentTime = startVal;
+    audio.play().catch(() => {});
+    if (endVal > startVal) {
+        _trimTimeout = setTimeout(() => audio.pause(), (endVal - startVal) * 1000);
+    }
 }
 
 // ── Drag & Drop ──────────────────────────────────────────────────
@@ -814,6 +1022,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tour-splash-input').addEventListener('change', uploadTourSplash);
     document.getElementById('quiz-splash-input').addEventListener('change', uploadQuizSplash);
     initDnD();
+    restoreTourCollapseStates();
 });
 </script>
 {% endblock %}

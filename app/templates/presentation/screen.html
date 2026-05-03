@@ -440,6 +440,24 @@ body { overflow: hidden; background: #f8fafc; }
     width: 100%;
     object-fit: contain;
 }
+
+/* ── FORMATTED TEXT QUESTION ──────────────────────────────────────── */
+#q-text-pres.formatted-mode {
+    font-size: clamp(1.2rem, 2.2vw, 2.4rem);
+    font-weight: 400;
+    text-align: left;
+    line-height: 1.5;
+}
+#q-text-pres.formatted-mode strong { font-weight: 700; }
+#q-text-pres.formatted-mode em { font-style: italic; }
+#q-text-pres.formatted-mode h1 { font-size: 1.4em; font-weight: 800; margin-bottom: 0.4em; }
+#q-text-pres.formatted-mode h2 { font-size: 1.2em; font-weight: 700; margin-bottom: 0.3em; }
+#q-text-pres.formatted-mode h3 { font-size: 1.1em; font-weight: 600; margin-bottom: 0.2em; }
+#q-text-pres.formatted-mode p { margin-bottom: 0.5em; }
+#q-text-pres.formatted-mode ul, #q-text-pres.formatted-mode ol { padding-left: 1.5em; margin-bottom: 0.5em; }
+#q-text-pres.formatted-mode .fmt-cols { display: grid; gap: 2rem; }
+#q-text-pres.formatted-mode .fmt-cols-2 { grid-template-columns: 1fr 1fr; }
+#q-text-pres.formatted-mode .fmt-cols-3 { grid-template-columns: 1fr 1fr 1fr; }
 </style>
 {% endblock %}
 
@@ -579,9 +597,21 @@ body { overflow: hidden; background: #f8fafc; }
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
 const QUIZ_ID = '{{ quiz.id }}';
 const socket = io('/presentation');
+
+function renderFormatted(text) {
+    if (!text) return '';
+    const parts = text.split('---col---');
+    if (parts.length > 1) {
+        const cols = Math.min(parts.length, 3);
+        const rendered = parts.map(p => `<div>${marked.parse(p.trim())}</div>`).join('');
+        return `<div class="fmt-cols fmt-cols-${cols}">${rendered}</div>`;
+    }
+    return marked.parse(text);
+}
 
 function escHtml(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -739,7 +769,14 @@ function loadQuestion(q) {
     screenEl.classList.toggle('image-only-mode', q.question_type === 'image_only');
     screenEl.classList.toggle('text-image-mode', q.question_type === 'text_image');
 
-    document.getElementById('q-text-pres').textContent = q.text || '';
+    const textPresEl = document.getElementById('q-text-pres');
+    if (q.question_type === 'formatted_text') {
+        textPresEl.classList.add('formatted-mode');
+        textPresEl.innerHTML = typeof marked !== 'undefined' ? renderFormatted(q.text || '') : (q.text || '');
+    } else {
+        textPresEl.classList.remove('formatted-mode');
+        textPresEl.textContent = q.text || '';
+    }
     document.getElementById('q-meta-pres').textContent =
         `${q.points}\u2009балл${q.points === 1 ? '' : '(ов)'} · ${q.time_seconds}\u2009с`;
 
@@ -795,6 +832,21 @@ function loadQuestion(q) {
 }
 
 function showAnswer(q) {
+    // Воспроизводим аудио при показе ответа для audio-вопросов
+    const prevBgAudio = document.getElementById('pres-bg-audio');
+    if (prevBgAudio) { prevBgAudio.pause(); prevBgAudio.remove(); }
+    if (q.question_type === 'audio' && q.audio_path) {
+        const bgAudio = new Audio(q.audio_path);
+        bgAudio.id = 'pres-bg-audio';
+        const trimStart = q.audio_trim_start || 0;
+        const trimEnd = q.audio_trim_end;
+        bgAudio.currentTime = trimStart;
+        bgAudio.play().catch(() => {});
+        if (trimEnd && trimEnd > trimStart) {
+            setTimeout(() => bgAudio.pause(), (trimEnd - trimStart) * 1000);
+        }
+    }
+
     const imgAnswerEl = document.getElementById('q-image-answer-pres');
     if (q.image_path && ['image_only', 'text_image'].includes(q.question_type)) {
         imgAnswerEl.innerHTML = `<img src="${escHtml(q.image_path)}" alt="">`;

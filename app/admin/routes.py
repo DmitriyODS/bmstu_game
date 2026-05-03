@@ -3,6 +3,9 @@ import uuid
 import io
 import json
 import re
+import zipfile
+import tempfile
+import shutil
 from flask import (render_template, redirect, url_for, request, flash,
                    jsonify, send_file, current_app)
 from flask_login import current_user
@@ -317,7 +320,7 @@ def question_update(question_id):
         return jsonify(_question_dict(q))
     data = request.get_json(silent=True) or {}
     for field in ('question_type', 'answer_type', 'text', 'time_seconds', 'points',
-                  'auto_check', 'correct_answer', 'order'):
+                  'auto_check', 'correct_answer', 'order', 'audio_trim_start', 'audio_trim_end'):
         if field in data:
             setattr(q, field, data[field])
     # auto_check имеет смысл только для вариантов; принудительно нормализуем
@@ -371,8 +374,10 @@ def question_upload(question_id):
         'audio': 'audio_path',
     }
     setattr(q, field_map.get(file_type, 'image_path'), path)
+    if file_type == 'audio':
+        q.audio_original_name = f.filename or unique_name
     db.session.commit()
-    return jsonify({'path': path})
+    return jsonify({'path': path, 'original_name': q.audio_original_name})
 
 
 @admin_bp.route('/questions/<question_id>/set-image-url', methods=['POST'])
@@ -747,6 +752,196 @@ def quiz_import_json():
     return redirect(url_for('admin.quiz_edit', quiz_id=quiz.id))
 
 
+# ── ZIP Export / Import ─────────────────────────────────────────────────────────
+
+@admin_bp.route('/quizzes/<quiz_id>/export-zip')
+@admin_required
+def quiz_export_zip(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    added_paths = set()
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+
+        def add_media(path):
+            if not path:
+                return None
+            full_path = os.path.join(current_app.root_path, path.lstrip('/'))
+            if not os.path.exists(full_path):
+                return None
+            subdir = 'audio' if '/audio/' in path else 'images'
+            filename = os.path.basename(full_path)
+            zip_path = f'media/{subdir}/{filename}'
+            if zip_path not in added_paths:
+                zf.write(full_path, zip_path)
+                added_paths.add(zip_path)
+            return zip_path
+
+        data = {
+            'version': 1,
+            'title': quiz.title,
+            'description': quiz.description,
+            'sound_mid_seconds': quiz.sound_mid_seconds,
+            'splash_image': add_media(quiz.splash_image),
+            'sound_start': add_media(quiz.sound_start_path),
+            'sound_mid': add_media(quiz.sound_mid_path),
+            'sound_end': add_media(quiz.sound_end_path),
+            'tours': [],
+        }
+
+        for tour in quiz.tours:
+            tour_data = {
+                'title': tour.title,
+                'order': tour.order,
+                'splash_image': add_media(tour.splash_image),
+                'questions': [],
+            }
+            for q in tour.questions:
+                tour_data['questions'].append({
+                    'order': q.order,
+                    'question_type': q.question_type,
+                    'answer_type': q.answer_type,
+                    'text': q.text,
+                    'time_seconds': q.time_seconds,
+                    'points': q.points,
+                    'auto_check': q.auto_check,
+                    'correct_answer': q.correct_answer,
+                    'image_path': add_media(q.image_path),
+                    'audio_path': add_media(q.audio_path),
+                    'audio_original_name': q.audio_original_name,
+                    'audio_trim_start': q.audio_trim_start,
+                    'audio_trim_end': q.audio_trim_end,
+                    'answer_options': [
+                        {'text': o.text, 'is_correct': o.is_correct, 'order': o.order}
+                        for o in q.answer_options
+                    ],
+                    'matching_items': [
+                        {'left_text': m.left_text, 'right_text': m.right_text, 'order': m.order}
+                        for m in q.matching_items
+                    ],
+                })
+            data['tours'].append(tour_data)
+
+        zf.writestr('quiz.json', json.dumps(data, ensure_ascii=False, indent=2))
+
+    buf.seek(0)
+    safe_title = re.sub(r'[\\/:*?"<>|]', '_', quiz.title).strip() or quiz_id
+    return send_file(buf, mimetype='application/zip', as_attachment=True,
+                     download_name=f'{safe_title}.zip')
+
+
+@admin_bp.route('/quizzes/import-zip', methods=['POST'])
+@admin_required
+def quiz_import_zip():
+    f = request.files.get('file')
+    if not f or not f.filename.lower().endswith('.zip'):
+        flash('Выберите файл .zip', 'error')
+        return redirect(url_for('admin.quizzes'))
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        try:
+            with zipfile.ZipFile(f, 'r') as zf:
+                zf.extractall(tmpdir)
+        except zipfile.BadZipFile:
+            flash('Файл не является корректным ZIP-архивом', 'error')
+            return redirect(url_for('admin.quizzes'))
+
+        json_path = os.path.join(tmpdir, 'quiz.json')
+        if not os.path.exists(json_path):
+            flash('Неверный формат архива: отсутствует quiz.json', 'error')
+            return redirect(url_for('admin.quizzes'))
+
+        with open(json_path, 'r', encoding='utf-8') as jf:
+            data = json.load(jf)
+
+        quiz = Quiz(
+            title=data.get('title', 'Импортированный квиз'),
+            description=data.get('description'),
+            sound_mid_seconds=data.get('sound_mid_seconds'),
+        )
+        db.session.add(quiz)
+        db.session.flush()
+
+        upload_base = os.path.join(current_app.root_path, 'static', 'uploads', quiz.id)
+
+        def copy_media(zip_rel_path):
+            if not zip_rel_path:
+                return None
+            src = os.path.join(tmpdir, *zip_rel_path.split('/'))
+            if not os.path.exists(src):
+                return None
+            parts = zip_rel_path.split('/')
+            subdir = parts[1] if len(parts) >= 2 and parts[1] in ('images', 'audio') else 'images'
+            dst_dir = os.path.join(upload_base, subdir)
+            os.makedirs(dst_dir, exist_ok=True)
+            filename = os.path.basename(zip_rel_path)
+            dst = os.path.join(dst_dir, filename)
+            shutil.copy2(src, dst)
+            return f'/static/uploads/{quiz.id}/{subdir}/{filename}'
+
+        quiz.splash_image = copy_media(data.get('splash_image'))
+        quiz.sound_start_path = copy_media(data.get('sound_start'))
+        quiz.sound_mid_path = copy_media(data.get('sound_mid'))
+        quiz.sound_end_path = copy_media(data.get('sound_end'))
+
+        for tour_data in data.get('tours', []):
+            tour = Tour(
+                quiz_id=quiz.id,
+                title=tour_data.get('title', 'Тур'),
+                order=tour_data.get('order', 0),
+            )
+            db.session.add(tour)
+            db.session.flush()
+            tour.splash_image = copy_media(tour_data.get('splash_image'))
+
+            for q_data in tour_data.get('questions', []):
+                q = Question(
+                    tour_id=tour.id,
+                    order=q_data.get('order', 0),
+                    question_type=q_data.get('question_type', 'text'),
+                    answer_type=q_data.get('answer_type', 'short_text'),
+                    text=q_data.get('text'),
+                    time_seconds=q_data.get('time_seconds', 60),
+                    points=q_data.get('points', 1),
+                    auto_check=q_data.get('auto_check', False),
+                    correct_answer=q_data.get('correct_answer'),
+                    audio_original_name=q_data.get('audio_original_name'),
+                    audio_trim_start=float(q_data.get('audio_trim_start') or 0),
+                    audio_trim_end=q_data.get('audio_trim_end'),
+                )
+                db.session.add(q)
+                db.session.flush()
+                q.image_path = copy_media(q_data.get('image_path'))
+                q.audio_path = copy_media(q_data.get('audio_path'))
+
+                for o_data in q_data.get('answer_options', []):
+                    db.session.add(AnswerOption(
+                        question_id=q.id,
+                        text=o_data.get('text', ''),
+                        is_correct=o_data.get('is_correct', False),
+                        order=o_data.get('order', 0),
+                    ))
+                for m_data in q_data.get('matching_items', []):
+                    db.session.add(MatchingItem(
+                        question_id=q.id,
+                        left_text=m_data.get('left_text', ''),
+                        right_text=m_data.get('right_text', ''),
+                        order=m_data.get('order', 0),
+                    ))
+
+        db.session.commit()
+        flash(f'Квиз «{quiz.title}» импортирован из ZIP', 'success')
+        return redirect(url_for('admin.quiz_edit', quiz_id=quiz.id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при импорте: {str(e)}', 'error')
+        return redirect(url_for('admin.quizzes'))
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 # ── QR API ─────────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/api/qr/<quiz_id>')
@@ -782,6 +977,9 @@ def _question_dict(q):
         'text': q.text,
         'image_path': q.image_path,
         'audio_path': q.audio_path,
+        'audio_original_name': q.audio_original_name,
+        'audio_trim_start': q.audio_trim_start if q.audio_trim_start is not None else 0.0,
+        'audio_trim_end': q.audio_trim_end,
         'time_seconds': q.time_seconds,
         'points': q.points,
         'auto_check': q.auto_check,

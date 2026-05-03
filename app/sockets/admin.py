@@ -248,6 +248,8 @@ def _question_payload(q, reveal_answers=False):
         'text': q.text,
         'image_path': q.image_path,
         'audio_path': q.audio_path,
+        'audio_trim_start': q.audio_trim_start if q.audio_trim_start is not None else 0.0,
+        'audio_trim_end': q.audio_trim_end,
         'time_seconds': q.time_seconds,
         'points': q.points,
         'answer_options': [

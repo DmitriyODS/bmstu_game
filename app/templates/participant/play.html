@@ -161,6 +161,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
 const QUIZ_ID = '{{ quiz.id }}';
 const TEAM_ID = '{{ team.id if team else "" }}';
@@ -174,6 +175,17 @@ const socket = io('/participant');
 function escHtml(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                           .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function renderFormatted(text) {
+    if (!text) return '';
+    const parts = text.split('---col---');
+    if (parts.length > 1) {
+        const cols = Math.min(parts.length, 3);
+        const rendered = parts.map(p => `<div>${marked.parse(p.trim())}</div>`).join('');
+        return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:0.75rem">${rendered}</div>`;
+    }
+    return marked.parse(text);
 }
 
 function showScreen(name) {
@@ -286,8 +298,16 @@ function loadQuestion(q) {
     document.getElementById('q-meta').textContent = `${q.points} балл(ов)`;
 
     const textEl = document.getElementById('q-text');
-    textEl.textContent = q.text || '';
-    textEl.classList.toggle('hidden', q.question_type === 'image_only');
+    if (q.question_type === 'formatted_text') {
+        textEl.innerHTML = typeof marked !== 'undefined' ? renderFormatted(q.text || '') : (q.text || '');
+        textEl.classList.remove('hidden');
+        textEl.style.fontWeight = '';
+    } else {
+        textEl.innerHTML = '';
+        textEl.textContent = q.text || '';
+        textEl.style.fontWeight = '';
+        textEl.classList.toggle('hidden', q.question_type === 'image_only');
+    }
 
     const imgArea = document.getElementById('q-image-area');
     imgArea.innerHTML = '';
@@ -304,8 +324,18 @@ function loadQuestion(q) {
         const audio = document.createElement('audio');
         audio.src = q.audio_path;
         audio.controls = true;
-        audio.autoplay = true;
         audio.className = 'w-full mb-3';
+        const trimStart = q.audio_trim_start || 0;
+        const trimEnd = q.audio_trim_end;
+        audio.addEventListener('loadedmetadata', () => {
+            audio.currentTime = trimStart;
+            audio.play().catch(() => {});
+        }, {once: true});
+        if (trimEnd) {
+            audio.addEventListener('timeupdate', () => {
+                if (audio.currentTime >= trimEnd) audio.pause();
+            });
+        }
         audArea.appendChild(audio);
     }
 
@@ -449,6 +479,21 @@ async function submitAnswer(answerData) {
 }
 
 function showCorrectAnswer(q) {
+    // Воспроизводим аудио при показе ответа для audio-вопросов
+    if (q.question_type === 'audio' && q.audio_path) {
+        const bgAudio = new Audio(q.audio_path);
+        const trimStart = q.audio_trim_start || 0;
+        const trimEnd = q.audio_trim_end;
+        bgAudio.addEventListener('loadedmetadata', () => {
+            bgAudio.currentTime = trimStart;
+            bgAudio.play().catch(() => {});
+            if (trimEnd && trimEnd > trimStart) {
+                setTimeout(() => bgAudio.pause(), (trimEnd - trimStart) * 1000);
+            }
+        }, {once: true});
+        bgAudio.load();
+    }
+
     const textEl = document.getElementById('correct-answer-text');
     const listEl = document.getElementById('correct-answer-list');
     const qTextEl = document.getElementById('correct-question-text');
