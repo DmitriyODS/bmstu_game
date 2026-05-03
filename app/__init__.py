@@ -106,9 +106,10 @@ def _init_db(app):
             conn.commit()
 
     # Create default admin if not exists
-    admin = User.query.filter_by(username='admin').first()
+    admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+    admin = User.query.filter_by(username=admin_username).first()
     if not admin:
-        admin = User(username='admin', role='admin')
+        admin = User(username=admin_username, role='admin')
         admin.set_password(os.environ.get('ADMIN_PASSWORD', 'admin'))
         db.session.add(admin)
         db.session.commit()
