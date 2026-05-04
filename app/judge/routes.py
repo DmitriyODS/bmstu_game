@@ -14,7 +14,17 @@ def index():
     if not quiz:
         return render_template('judge/no_quiz.html')
     tours = quiz.tours
-    return render_template('judge/judge.html', quiz=quiz, tours=tours)
+    tours_data = [
+        {
+            'id': t.id,
+            'questions': [
+                {'id': q.id, 'text': (q.text or '')[:80]}
+                for q in t.questions
+            ]
+        }
+        for t in tours
+    ]
+    return render_template('judge/judge.html', quiz=quiz, tours=tours, tours_data=tours_data)
 
 
 @judge_bp.route('/next-card')
@@ -27,7 +37,13 @@ def next_card():
     tour_id = request.args.get('tour_id')
     question_id = request.args.get('question_id')
 
-    # Release timed-out locks (60s)
+    # Release this judge's own stale locks (e.g. after page refresh without judging)
+    TeamAnswer.query.filter(
+        TeamAnswer.checked_by == current_user.id,
+        TeamAnswer.is_correct.is_(None),
+    ).update({'checked_by': None, 'checked_by_at': None})
+
+    # Release timed-out locks from other judges (60s)
     timeout = datetime.utcnow() - timedelta(seconds=60)
     TeamAnswer.query.filter(
         TeamAnswer.checked_by.isnot(None),

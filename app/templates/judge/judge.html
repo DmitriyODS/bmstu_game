@@ -114,6 +114,7 @@
 
 {% block scripts %}
 <script>
+const TOURS_DATA = {{ tours_data | tojson }};
 let mode = localStorage.getItem('judge_mode') || 'tinder';
 let currentCard = null;
 let modalAnswer = null;
@@ -147,26 +148,22 @@ function getFilters() {
 
 function onFilterChange() {
     updateQuestionFilter();
-    if (mode === 'tinder') loadNextCard();
+    if (mode === 'tinder') { currentCard = null; loadNextCard(); }
     else loadTable();
 }
 
-async function updateQuestionFilter() {
+function updateQuestionFilter() {
     const tourId = document.getElementById('filter-tour').value;
     const sel = document.getElementById('filter-question');
     const currentVal = sel.value;
     sel.innerHTML = '<option value="">Все вопросы</option>';
     if (!tourId) return;
-    const res = await fetch(`/judge/answers?tour_id=${encodeURIComponent(tourId)}`);
-    const data = await res.json();
-    const seen = new Map();
-    data.answers.forEach(a => {
-        if (!seen.has(a.question_id)) seen.set(a.question_id, a.question_text_short || a.question_text || '(без текста)');
-    });
-    [...seen.entries()].forEach(([id, text]) => {
+    const tour = TOURS_DATA.find(t => t.id === tourId);
+    if (!tour) return;
+    tour.questions.forEach(q => {
         const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = text;
+        opt.value = q.id;
+        opt.textContent = q.text || '(без текста)';
         sel.appendChild(opt);
     });
     if ([...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;

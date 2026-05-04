@@ -352,7 +352,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
 <style>
 .formatted-content .fmt-cols { display: grid; gap: 1rem; }
 .formatted-content .fmt-cols-2 { grid-template-columns: 1fr 1fr; }
