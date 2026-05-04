@@ -609,19 +609,41 @@ body { overflow: hidden; background: #f8fafc; }
 const QUIZ_ID = '{{ quiz.id }}';
 const socket = io('/presentation');
 
-let _screenAudio = null;
+// ── AudioManager ─────────────────────────────────────────────────────────────
+// Единая точка воспроизведения звука на экране презентации.
+const AudioManager = (() => {
+    let _tracked = null;  // текущий отслеживаемый аудио (вопрос или ответ)
 
-function stopScreenAudio() {
-    if (_screenAudio) {
-        _screenAudio.pause();
-        _screenAudio.currentTime = 0;
-        _screenAudio = null;
+    function stopTracked() {
+        if (_tracked) {
+            _tracked.pause();
+            _tracked.currentTime = 0;
+            _tracked = null;
+        }
     }
-}
 
-function stopAllScreenAudio() {
-    stopScreenAudio();
-}
+    function stopAll() { stopTracked(); }
+
+    function _startTracked(path, trimStart, trimEnd) {
+        stopTracked();
+        const ts = trimStart || 0;
+        const audio = new Audio(path);
+        _tracked = audio;
+        audio.currentTime = ts;
+        audio.play().catch(() => {});
+        if (trimEnd && trimEnd > ts) {
+            setTimeout(() => { if (_tracked === audio) stopTracked(); }, (trimEnd - ts) * 1000);
+        } else {
+            audio.addEventListener('ended', () => { if (_tracked === audio) _tracked = null; }, { once: true });
+        }
+    }
+
+    function playQuestion(path, trimStart, trimEnd) { _startTracked(path, trimStart, trimEnd); }
+    function playAnswer(path, trimStart, trimEnd)   { _startTracked(path, trimStart, trimEnd); }
+    function playTimerSound(path) { if (path) new Audio(path).play().catch(() => {}); }
+
+    return { playQuestion, playAnswer, playTimerSound, stopTracked, stopAll };
+})();
 
 function unlockScreenAudio() {
     document.getElementById('audio-unlock-overlay').style.display = 'none';
@@ -662,7 +684,7 @@ function resetAnswersPanel() {
 
 // ── Sockets ─────────────────────────────────────────────────────────────────────
 socket.on('screen_changed', (data) => {
-    stopAllScreenAudio();
+    AudioManager.stopAll();
     showScreen(data.screen);
 
     if (data.screen === 'tour_splash' && data.tour) {
@@ -684,7 +706,9 @@ socket.on('screen_changed', (data) => {
         if (data.timer_active && data.timer_remaining != null) updateTimer(data.timer_remaining);
         else updateTimer(data.question.time_seconds);
     }
-    if (data.screen === 'question_answer' && data.question) showAnswer(data.question);
+    if (data.screen === 'question_answer' && data.question) {
+        showAnswer(data.question, data.play_audio_on_screen !== false);
+    }
     if (data.screen === 'teams' && data.teams) {
         document.getElementById('all-teams-grid').innerHTML = data.teams.map(t =>
             `<div class="island" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">${escHtml(t.name)}</div>`
@@ -714,15 +738,15 @@ socket.on('team_name_updated', (data) => {
 });
 
 socket.on('timer_tick', (data) => updateTimer(data.remaining));
-socket.on('timer_started', (data) => { stopAllScreenAudio(); updateTimer(data.seconds); });
-socket.on('timer_paused', (data) => { updateTimer(data.remaining); stopAllScreenAudio(); });
+socket.on('timer_started', (data) => { AudioManager.stopAll(); updateTimer(data.seconds); });
+socket.on('timer_paused', (data) => { updateTimer(data.remaining); AudioManager.stopAll(); });
 socket.on('timer_stopped', () => {
-    stopAllScreenAudio();
+    AudioManager.stopAll();
     const el = document.getElementById('timer-pres');
     if (el) { el.textContent = '0'; el.classList.add('danger'); }
 });
 socket.on('timer_reset', () => {
-    stopAllScreenAudio();
+    AudioManager.stopAll();
     const el = document.getElementById('timer-pres');
     if (el && _currentTimeSeconds != null) {
         el.textContent = _currentTimeSeconds;
@@ -730,23 +754,12 @@ socket.on('timer_reset', () => {
     }
 });
 socket.on('play_sound', (data) => {
-    if (data && data.path) new Audio(data.path).play().catch(() => {});
+    if (data && data.path) AudioManager.playTimerSound(data.path);
 });
 socket.on('play_question_audio', (data) => {
-    stopScreenAudio();
-    const audio = new Audio(data.path);
-    _screenAudio = audio;
-    const trimStart = data.trim_start || 0;
-    const trimEnd = data.trim_end;
-    audio.currentTime = trimStart;
-    audio.play().catch(() => {});
-    if (trimEnd && trimEnd > trimStart) {
-        setTimeout(() => { if (_screenAudio === audio) stopScreenAudio(); }, (trimEnd - trimStart) * 1000);
-    } else {
-        audio.addEventListener('ended', () => { if (_screenAudio === audio) _screenAudio = null; }, {once: true});
-    }
+    AudioManager.playQuestion(data.path, data.trim_start, data.trim_end);
 });
-socket.on('stop_screen_audio', () => stopAllScreenAudio());
+socket.on('stop_screen_audio', () => AudioManager.stopAll());
 socket.on('scores_updated', () => {});
 
 socket.on('answer_submitted', (data) => {
@@ -876,20 +889,10 @@ function loadQuestion(q) {
     }
 }
 
-function showAnswer(q) {
-    stopAllScreenAudio();
-    if (q.question_type === 'audio' && q.audio_path) {
-        const bgAudio = new Audio(q.audio_path);
-        _screenAudio = bgAudio;
-        const trimStart = q.audio_trim_start || 0;
-        const trimEnd = q.audio_trim_end;
-        bgAudio.currentTime = trimStart;
-        bgAudio.play().catch(() => {});
-        if (trimEnd && trimEnd > trimStart) {
-            setTimeout(() => { if (_screenAudio === bgAudio) stopAllScreenAudio(); }, (trimEnd - trimStart) * 1000);
-        } else {
-            bgAudio.addEventListener('ended', () => { if (_screenAudio === bgAudio) _screenAudio = null; }, {once: true});
-        }
+function showAnswer(q, playAudio = true) {
+    AudioManager.stopAll();
+    if (playAudio && q.question_type === 'audio' && q.audio_path) {
+        AudioManager.playAnswer(q.audio_path, q.audio_trim_start, q.audio_trim_end);
     }
 
     const imgAnswerEl = document.getElementById('q-image-answer-pres');

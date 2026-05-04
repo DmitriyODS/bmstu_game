@@ -26,6 +26,10 @@
             <span class="material-symbols-outlined icon-sm">balance</span>
             Судьи
         </a>
+        <button onclick="document.getElementById('audio-settings-modal').showModal()" class="btn btn-outline btn-sm" title="Настройки звука">
+            <span class="material-symbols-outlined icon-sm">volume_up</span>
+            Звук
+        </button>
         <form method="POST" action="{{ url_for('admin.quiz_deactivate', quiz_id=quiz.id) }}" id="deactivate-form">
             <button type="button" class="btn btn-error btn-sm"
                     onclick="confirmAndSubmit(document.getElementById('deactivate-form'), 'Завершить квиз и деактивировать?')">
@@ -192,7 +196,7 @@
                         </div>
                         <button onclick="stopScreenAudioCmd()" class="btn btn-error btn-outline btn-sm w-full gap-1 mt-1">
                             <span class="material-symbols-outlined icon-sm">stop_circle</span>
-                            Остановить звук на экране
+                            Остановить звук
                         </button>
                     </div>
 
@@ -249,6 +253,50 @@
     </div>
 </div>
 
+{# ── Модал настроек звука ── #}
+<dialog id="audio-settings-modal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-1">Настройки звука</h3>
+        <p class="text-xs text-base-content/50 mb-4">Куда выводить каждый тип звука</p>
+        <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-base-content/40 w-6 text-center">music_note</span>
+                <span class="flex-1 text-sm">Музыкальные вопросы</span>
+                <select id="setting-question" class="select select-sm select-bordered w-36"
+                        onchange="AudioSettings.set('question', this.value)">
+                    <option value="screen">На экране</option>
+                    <option value="local">На устройстве</option>
+                    <option value="both">На обоих</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-base-content/40 w-6 text-center">queue_music</span>
+                <span class="flex-1 text-sm">Музыкальные ответы</span>
+                <select id="setting-answer" class="select select-sm select-bordered w-36"
+                        onchange="AudioSettings.set('answer', this.value)">
+                    <option value="screen">На экране</option>
+                    <option value="local">На устройстве</option>
+                    <option value="both">На обоих</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-base-content/40 w-6 text-center">timer</span>
+                <span class="flex-1 text-sm">Звуки таймера</span>
+                <select id="setting-timer" class="select select-sm select-bordered w-36"
+                        onchange="AudioSettings.set('timer', this.value)">
+                    <option value="screen">На экране</option>
+                    <option value="local">На устройстве</option>
+                    <option value="both">На обоих</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-action">
+            <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 {% endblock %}
 
 {% block scripts %}
@@ -285,11 +333,13 @@ socket.on('screen_changed', (data) => {
         if (data.timer_active && data.timer_remaining != null) {
             updateTimerDisplay(data.timer_remaining);
         }
-    } else {
-        // Not a question screen — hide controls if no current question
-        if (data.screen !== 'question_answer') {
-            // keep showing last active question for convenience
-        }
+    }
+
+    // Если ответ показывается на устройстве управления — играем аудио локально.
+    if (data.screen === 'question_answer' && data.question &&
+            data.question.question_type === 'audio' && data.question.audio_path) {
+        const q = data.question;
+        AdminAudioManager.playAnswer(q.audio_path, q.audio_trim_start, q.audio_trim_end);
     }
 
     highlightScreenBtn(data.screen, data);
@@ -310,6 +360,10 @@ socket.on('timer_reset', () => {
 
 // Сервер шлёт это всем админкам после stop/reset/pause — нужно убрать локальный прогресс-бар.
 socket.on('stop_screen_audio', () => resetAudioPlayBtn());
+
+socket.on('play_sound', (data) => {
+    if (data && data.path) AdminAudioManager.playTimerSound(data.path);
+});
 
 // Сервер шлёт когда стартует pre-timer на другой вкладке админки — синхронизируемся.
 socket.on('audio_pre_timer_started', (data) => {
@@ -440,19 +494,72 @@ function setActiveQuestion(q) {
     document.querySelectorAll('.answered-mark').forEach(el => el.classList.add('hidden'));
 }
 
-// Локальный интервал только для отрисовки прогресс-бара.
-// Запуск/остановка таймера — на сервере.
+// ── AudioSettings ──────────────────────────────────────────────────────────────
+// Настройки маршрутизации звука. Хранятся в localStorage.
+// type: 'question' | 'answer' | 'timer'
+// value: 'screen' | 'local' | 'both'
+const AudioSettings = {
+    KEY: 'bmstu_quiz_audio_routing',
+    _defaults: { question: 'screen', answer: 'screen', timer: 'screen' },
+
+    get() {
+        try { return { ...this._defaults, ...JSON.parse(localStorage.getItem(this.KEY) || '{}') }; }
+        catch { return { ...this._defaults }; }
+    },
+    set(type, value) {
+        const s = this.get(); s[type] = value;
+        localStorage.setItem(this.KEY, JSON.stringify(s));
+    },
+    onScreen(type) { return this.get()[type] !== 'local'; },
+    onDevice(type) { return this.get()[type] !== 'screen'; },
+};
+
+// ── AdminAudioManager ──────────────────────────────────────────────────────────
+// Управляет локальным воспроизведением звука на устройстве управления.
+const AdminAudioManager = (() => {
+    let _audio = null;
+
+    function _playLocal(path, trimStart, trimEnd) {
+        if (_audio) { _audio.pause(); _audio = null; }
+        const ts = trimStart || 0;
+        const audio = new Audio(path);
+        _audio = audio;
+        audio.currentTime = ts;
+        audio.play().catch(() => {});
+        if (trimEnd && trimEnd > ts) {
+            setTimeout(() => { if (_audio === audio) stopAll(); }, (trimEnd - ts) * 1000);
+        } else {
+            audio.addEventListener('ended', () => { if (_audio === audio) _audio = null; }, { once: true });
+        }
+    }
+
+    function stopAll() {
+        if (_audio) { _audio.pause(); _audio.src = ''; _audio = null; }
+    }
+
+    function playQuestion(path, trimStart, trimEnd) {
+        if (AudioSettings.onDevice('question')) _playLocal(path, trimStart, trimEnd);
+    }
+    function playAnswer(path, trimStart, trimEnd) {
+        if (AudioSettings.onDevice('answer')) _playLocal(path, trimStart, trimEnd);
+    }
+    function playTimerSound(path) {
+        if (AudioSettings.onDevice('timer') && path) new Audio(path).play().catch(() => {});
+    }
+
+    return { playQuestion, playAnswer, playTimerSound, stopAll };
+})();
+
+// ── Прогресс-бар воспроизведения ──────────────────────────────────────────────
 let _audioProgressInterval = null;
 
 function clearAudioProgress() {
-    if (_audioProgressInterval) {
-        clearInterval(_audioProgressInterval);
-        _audioProgressInterval = null;
-    }
+    if (_audioProgressInterval) { clearInterval(_audioProgressInterval); _audioProgressInterval = null; }
 }
 
 function resetAudioPlayBtn() {
     clearAudioProgress();
+    AdminAudioManager.stopAll();
     const btn = document.getElementById('btn-play-audio-timer');
     if (btn) {
         btn.disabled = false;
@@ -500,7 +607,7 @@ async function playAudioAndTimer() {
                 resolve(player.duration);
             } else {
                 const onMeta = () => resolve(player.duration || 0);
-                player.addEventListener('loadedmetadata', onMeta, {once: true});
+                player.addEventListener('loadedmetadata', onMeta, { once: true });
                 if (!player.src) { player.src = currentQuestionAudioPath; }
                 player.load();
             }
@@ -509,6 +616,7 @@ async function playAudioAndTimer() {
     }
 
     startAudioProgress(durationMs);
+    AdminAudioManager.playQuestion(currentQuestionAudioPath, trimStart, trimEnd);
 
     socket.emit('play_audio_then_timer', {
         question_id: currentQuestionId,
@@ -516,12 +624,12 @@ async function playAudioAndTimer() {
         trim_start: trimStart,
         trim_end: trimEnd,
         duration_ms: Math.round(durationMs),
+        play_on_screen: AudioSettings.onScreen('question'),
+        sound_on_screen: AudioSettings.onScreen('timer'),
     });
 }
 
 function stopScreenAudioCmd() {
-    // Локально сбрасываем UI прогресса; сервер также пришлёт stop_screen_audio
-    // и убьёт pre-timer greenlet, чтобы таймер не стартовал.
     resetAudioPlayBtn();
     socket.emit('stop_screen_audio');
 }
@@ -568,12 +676,18 @@ function showQuestion(qId) {
 }
 
 function showQuestionAnswer(qId) {
-    changeScreen('question_answer', {question_id: qId});
+    changeScreen('question_answer', {
+        question_id: qId,
+        play_audio_on_screen: AudioSettings.onScreen('answer'),
+    });
 }
 
 function startTimer() {
     if (!currentQuestionId) return;
-    socket.emit('start_timer', {question_id: currentQuestionId});
+    socket.emit('start_timer', {
+        question_id: currentQuestionId,
+        sound_on_screen: AudioSettings.onScreen('timer'),
+    });
 }
 
 function pauseTimer() {
@@ -587,11 +701,23 @@ function resetTimer() {
 
 function showAnswer() {
     if (!currentQuestionId) return;
-    changeScreen('question_answer', {question_id: currentQuestionId});
+    changeScreen('question_answer', {
+        question_id: currentQuestionId,
+        play_audio_on_screen: AudioSettings.onScreen('answer'),
+    });
 }
 
 
 // ── Init ───────────────────────────────────────────────────────────────────────
+// Заполняем селекты в модале настроек звука из localStorage.
+(function initAudioSettingsUI() {
+    const s = AudioSettings.get();
+    const map = { question: 'setting-question', answer: 'setting-answer', timer: 'setting-timer' };
+    Object.entries(map).forEach(([type, id]) => {
+        const el = document.getElementById(id);
+        if (el) el.value = s[type] || 'screen';
+    });
+})();
 {% if gs and gs.current_screen %}
 updateScreenBadge('{{ gs.current_screen }}');
 {% endif %}
