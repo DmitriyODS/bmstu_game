@@ -402,6 +402,25 @@ socket.on('team_name_updated', (data) => {
         if (nameEl) nameEl.textContent = data.name;
     }
 });
+socket.on('team_deleted', (data) => {
+    const row = document.getElementById(`team-row-${data.team_id}`);
+    if (row) {
+        row.remove();
+        totalTeams = Math.max(0, totalTeams - 1);
+        document.querySelectorAll('.teams-counter').forEach(el => el.textContent = totalTeams);
+        document.getElementById('teams-total').textContent = totalTeams;
+        const prog = document.getElementById('answers-progress');
+        if (prog) prog.max = Math.max(totalTeams, 1);
+        const list = document.getElementById('teams-list');
+        if (list && list.children.length === 0) {
+            const empty = document.createElement('div');
+            empty.id = 'teams-empty';
+            empty.className = 'text-sm text-base-content/40';
+            empty.textContent = 'Нет команд';
+            list.appendChild(empty);
+        }
+    }
+});
 
 function addTeamRow(teamId, name) {
     const list = document.getElementById('teams-list');

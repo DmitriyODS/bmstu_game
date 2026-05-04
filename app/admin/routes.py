@@ -523,6 +523,8 @@ def team_create(quiz_id):
     team = Team(quiz_id=quiz_id, name=name, session_token=token)
     db.session.add(team)
     db.session.commit()
+    from app.sockets.utils import broadcast
+    broadcast('team_registered', {'team_id': team.id, 'name': team.name}, quiz_id)
     flash(f'Команда «{name}» создана', 'success')
     return redirect(url_for('admin.teams', quiz_id=quiz_id))
 
@@ -532,8 +534,11 @@ def team_create(quiz_id):
 def team_delete(team_id):
     team = Team.query.get_or_404(team_id)
     quiz_id = team.quiz_id
+    team_id_str = team.id
     db.session.delete(team)
     db.session.commit()
+    from app.sockets.utils import broadcast
+    broadcast('team_deleted', {'team_id': team_id_str}, quiz_id)
     flash('Команда удалена', 'success')
     return redirect(url_for('admin.teams', quiz_id=quiz_id))
 
@@ -546,6 +551,8 @@ def team_rename(team_id):
     if name:
         team.name = name
         db.session.commit()
+        from app.sockets.utils import broadcast
+        broadcast('team_name_updated', {'team_id': team.id, 'name': team.name}, team.quiz_id)
     return redirect(url_for('admin.teams', quiz_id=team.quiz_id))
 
 

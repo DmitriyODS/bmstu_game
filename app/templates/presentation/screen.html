@@ -638,7 +638,7 @@ body { overflow: hidden; background: #f8fafc; }
         <h2 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;color:#111827;margin-bottom:2rem;">Команды</h2>
         <div id="all-teams-grid">
             {% for team in teams %}
-            <div class="island" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">
+            <div class="island" data-team-id="{{ team.id }}" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">
                 {{ team.name }}
             </div>
             {% endfor %}
@@ -876,7 +876,7 @@ socket.on('screen_changed', (data) => {
     if (data.screen === 'question_answer' && data.question) showAnswer(data.question);
     if (data.screen === 'teams' && data.teams) {
         document.getElementById('all-teams-grid').innerHTML = data.teams.map(t =>
-            `<div class="island" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">${escHtml(t.name)}</div>`
+            `<div class="island" data-team-id="${escHtml(t.id)}" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">${escHtml(t.name)}</div>`
         ).join('');
     }
     if (data.screen === 'tour_results' && data.scores) renderResults('tour-results-pres', data.scores);
@@ -900,6 +900,20 @@ socket.on('team_registered', (data) => {
 socket.on('team_name_updated', (data) => {
     const el = document.getElementById(`team-${data.team_id}`);
     if (el) el.textContent = data.name;
+});
+socket.on('team_deleted', (data) => {
+    const regCard = document.getElementById(`team-${data.team_id}`);
+    if (regCard) {
+        regCard.remove();
+        const c = document.getElementById('teams-count');
+        if (c) c.textContent = Math.max(0, parseInt(c.textContent || '0') - 1);
+        const total = document.getElementById('answers-panel-total');
+        if (total) total.textContent = Math.max(0, parseInt(total.textContent || '0') - 1);
+    }
+    // teams grid (экран "Команды") — пересоберётся при следующем screen_changed,
+    // но удалим элемент сразу если он там есть
+    const gridCard = document.querySelector(`#all-teams-grid [data-team-id="${CSS.escape(String(data.team_id))}"]`);
+    if (gridCard) gridCard.remove();
 });
 
 socket.on('timer_tick', (data) => updateTimer(data.remaining));
