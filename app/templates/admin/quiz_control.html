@@ -7,9 +7,10 @@
 <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
     <div>
         <h1 class="text-xl sm:text-2xl font-bold">{{ quiz.title }}</h1>
-        <div class="flex items-center gap-2 mt-1">
+        <div class="flex items-center gap-2 mt-1 flex-wrap">
             <span class="text-sm text-base-content/50">Экран:</span>
             <span class="badge badge-primary" id="current-screen-badge">{{ gs.current_screen if gs else 'splash' }}</span>
+            <span class="badge badge-secondary hidden" id="question-position-badge"></span>
         </div>
     </div>
     <div class="flex flex-wrap gap-2">
@@ -66,13 +67,45 @@
 
     {# ── Левая часть: туры и вопросы ── #}
     <div class="xl:col-span-2 flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-220px)] pr-1">
+        {% set ns = namespace(tour_num=0) %}
         {% for tour in quiz.tours %}
+        {% if tour.is_slide %}
+        {# Слайд #}
+        <div class="card bg-base-100 shadow border-l-4 border-secondary">
+            <div class="card-body p-0">
+                <div class="flex items-center justify-between gap-2 px-4 py-3">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="material-symbols-outlined text-secondary shrink-0" style="font-size:18px">slideshow</span>
+                        <span class="font-bold text-base truncate">{{ tour.title }}</span>
+                        <span class="badge badge-secondary badge-sm shrink-0">Слайд</span>
+                    </div>
+                    <div class="flex gap-2 shrink-0">
+                        {% if tour.slide_audio_path %}
+                        <button onclick="stopScreenAudioCmd()" class="btn btn-xs btn-ghost" title="Стоп аудио">
+                            <span class="material-symbols-outlined icon-sm">stop_circle</span>
+                        </button>
+                        {% endif %}
+                        <button onclick="showCustomSlide('{{ tour.id }}')"
+                                class="btn btn-xs btn-secondary screen-btn" data-screen="custom_slide" data-tour-id="{{ tour.id }}">
+                            <span class="material-symbols-outlined icon-sm">open_in_full</span>
+                            Отобразить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        {# Обычный тур #}
+        {% set ns.tour_num = ns.tour_num + 1 %}
         <div class="card bg-base-100 shadow">
             <div class="card-body p-0">
 
                 {# Заголовок тура #}
                 <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-base-200">
-                    <span class="font-bold text-base truncate min-w-0 flex-1 mr-2">{{ tour.title }}</span>
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-base-content/30 font-mono text-sm shrink-0">{{ ns.tour_num }}</span>
+                        <span class="font-bold text-base truncate min-w-0 flex-1 mr-2">{{ tour.title }}</span>
+                    </div>
                     <div class="flex gap-2 shrink-0">
                         <button onclick="showTourSplash('{{ tour.id }}')"
                                 class="btn btn-xs btn-ghost screen-btn" data-screen="tour_splash" data-tour-id="{{ tour.id }}">
@@ -135,6 +168,7 @@
 
             </div>
         </div>
+        {% endif %}
         {% endfor %}
     </div>
 
@@ -151,6 +185,7 @@
                 </div>
 
                 <div id="question-controls" class="hidden">
+                    <div id="active-q-position" class="hidden text-xs font-semibold text-secondary mb-1"></div>
                     <p class="text-sm text-base-content/70 mb-3 line-clamp-2" id="active-q-text"></p>
                     <div class="flex gap-2 items-center mb-1">
                         <span class="text-xs text-base-content/40" id="active-q-meta"></span>
@@ -254,6 +289,14 @@
 {% block scripts %}
 <script>
 const QUIZ_ID = '{{ quiz.id }}';
+
+// Предвычисленная карта question_id -> {tourNum, qNum, tourTitle}
+const qPositions = {};
+{% set ns = namespace(tour_num=0) %}
+{% for tour in quiz.tours %}{% if not tour.is_slide %}{% set ns.tour_num = ns.tour_num + 1 %}{% for q in tour.questions %}
+qPositions[{{ q.id|tojson }}] = { tourNum: {{ ns.tour_num }}, qNum: {{ loop.index }}, tourTitle: {{ tour.title|tojson }} };
+{% endfor %}{% endif %}{% endfor %}
+
 let currentQuestionId = null;
 let currentQuestionAudioPath = null;
 let currentQuestionTimeSeconds = null;
@@ -383,9 +426,13 @@ function updateScreenBadge(screen) {
     const screenNames = {
         splash: 'Заставка', registration: 'Регистрация', teams: 'Команды',
         waiting: 'Ожидание', question: 'Вопрос', question_answer: 'Ответ',
-        tour_splash: 'Тур', tour_results: 'Итоги тура', game_results: 'Итоги игры'
+        tour_splash: 'Тур', tour_results: 'Итоги тура', game_results: 'Итоги игры',
+        custom_slide: 'Слайд'
     };
     document.getElementById('current-screen-badge').textContent = screenNames[screen] || screen;
+    if (!['question', 'question_answer'].includes(screen)) {
+        document.getElementById('question-position-badge').classList.add('hidden');
+    }
 }
 
 function highlightScreenBtn(screen, data) {
@@ -400,7 +447,7 @@ function highlightScreenBtn(screen, data) {
     });
 
     document.querySelectorAll('.question-row').forEach(row => {
-        const isActive = screen === 'question' && row.dataset.qId === currentQuestionId;
+        const isActive = (screen === 'question' || screen === 'question_answer') && row.dataset.qId === currentQuestionId;
         row.classList.toggle('bg-primary/10', isActive);
         row.classList.toggle('border-l-2', isActive);
         row.classList.toggle('border-primary', isActive);
@@ -421,6 +468,19 @@ function setActiveQuestion(q) {
     document.getElementById('active-q-text').textContent = q.text || '(без текста)';
     document.getElementById('active-q-meta').textContent =
         `${q.points} балл(ов) · ${q.time_seconds}с`;
+
+    const pos = qPositions[q.id];
+    const posEl = document.getElementById('active-q-position');
+    const posBadge = document.getElementById('question-position-badge');
+    if (pos && posEl) {
+        const label = `Тур ${pos.tourNum} / Вопрос ${pos.qNum}`;
+        posEl.textContent = label;
+        posEl.classList.remove('hidden');
+        if (posBadge) { posBadge.textContent = label; posBadge.classList.remove('hidden'); }
+    } else if (posEl) {
+        posEl.classList.add('hidden');
+        if (posBadge) posBadge.classList.add('hidden');
+    }
 
     const timerEl = document.getElementById('timer-display');
     timerEl.textContent = q.time_seconds;
@@ -553,6 +613,10 @@ function changeScreen(screen, params = {}) {
 
 function openRegistration() {
     changeScreen('registration');
+}
+
+function showCustomSlide(tourId) {
+    changeScreen('custom_slide', {tour_id: tourId});
 }
 
 function showTourSplash(tourId) {

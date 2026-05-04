@@ -77,6 +77,11 @@ def on_change_screen(data):
         tour_id = data.get('tour_id')
         if tour_id:
             gs.current_tour_id = tour_id
+    elif screen == 'custom_slide':
+        tour_id = data.get('tour_id')
+        if tour_id:
+            gs.current_tour_id = tour_id
+            gs.current_question_id = None
 
     # Останавливаем таймер и pre-timer greenlet при любой смене экрана.
     # Аудио на презентации остановит сам screen_changed-обработчик,
@@ -334,6 +339,17 @@ def _build_screen_payload(gs, quiz):
         tour = Tour.query.get(gs.current_tour_id)
         if tour:
             data['tour'] = {'id': tour.id, 'title': tour.title, 'splash_image': tour.splash_image}
+
+    if gs.current_screen == 'custom_slide' and gs.current_tour_id:
+        slide = Tour.query.get(gs.current_tour_id)
+        if slide and slide.is_slide:
+            data['slide'] = {
+                'id': slide.id,
+                'title': slide.title,
+                'text': slide.slide_text,
+                'image': slide.splash_image,
+                'audio': slide.slide_audio_path,
+            }
 
     if gs.current_screen in ('tour_results', 'game_results'):
         data['scores'] = _calc_scores(quiz, gs.current_tour_id if gs.current_screen == 'tour_results' else None)

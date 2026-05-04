@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 {% block title %}{{ quiz.title }} — Бауман.Игра{% endblock %}
 
+{% block head %}
+<style>
+#correct-answer-text p { margin-bottom: 0.4em; }
+#correct-answer-text p:last-child { margin-bottom: 0; }
+#correct-answer-text ul, #correct-answer-text ol { padding-left: 1.5em; margin-bottom: 0.4em; text-align: left; }
+#correct-answer-text strong { font-weight: 700; }
+#correct-answer-text em { font-style: italic; }
+#correct-question-text p { margin-bottom: 0.3em; }
+#correct-question-text p:last-child { margin-bottom: 0; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="min-h-screen flex flex-col items-center justify-center p-4" id="app">
 
@@ -148,6 +160,17 @@
         <div id="tour-results-content"></div>
     </div>
 
+    <!-- CUSTOM SLIDE -->
+    <div id="screen-custom_slide" class="hidden text-center max-w-sm w-full">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body text-center gap-2">
+                <span class="material-symbols-outlined text-secondary" style="font-size:48px">slideshow</span>
+                <p id="slide-title-participant" class="font-bold text-lg"></p>
+                <p class="text-base-content/60 text-sm">Ожидайте...</p>
+            </div>
+        </div>
+    </div>
+
     <!-- GAME RESULTS -->
     <div id="screen-game_results" class="hidden w-full max-w-md">
         <h2 class="text-2xl font-bold text-center mb-4 flex items-center justify-center gap-2">
@@ -196,6 +219,10 @@ function showScreen(name) {
 
 socket.on('screen_changed', (data) => {
     showScreen(data.screen);
+
+    if (data.screen === 'custom_slide' && data.slide) {
+        document.getElementById('slide-title-participant').textContent = data.slide.title || '';
+    }
 
     if (data.screen === 'tour_splash' && data.tour) {
         document.getElementById('tour-title').textContent = data.tour.title;
@@ -464,9 +491,13 @@ function showCorrectAnswer(q) {
     const textEl = document.getElementById('correct-answer-text');
     const listEl = document.getElementById('correct-answer-list');
     const qTextEl = document.getElementById('correct-question-text');
-    qTextEl.textContent = q.text || '';
+    if (q.question_type === 'formatted_text') {
+        qTextEl.innerHTML = typeof marked !== 'undefined' ? renderFormatted(q.text || '') : escHtml(q.text || '');
+    } else {
+        qTextEl.textContent = q.text || '';
+    }
     qTextEl.classList.toggle('hidden', !q.text);
-    textEl.textContent = '';
+    textEl.innerHTML = '';
     listEl.innerHTML = '';
 
     if (q.answer_type === 'matching' && Array.isArray(q.matching_items) && q.matching_items.length) {
@@ -503,7 +534,15 @@ function showCorrectAnswer(q) {
             return;
         }
     }
-    textEl.textContent = q.correct_answer || '—';
+    if (q.correct_answer) {
+        if (typeof marked !== 'undefined') {
+            textEl.innerHTML = marked.parse(q.correct_answer);
+        } else {
+            textEl.textContent = q.correct_answer;
+        }
+    } else {
+        textEl.textContent = '—';
+    }
 }
 
 function renderResults(containerId, scores) {

@@ -501,6 +501,51 @@ body { overflow: hidden; background: #f8fafc; }
 }
 #screen-question.text-image-mode #q-text-pres:empty { display: none !important; }
 
+/* ── CUSTOM SLIDE ─────────────────────────────────────────────────── */
+#screen-custom_slide { position: absolute; }
+#slide-bg-pres {
+    position: absolute; inset: 0;
+    background-size: contain; background-position: center;
+    background-repeat: no-repeat; background-color: #000;
+    z-index: 0; display: none;
+}
+#slide-content-pres {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    max-width: 90vw; text-align: center; gap: 1.5rem;
+}
+#slide-title-pres {
+    font-size: clamp(3rem, 8vw, 7rem);
+    font-weight: 900; color: #111827; line-height: 1.05;
+}
+#slide-text-pres {
+    font-size: clamp(1.4rem, 2.8vw, 2.5rem);
+    color: #374151; line-height: 1.5; max-width: 80vw;
+}
+#slide-text-pres strong { font-weight: 700; }
+#slide-text-pres em { font-style: italic; }
+#slide-text-pres h1 { font-size: 1.3em; font-weight: 800; margin-bottom: 0.4em; }
+#slide-text-pres h2 { font-size: 1.15em; font-weight: 700; margin-bottom: 0.3em; }
+#slide-text-pres p { margin-bottom: 0.5em; }
+#slide-text-pres p:last-child { margin-bottom: 0; }
+#slide-text-pres ul, #slide-text-pres ol { padding-left: 1.5em; margin-bottom: 0.5em; text-align: left; }
+
+/* ── MARKDOWN IN CORRECT ANSWER ───────────────────────────────────── */
+#correct-answer-pres p { margin: 0 0 0.2em; }
+#correct-answer-pres p:last-child { margin: 0; }
+#correct-answer-pres strong { font-weight: 900; }
+#correct-answer-pres em { font-style: italic; }
+#correct-answer-pres ul, #correct-answer-pres ol { padding-left: 1.5em; text-align: left; }
+#correct-answer-pres li { margin-bottom: 0.2em; }
+#correct-answer-pres h1, #correct-answer-pres h2, #correct-answer-pres h3 { font-weight: 800; margin-bottom: 0.3em; }
+#correct-answer-pres.answer-multiline {
+    font-size: clamp(1.4rem, 2.2vw, 2.2rem);
+    font-weight: 600;
+    text-align: left;
+    line-height: 1.6;
+}
+
 /* ── FORMATTED TEXT QUESTION ──────────────────────────────────────── */
 #q-text-pres.formatted-mode {
     font-size: clamp(1.2rem, 2.2vw, 2.4rem);
@@ -650,6 +695,15 @@ body { overflow: hidden; background: #f8fafc; }
         <div id="game-results-pres" class="results-list"></div>
     </div>
 
+    <!-- CUSTOM SLIDE -->
+    <div id="screen-custom_slide" class="pres-screen" style="display:none;">
+        <div id="slide-bg-pres"></div>
+        <div id="slide-content-pres">
+            <h2 id="slide-title-pres"></h2>
+            <div id="slide-text-pres"></div>
+        </div>
+    </div>
+
     <!-- ANSWERS PANEL -->
     <div id="answers-panel">
         <div class="ap-header">
@@ -725,6 +779,9 @@ socket.on('screen_changed', (data) => {
     stopAllScreenAudio();
     showScreen(data.screen);
 
+    if (data.screen === 'custom_slide' && data.slide) {
+        loadSlide(data.slide);
+    }
     if (data.screen === 'tour_splash' && data.tour) {
         document.getElementById('tour-title').textContent = data.tour.title;
         const bg = document.getElementById('tour-splash-bg');
@@ -985,13 +1042,19 @@ function showAnswer(q) {
         imgAnswerEl.innerHTML = '';
     }
 
-    document.getElementById('q-text-answer-pres').textContent = q.text || '';
+    const ansTextEl = document.getElementById('q-text-answer-pres');
+    if (q.question_type === 'formatted_text') {
+        ansTextEl.innerHTML = typeof marked !== 'undefined' ? renderFormatted(q.text || '') : escHtml(q.text || '');
+    } else {
+        ansTextEl.textContent = q.text || '';
+    }
     const correctEl = document.getElementById('correct-answer-pres');
     const optsEl = document.getElementById('correct-options-pres');
     optsEl.innerHTML = '';
     optsEl.classList.remove('matching-mode');
     optsEl.style.gridTemplateColumns = '';
-    correctEl.textContent = '';
+    correctEl.innerHTML = '';
+    correctEl.classList.remove('answer-multiline');
 
     if (q.answer_type === 'matching' && q.matching_items && q.matching_items.length) {
         optsEl.classList.add('matching-mode');
@@ -1019,9 +1082,53 @@ function showAnswer(q) {
             ));
         });
     } else if (q.correct_answer) {
-        correctEl.textContent = q.correct_answer;
+        const rendered = typeof marked !== 'undefined' ? marked.parse(q.correct_answer) : escHtml(q.correct_answer);
+        correctEl.innerHTML = rendered;
+        const isMultiline = (rendered.match(/<p>/g) || []).length > 1 || /<ul|<ol|<h[1-6]/.test(rendered);
+        correctEl.classList.toggle('answer-multiline', isMultiline);
     } else {
         correctEl.textContent = '—';
+        correctEl.classList.remove('answer-multiline');
+    }
+}
+
+function loadSlide(slide) {
+    document.getElementById('slide-title-pres').textContent = slide.title || '';
+    const textEl = document.getElementById('slide-text-pres');
+    if (slide.text) {
+        textEl.innerHTML = typeof marked !== 'undefined' ? renderFormatted(slide.text) : escHtml(slide.text);
+        textEl.style.textAlign = 'left';
+    } else {
+        textEl.innerHTML = '';
+        textEl.style.textAlign = '';
+    }
+    const bg = document.getElementById('slide-bg-pres');
+    const content = document.getElementById('slide-content-pres');
+    if (slide.image) {
+        bg.style.backgroundImage = `url('${escHtml(slide.image)}')`;
+        bg.style.display = 'block';
+        if (!slide.text && !slide.title) {
+            content.style.display = 'none';
+        } else {
+            content.style.display = '';
+            content.style.background = 'rgba(255,255,255,0.92)';
+            content.style.borderRadius = '1.5rem';
+            content.style.padding = '2rem 3rem';
+            content.style.backdropFilter = 'blur(8px)';
+        }
+    } else {
+        bg.style.display = 'none';
+        content.style.display = '';
+        content.style.background = '';
+        content.style.borderRadius = '';
+        content.style.padding = '';
+        content.style.backdropFilter = '';
+    }
+    if (slide.audio) {
+        const audio = new Audio(slide.audio);
+        audio.loop = true;
+        _screenAudio = audio;
+        audio.play().catch(() => {});
     }
 }
 

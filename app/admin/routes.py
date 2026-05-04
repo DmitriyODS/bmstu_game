@@ -170,11 +170,13 @@ def tour_create(quiz_id):
         max_order = -1
     count = Tour.query.filter_by(quiz_id=quiz_id).count()
     data = request.get_json(silent=True) or {}
-    title = (data.get('title') or f'Тур {count + 1}').strip() or f'Тур {count + 1}'
-    tour = Tour(quiz_id=quiz_id, title=title, order=max_order + 1)
+    is_slide = bool(data.get('is_slide', False))
+    default_title = f'Слайд {count + 1}' if is_slide else f'Тур {count + 1}'
+    title = (data.get('title') or default_title).strip() or default_title
+    tour = Tour(quiz_id=quiz_id, title=title, order=max_order + 1, is_slide=is_slide)
     db.session.add(tour)
     db.session.commit()
-    return jsonify({'id': tour.id, 'title': tour.title, 'order': tour.order})
+    return jsonify(_tour_dict(tour))
 
 
 @admin_bp.route('/tours/<tour_id>', methods=['GET', 'PUT', 'DELETE'])
@@ -199,9 +201,13 @@ def tour_update(tour_id):
     if request.method == 'GET':
         return jsonify(_tour_dict(tour))
     data = request.get_json(silent=True) or {}
-    for field in ('title', 'order'):
+    for field in ('title', 'order', 'is_slide', 'slide_text'):
         if field in data:
             setattr(tour, field, data[field])
+    if 'splash_image' in data:
+        tour.splash_image = data['splash_image']
+    if 'slide_audio_path' in data:
+        tour.slide_audio_path = data['slide_audio_path']
     db.session.commit()
     return jsonify(_tour_dict(tour))
 
@@ -237,6 +243,28 @@ def tour_upload_splash(tour_id):
     tour.splash_image = path
     db.session.commit()
     return jsonify({'path': path})
+
+
+# Tour audio upload (for custom slides)
+@admin_bp.route('/tours/<tour_id>/upload-audio', methods=['POST'])
+@admin_required
+def tour_upload_audio(tour_id):
+    tour = Tour.query.get_or_404(tour_id)
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'No file'}), 400
+    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
+    if ext not in ('mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'):
+        return jsonify({'error': 'Invalid audio type'}), 400
+    unique_name = f"{uuid.uuid4()}.{ext}"
+    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', tour.quiz_id, 'audio')
+    os.makedirs(upload_dir, exist_ok=True)
+    f.save(os.path.join(upload_dir, unique_name))
+    path = f'/static/uploads/{tour.quiz_id}/audio/{unique_name}'
+    tour.slide_audio_path = path
+    tour.slide_audio_original_name = f.filename or unique_name
+    db.session.commit()
+    return jsonify({'path': path, 'original_name': tour.slide_audio_original_name})
 
 
 # Quiz sound upload
@@ -964,6 +992,10 @@ def _tour_dict(tour):
         'title': tour.title,
         'order': tour.order,
         'splash_image': tour.splash_image,
+        'is_slide': tour.is_slide,
+        'slide_text': tour.slide_text,
+        'slide_audio_path': tour.slide_audio_path,
+        'slide_audio_original_name': tour.slide_audio_original_name,
     }
 
 

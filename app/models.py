@@ -57,6 +57,11 @@ class Tour(db.Model):
     order = db.Column(db.Integer, nullable=False, default=0)
     splash_image = db.Column(db.String(512))
 
+    is_slide = db.Column(db.Boolean, nullable=False, default=False)
+    slide_text = db.Column(db.Text)
+    slide_audio_path = db.Column(db.String(512))
+    slide_audio_original_name = db.Column(db.String(512))
+
     questions = db.relationship('Question', backref='tour', cascade='all, delete-orphan',
                                  order_by='Question.order')
 

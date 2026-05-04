@@ -37,6 +37,24 @@
     <div class="lg:col-span-1 flex flex-col gap-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-130px)] lg:overflow-hidden">
         <div id="tours-list" class="flex flex-col gap-2 lg:overflow-y-auto lg:flex-1">
             {% for tour in quiz.tours %}
+            {% if tour.is_slide %}
+            <div class="card bg-base-100 shadow-sm tour-card border-l-2 border-secondary" data-tour-id="{{ tour.id }}" draggable="true">
+                <div class="card-body p-3">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
+                        <span class="material-symbols-outlined text-secondary shrink-0" style="font-size:14px">slideshow</span>
+                        <span class="flex-1 font-semibold text-sm tour-name-{{ tour.id }}">{{ tour.title }}</span>
+                        <button onclick="selectSlide('{{ tour.id }}')" class="btn btn-xs btn-ghost" title="Редактировать слайд">
+                            <span class="material-symbols-outlined icon-sm">settings</span>
+                        </button>
+                        <button onclick="deleteTour('{{ tour.id }}')" class="btn btn-xs btn-ghost text-error" title="Удалить слайд">
+                            <span class="material-symbols-outlined icon-sm">delete</span>
+                        </button>
+                    </div>
+                    <div class="text-xs text-secondary/70 mt-1 pl-5">Слайд</div>
+                </div>
+            </div>
+            {% else %}
             <div class="card bg-base-100 shadow-sm tour-card" data-tour-id="{{ tour.id }}" draggable="true">
                 <div class="card-body p-3">
                     <!-- Tour header -->
@@ -73,12 +91,19 @@
                     </ul>
                 </div>
             </div>
+            {% endif %}
             {% endfor %}
         </div>
-        <button onclick="addTour()" class="btn btn-outline btn-sm w-full">
-            <span class="material-symbols-outlined icon-sm">add</span>
-            Добавить тур
-        </button>
+        <div class="flex gap-2">
+            <button onclick="addTour()" class="btn btn-outline btn-sm flex-1">
+                <span class="material-symbols-outlined icon-sm">add</span>
+                Тур
+            </button>
+            <button onclick="addSlide()" class="btn btn-outline btn-sm flex-1 text-secondary border-secondary hover:bg-secondary hover:text-secondary-content">
+                <span class="material-symbols-outlined icon-sm">slideshow</span>
+                Слайд
+            </button>
+        </div>
     </div>
 
     <!-- Правая панель: редактор -->
@@ -184,6 +209,73 @@
                         <button onclick="addQuestion(currentTourId)" class="btn btn-outline btn-sm">
                             <span class="material-symbols-outlined icon-sm">add</span>
                             Добавить вопрос в этот тур
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Slide editor -->
+                <div id="slide-editor" class="hidden">
+                    <h2 class="font-bold text-lg mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined icon-md text-secondary">slideshow</span>
+                        <span id="slide-editor-title">Слайд</span>
+                    </h2>
+
+                    <div class="form-control mb-4">
+                        <label class="label"><span class="label-text font-medium">Название (для внутреннего использования)</span></label>
+                        <div class="flex gap-2">
+                            <input type="text" id="slide-title-input" class="input input-bordered flex-1">
+                            <button onclick="saveSlideTitle()" class="btn btn-primary">
+                                <span class="material-symbols-outlined icon-sm">save</span>
+                                Сохранить
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-control mb-4">
+                        <label class="label">
+                            <span class="label-text font-medium">Текст слайда</span>
+                            <span class="label-text-alt text-base-content/50">поддерживается markdown</span>
+                        </label>
+                        <div class="flex flex-wrap gap-1 mb-2 bg-base-200 p-1.5 rounded-lg">
+                            <button type="button" onclick="insertSlideFmt('**','**')" class="btn btn-xs btn-ghost font-bold" title="Жирный">B</button>
+                            <button type="button" onclick="insertSlideFmt('*','*')" class="btn btn-xs btn-ghost italic" title="Курсив">I</button>
+                            <div class="divider divider-horizontal mx-0 my-0"></div>
+                            <button type="button" onclick="insertSlideFmt('# ','')" class="btn btn-xs btn-ghost text-xs">H1</button>
+                            <button type="button" onclick="insertSlideFmt('## ','')" class="btn btn-xs btn-ghost text-xs">H2</button>
+                            <div class="divider divider-horizontal mx-0 my-0"></div>
+                            <button type="button" onclick="insertSlideFmt('- ','')" class="btn btn-xs btn-ghost text-xs">• список</button>
+                        </div>
+                        <textarea id="slide-text-input" class="textarea textarea-bordered w-full font-mono text-sm" rows="6"
+                                  placeholder="Текст для отображения на экране (Markdown)."
+                                  oninput="updateSlidePreview()"></textarea>
+                        <div class="mt-2 border border-base-300 rounded-lg overflow-hidden">
+                            <div class="bg-base-200 px-3 py-1 text-xs text-base-content/50 font-medium flex items-center gap-1">
+                                <span class="material-symbols-outlined" style="font-size:14px">preview</span>
+                                Предпросмотр
+                            </div>
+                            <div id="slide-text-preview" class="p-3 min-h-12 text-sm formatted-content prose max-w-none"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-control mb-4">
+                        <label class="label"><span class="label-text font-medium">Картинка (фоновое изображение)</span></label>
+                        <input type="file" id="slide-image-input" accept="image/*" class="file-input file-input-bordered w-full"
+                               onchange="uploadSlideImage()">
+                        <div id="slide-image-preview" class="mt-2"></div>
+                    </div>
+
+                    <div class="form-control mb-4">
+                        <label class="label"><span class="label-text font-medium">Фоновая музыка</span></label>
+                        <p class="text-xs text-base-content/50 mb-2">Воспроизводится автоматически при показе слайда</p>
+                        <input type="file" id="slide-audio-input" accept="audio/*" class="file-input file-input-bordered w-full"
+                               onchange="uploadSlideAudio()">
+                        <div id="slide-audio-preview" class="mt-2"></div>
+                    </div>
+
+                    <div class="flex gap-2 pt-2 border-t border-base-200">
+                        <button onclick="saveSlideContent()" class="btn btn-secondary btn-sm">
+                            <span class="material-symbols-outlined icon-sm">save</span>
+                            Сохранить слайд
                         </button>
                     </div>
                 </div>
@@ -383,29 +475,48 @@ async function addTour() {
 
 function createTourCard(tour) {
     const div = document.createElement('div');
-    div.className = 'card bg-base-100 shadow-sm tour-card';
     div.dataset.tourId = tour.id;
     div.draggable = true;
-    div.innerHTML = `
-        <div class="card-body p-3">
-            <div class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
-                <span class="flex-1 font-semibold text-sm tour-name-${tour.id}">${escHtml(tour.title)}</span>
-                <button onclick="addQuestion('${tour.id}')" class="btn btn-xs btn-primary" title="Добавить вопрос">
-                    <span class="material-symbols-outlined icon-sm">add</span>
-                </button>
-                <button onclick="selectTour('${tour.id}')" class="btn btn-xs btn-ghost" title="Настройки тура">
-                    <span class="material-symbols-outlined icon-sm">settings</span>
-                </button>
-                <button onclick="toggleTourCollapse('${tour.id}')" class="btn btn-xs btn-ghost" title="Свернуть/развернуть">
-                    <span class="material-symbols-outlined icon-sm tour-collapse-icon-${tour.id}">expand_less</span>
-                </button>
-                <button onclick="deleteTour('${tour.id}')" class="btn btn-xs btn-ghost text-error" title="Удалить тур">
-                    <span class="material-symbols-outlined icon-sm">delete</span>
-                </button>
-            </div>
-            <ul class="flex flex-col gap-1 mt-1 questions-list" id="questions-${tour.id}"></ul>
-        </div>`;
+    if (tour.is_slide) {
+        div.className = 'card bg-base-100 shadow-sm tour-card border-l-2 border-secondary';
+        div.innerHTML = `
+            <div class="card-body p-3">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
+                    <span class="material-symbols-outlined text-secondary shrink-0" style="font-size:14px">slideshow</span>
+                    <span class="flex-1 font-semibold text-sm tour-name-${tour.id}">${escHtml(tour.title)}</span>
+                    <button onclick="selectSlide('${tour.id}')" class="btn btn-xs btn-ghost" title="Редактировать слайд">
+                        <span class="material-symbols-outlined icon-sm">settings</span>
+                    </button>
+                    <button onclick="deleteTour('${tour.id}')" class="btn btn-xs btn-ghost text-error" title="Удалить слайд">
+                        <span class="material-symbols-outlined icon-sm">delete</span>
+                    </button>
+                </div>
+                <div class="text-xs text-secondary/70 mt-1 pl-5">Слайд</div>
+            </div>`;
+    } else {
+        div.className = 'card bg-base-100 shadow-sm tour-card';
+        div.innerHTML = `
+            <div class="card-body p-3">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
+                    <span class="flex-1 font-semibold text-sm tour-name-${tour.id}">${escHtml(tour.title)}</span>
+                    <button onclick="addQuestion('${tour.id}')" class="btn btn-xs btn-primary" title="Добавить вопрос">
+                        <span class="material-symbols-outlined icon-sm">add</span>
+                    </button>
+                    <button onclick="selectTour('${tour.id}')" class="btn btn-xs btn-ghost" title="Настройки тура">
+                        <span class="material-symbols-outlined icon-sm">settings</span>
+                    </button>
+                    <button onclick="toggleTourCollapse('${tour.id}')" class="btn btn-xs btn-ghost" title="Свернуть/развернуть">
+                        <span class="material-symbols-outlined icon-sm tour-collapse-icon-${tour.id}">expand_less</span>
+                    </button>
+                    <button onclick="deleteTour('${tour.id}')" class="btn btn-xs btn-ghost text-error" title="Удалить тур">
+                        <span class="material-symbols-outlined icon-sm">delete</span>
+                    </button>
+                </div>
+                <ul class="flex flex-col gap-1 mt-1 questions-list" id="questions-${tour.id}"></ul>
+            </div>`;
+    }
     return div;
 }
 
@@ -753,12 +864,167 @@ async function uploadQuestionFile(file, type) {
     }
 }
 
+// ── Slide ────────────────────────────────────────────────────────
+
+async function addSlide() {
+    const res = await fetch(`/admin/quizzes/${QUIZ_ID}/tours`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({is_slide: true})
+    });
+    const tour = await res.json();
+    const card = createTourCard(tour);
+    document.getElementById('tours-list').appendChild(card);
+    selectSlide(tour.id);
+}
+
+async function selectSlide(tourId) {
+    currentTourId = tourId;
+    currentQuestionId = null;
+    highlightActive(null, tourId);
+
+    const res = await fetch(`/admin/tours/${tourId}`);
+    const tour = await res.json();
+
+    showPanel('slide-editor');
+    document.getElementById('slide-editor-title').textContent = tour.title;
+    document.getElementById('slide-title-input').value = tour.title;
+    document.getElementById('slide-text-input').value = tour.slide_text || '';
+
+    const imgPreview = document.getElementById('slide-image-preview');
+    imgPreview.innerHTML = tour.splash_image
+        ? `<img src="${tour.splash_image}" class="max-h-32 rounded mt-1">
+           <button onclick="removeSlideImage()" class="btn btn-xs btn-ghost text-error mt-1 block">Удалить картинку</button>`
+        : '';
+
+    const audioFn = tour.slide_audio_original_name || (tour.slide_audio_path ? tour.slide_audio_path.split('/').pop() : '');
+    document.getElementById('slide-audio-preview').innerHTML = tour.slide_audio_path
+        ? `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
+               <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
+               <span class="truncate">${escHtml(audioFn)}</span>
+           </div>
+           <audio controls src="${tour.slide_audio_path}" class="w-full mt-1"></audio>
+           <button onclick="removeSlideAudio()" class="btn btn-xs btn-ghost text-error mt-1">Удалить аудио</button>`
+        : '';
+
+    updateSlidePreview();
+}
+
+async function saveSlideTitle() {
+    if (!currentTourId) return;
+    const title = document.getElementById('slide-title-input').value.trim();
+    if (!title) return;
+    await fetch(`/admin/tours/${currentTourId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title})
+    });
+    document.querySelectorAll(`.tour-name-${currentTourId}`).forEach(el => el.textContent = title);
+    document.getElementById('slide-editor-title').textContent = title;
+    showToast('Название сохранено');
+}
+
+async function saveSlideContent() {
+    if (!currentTourId) return;
+    const title = document.getElementById('slide-title-input').value.trim();
+    const text = document.getElementById('slide-text-input').value;
+    await fetch(`/admin/tours/${currentTourId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title: title || undefined, slide_text: text})
+    });
+    if (title) {
+        document.querySelectorAll(`.tour-name-${currentTourId}`).forEach(el => el.textContent = title);
+        document.getElementById('slide-editor-title').textContent = title;
+    }
+    showToast('Слайд сохранён');
+}
+
+async function uploadSlideImage() {
+    const input = document.getElementById('slide-image-input');
+    if (!input.files[0] || !currentTourId) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    const res = await fetch(`/admin/tours/${currentTourId}/upload-splash`, {method: 'POST', body: fd});
+    const data = await res.json();
+    if (data.path) {
+        document.getElementById('slide-image-preview').innerHTML =
+            `<img src="${data.path}" class="max-h-32 rounded mt-1">
+             <button onclick="removeSlideImage()" class="btn btn-xs btn-ghost text-error mt-1 block">Удалить картинку</button>`;
+        showToast('Картинка сохранена');
+    } else {
+        showToast('Ошибка загрузки', 'error');
+    }
+}
+
+async function removeSlideImage() {
+    if (!currentTourId) return;
+    await fetch(`/admin/tours/${currentTourId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({splash_image: null})
+    });
+    document.getElementById('slide-image-preview').innerHTML = '';
+    document.getElementById('slide-image-input').value = '';
+    showToast('Картинка удалена');
+}
+
+async function uploadSlideAudio() {
+    const input = document.getElementById('slide-audio-input');
+    if (!input.files[0] || !currentTourId) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    const res = await fetch(`/admin/tours/${currentTourId}/upload-audio`, {method: 'POST', body: fd});
+    const data = await res.json();
+    if (data.path) {
+        const fn = data.original_name || data.path.split('/').pop();
+        document.getElementById('slide-audio-preview').innerHTML =
+            `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
+                 <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
+                 <span class="truncate">${escHtml(fn)}</span>
+             </div>
+             <audio controls src="${data.path}" class="w-full mt-1"></audio>
+             <button onclick="removeSlideAudio()" class="btn btn-xs btn-ghost text-error mt-1">Удалить аудио</button>`;
+        showToast('Аудио сохранено');
+    } else {
+        showToast('Ошибка загрузки', 'error');
+    }
+}
+
+async function removeSlideAudio() {
+    if (!currentTourId) return;
+    await fetch(`/admin/tours/${currentTourId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({slide_audio_path: null})
+    });
+    document.getElementById('slide-audio-preview').innerHTML = '';
+    document.getElementById('slide-audio-input').value = '';
+    showToast('Аудио удалено');
+}
+
+function insertSlideFmt(before, after) {
+    const ta = document.getElementById('slide-text-input');
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = ta.value.substring(start, end);
+    ta.value = ta.value.substring(0, start) + before + selected + after + ta.value.substring(end);
+    ta.selectionStart = start + before.length;
+    ta.selectionEnd = start + before.length + selected.length;
+    ta.focus();
+    updateSlidePreview();
+}
+
+function updateSlidePreview() {
+    const text = document.getElementById('slide-text-input').value;
+    const preview = document.getElementById('slide-text-preview');
+    if (typeof marked !== 'undefined') {
+        preview.innerHTML = marked.parse(text || '');
+    }
+}
+
 // ── UI helpers ──────────────────────────────────────────────────
 
 function showPanel(panel) {
     document.getElementById('editor-placeholder').classList.toggle('hidden', panel !== 'placeholder');
     document.getElementById('quiz-settings').classList.toggle('hidden', panel !== 'quiz-settings');
     document.getElementById('tour-editor').classList.toggle('hidden', panel !== 'tour-editor');
+    document.getElementById('slide-editor').classList.toggle('hidden', panel !== 'slide-editor');
     document.getElementById('question-editor').classList.toggle('hidden', panel !== 'question-editor');
 }
 
