@@ -138,10 +138,27 @@ function setMode(m) {
     if (m === 'tinder') {
         loadNextCard();
     } else {
+        // Уходим из режима карточек — явно отпускаем удерживаемую карточку,
+        // чтобы её немедленно мог взять другой судья (а не ждать 30с таймаута).
+        releaseCurrentCard();
         stopHeartbeat();
         currentCard = null;
         loadTable();
     }
+}
+
+function releaseCurrentCard() {
+    if (!currentCard) return;
+    const id = currentCard.id;
+    fetch(`/judge/release/${id}`, {method: 'POST', keepalive: true}).catch(() => {});
+}
+
+function releaseCurrentCardBeacon() {
+    // Для unload — sendBeacon доставит запрос даже после закрытия вкладки.
+    if (!currentCard || !navigator.sendBeacon) return;
+    try {
+        navigator.sendBeacon(`/judge/release/${currentCard.id}`, new Blob([], {type: 'text/plain'}));
+    } catch (_) {}
 }
 
 function getFilters() {
@@ -198,10 +215,37 @@ function stopHeartbeat() {
 }
 function startHeartbeat(answerId) {
     stopHeartbeat();
-    _heartbeatTimer = setInterval(() => {
-        fetch(`/judge/heartbeat/${answerId}`, {method: 'POST', keepalive: true})
-            .catch(() => {});
+    _heartbeatTimer = setInterval(async () => {
+        try {
+            const res = await fetch(`/judge/heartbeat/${answerId}`, {method: 'POST', keepalive: true});
+            const data = await res.json().catch(() => ({}));
+            // Сервер вернул ok:false — карточку у нас увели (потолок жизни блокировки
+            // или ручной перехват). Сбрасываем UI и грузим следующую.
+            if (data && data.ok === false && currentCard && currentCard.id === answerId) {
+                showToast('Карточка передана другому судье', 'warning');
+                stopHeartbeat();
+                currentCard = null;
+                if (mode === 'tinder') loadNextCard();
+            }
+        } catch (_) {}
     }, 15000);
+}
+
+function showToast(text, kind) {
+    const cls = kind === 'warning' ? 'alert-warning'
+              : kind === 'error' ? 'alert-error' : 'alert-info';
+    let host = document.getElementById('judge-toasts');
+    if (!host) {
+        host = document.createElement('div');
+        host.id = 'judge-toasts';
+        host.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm';
+        document.body.appendChild(host);
+    }
+    const t = document.createElement('div');
+    t.className = `alert ${cls} shadow-lg`;
+    t.textContent = text;
+    host.appendChild(t);
+    setTimeout(() => { if (t.parentNode) t.remove(); }, 5000);
 }
 
 async function loadNextCard() {
@@ -306,11 +350,14 @@ async function judgeCard(isCorrect) {
     const scoreEl = document.getElementById('card-score');
     const raw = scoreEl ? scoreEl.value : '';
     const score = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
-    await fetch(`/judge/check/${currentCard.id}`, {
+    const res = await fetch(`/judge/check/${currentCard.id}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({is_correct: isCorrect, score: isCorrect ? score : 0})
     });
+    if (res.status === 409) {
+        showToast('Эту карточку уже взял другой судья', 'warning');
+    }
     loadNextCard();
 }
 
@@ -376,10 +423,11 @@ async function modalCheck(isCorrect) {
     if (!modalAnswer) return;
     const raw = document.getElementById('modal-score').value;
     const score = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
+    // force=true — переоценка из таблицы должна перезаписывать чужой результат.
     await fetch(`/judge/check/${modalAnswer.id}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({is_correct: isCorrect, score: isCorrect ? score : 0})
+        body: JSON.stringify({is_correct: isCorrect, score: isCorrect ? score : 0, force: true})
     });
     document.getElementById('answer-modal').close();
     loadTable();
@@ -392,6 +440,23 @@ socket.on('answer_submitted', () => {
 
 socket.on('answer_checked', () => {
     if (mode === 'table') loadTable();
+    // В tinder, если мы стоим на пустой карточке, чужая проверка может означать,
+    // что в очереди освободилась другая (например, sweeper отдал stale-блокировку).
+    else if (mode === 'tinder' && !currentCard) loadNextCard();
 });
+
+// Уход с вкладки → освобождаем карточку, чтобы её сразу мог взять другой судья.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && currentCard) {
+        releaseCurrentCard();
+        stopHeartbeat();
+        currentCard = null;
+    } else if (document.visibilityState === 'visible' && mode === 'tinder' && !currentCard) {
+        loadNextCard();
+    }
+});
+
+// Закрытие вкладки / навигация — sendBeacon, чтобы запрос гарантированно ушёл.
+window.addEventListener('pagehide', releaseCurrentCardBeacon);
 </script>
 {% endblock %}

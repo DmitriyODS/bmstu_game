@@ -3,6 +3,10 @@ from flask import render_template, jsonify, request
 from flask_login import current_user
 from sqlalchemy.orm import joinedload
 from app.judge import judge_bp
+from app.judge.locks import (
+    release_stale_locks,
+    MAX_LOCK_LIFETIME_SECONDS,
+)
 from app.auth import judge_required
 from app.models import db, Quiz, Tour, Question, Team, TeamAnswer, GameState, AnswerOption, MatchingItem
 
@@ -42,16 +46,14 @@ def next_card():
     TeamAnswer.query.filter(
         TeamAnswer.checked_by == current_user.id,
         TeamAnswer.is_correct.is_(None),
-    ).update({'checked_by': None, 'checked_by_at': None}, synchronize_session=False)
+    ).update({'checked_by': None,
+              'checked_by_at': None,
+              'checked_lock_started_at': None},
+             synchronize_session=False)
 
-    # Release timed-out pending locks from other judges (>30s without action).
-    # Filter by is_correct IS NULL — не трогаем уже проверенные ответы (сохраняем аудит).
-    timeout = datetime.utcnow() - timedelta(seconds=30)
-    TeamAnswer.query.filter(
-        TeamAnswer.checked_by.isnot(None),
-        TeamAnswer.checked_by_at < timeout,
-        TeamAnswer.is_correct.is_(None),
-    ).update({'checked_by': None, 'checked_by_at': None}, synchronize_session=False)
+    # Заодно пробежимся по всем протухшим — на случай если фоновой sweeper
+    # ещё не добежал до этого тика.
+    release_stale_locks()
     db.session.flush()
 
     # Атомарный захват: SELECT ... FOR UPDATE SKIP LOCKED — если строка уже
@@ -75,8 +77,10 @@ def next_card():
         db.session.commit()
         return jsonify({'answer': None})
 
+    now = datetime.utcnow()
     answer.checked_by = current_user.id
-    answer.checked_by_at = datetime.utcnow()
+    answer.checked_by_at = now
+    answer.checked_lock_started_at = now
     db.session.commit()
 
     # После коммита подгружаем связи для рендера (вне FOR UPDATE-транзакции).
@@ -100,6 +104,31 @@ def check_answer(answer_id):
     is_correct = data.get('is_correct')
     score = data.get('score')
 
+    # Защита от перезаписи чужого результата: разрешаем оценивать только если
+    # карточка либо ещё за нами (нормальный путь), либо вообще никем не проверена
+    # и не заблокирована (карточку у нас увели по таймауту, но никто ещё не успел
+    # её оценить — позволяем сохранить результат, чтобы ответ не «потерялся»).
+    # Принудительная переоценка из режима таблицы — отдельный кейс ниже.
+    force = bool(data.get('force'))
+    if not force:
+        already_judged_by_other = (
+            answer.is_correct is not None
+            and answer.checked_by
+            and answer.checked_by != current_user.id
+        )
+        locked_by_other = (
+            answer.checked_by is not None
+            and answer.checked_by != current_user.id
+            and answer.is_correct is None
+        )
+        if already_judged_by_other or locked_by_other:
+            return jsonify({
+                'ok': False,
+                'error': 'taken_by_other',
+                'is_correct': answer.is_correct,
+                'score': answer.score,
+            }), 409
+
     answer.is_correct = bool(is_correct) if is_correct is not None else None
     if score is not None and score != '':
         try:
@@ -113,6 +142,9 @@ def check_answer(answer_id):
     answer.auto_checked = False
     answer.checked_by = current_user.id
     answer.checked_by_at = datetime.utcnow()
+    # После оценки lock-started уже не нужен — обнуляем, чтобы счётчик начался
+    # заново при ручной переоценке через таблицу.
+    answer.checked_lock_started_at = None
     db.session.commit()
 
     from app import socketio
@@ -130,15 +162,41 @@ def check_answer(answer_id):
 @judge_bp.route('/heartbeat/<answer_id>', methods=['POST'])
 @judge_required
 def heartbeat(answer_id):
-    """Frontend periodically pings — keeps the lock fresh while the card is on screen."""
+    """Frontend periodically pings — keeps the lock fresh while the card is on screen.
+    Возвращает ok=false, если карточка больше не наша (упёрлись в потолок жизни
+    блокировки или её увели). Фронт по этому сигналу подгружает следующую."""
+    now = datetime.utcnow()
+    cutoff = now - timedelta(seconds=MAX_LOCK_LIFETIME_SECONDS)
     updated = (TeamAnswer.query
                .filter(TeamAnswer.id == answer_id,
                        TeamAnswer.checked_by == current_user.id,
-                       TeamAnswer.is_correct.is_(None))
-               .update({'checked_by_at': datetime.utcnow()},
+                       TeamAnswer.is_correct.is_(None),
+                       db.or_(
+                           TeamAnswer.checked_lock_started_at.is_(None),
+                           TeamAnswer.checked_lock_started_at >= cutoff,
+                       ))
+               .update({'checked_by_at': now},
                        synchronize_session=False))
     db.session.commit()
     return jsonify({'ok': bool(updated)})
+
+
+@judge_bp.route('/release/<answer_id>', methods=['POST'])
+@judge_required
+def release_card(answer_id):
+    """Явное освобождение карточки судьёй (закрытие вкладки, переключение режима,
+    уход на другую вкладку). Снимаем блокировку только если она ещё за нами и
+    карточка не оценена — чужие/уже проверенные не трогаем."""
+    (TeamAnswer.query
+     .filter(TeamAnswer.id == answer_id,
+             TeamAnswer.checked_by == current_user.id,
+             TeamAnswer.is_correct.is_(None))
+     .update({'checked_by': None,
+              'checked_by_at': None,
+              'checked_lock_started_at': None},
+             synchronize_session=False))
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 @judge_bp.route('/answers')

@@ -731,20 +731,6 @@ body { overflow: hidden; background: #f8fafc; }
 const QUIZ_ID = '{{ quiz.id }}';
 const socket = io('/presentation');
 
-let _screenAudio = null;
-
-function stopScreenAudio() {
-    if (_screenAudio) {
-        _screenAudio.pause();
-        _screenAudio.currentTime = 0;
-        _screenAudio = null;
-    }
-}
-
-function stopAllScreenAudio() {
-    stopScreenAudio();
-}
-
 function unlockScreenAudio() {
     document.getElementById('audio-unlock-overlay').style.display = 'none';
 }
@@ -830,6 +816,10 @@ if (_preloadUrls.length > 0) {
     if (_pi) _pi.style.display = 'none';
 }
 
+// Все треки на презентации играем через единый менеджер; resolveMedia подменит
+// удалённые URL'ы на blob: из preload-кеша.
+AudioManager.setMediaResolver(resolveMedia);
+
 // ── Screen ──────────────────────────────────────────────────────────────────────
 function showScreen(name) {
     document.querySelectorAll('.pres-screen').forEach(el => {
@@ -848,7 +838,7 @@ function resetAnswersPanel() {
 
 // ── Sockets ─────────────────────────────────────────────────────────────────────
 socket.on('screen_changed', (data) => {
-    stopAllScreenAudio();
+    AudioManager.stopAll();
     showScreen(data.screen);
 
     if (data.screen === 'custom_slide' && data.slide) {
@@ -917,15 +907,17 @@ socket.on('team_deleted', (data) => {
 });
 
 socket.on('timer_tick', (data) => updateTimer(data.remaining));
-socket.on('timer_started', (data) => { stopAllScreenAudio(); updateTimer(data.seconds); });
-socket.on('timer_paused', (data) => { updateTimer(data.remaining); stopAllScreenAudio(); });
+// Старт/пауза/стоп/сброс таймера глушат фоновое аудио (вопрос/ответ/слайд),
+// но не короткие beep'ы — они обычно звучат как раз в эти моменты.
+socket.on('timer_started', (data) => { AudioManager.stopCategory('background'); updateTimer(data.seconds); });
+socket.on('timer_paused', (data) => { updateTimer(data.remaining); AudioManager.stopCategory('background'); });
 socket.on('timer_stopped', () => {
-    stopAllScreenAudio();
+    AudioManager.stopCategory('background');
     const el = document.getElementById('timer-pres');
     if (el) { el.textContent = '0'; el.classList.add('danger'); }
 });
 socket.on('timer_reset', () => {
-    stopAllScreenAudio();
+    AudioManager.stopCategory('background');
     const el = document.getElementById('timer-pres');
     if (el && _currentTimeSeconds != null) {
         el.textContent = _currentTimeSeconds;
@@ -933,23 +925,19 @@ socket.on('timer_reset', () => {
     }
 });
 socket.on('play_sound', (data) => {
-    if (data && data.path) new Audio(resolveMedia(data.path)).play().catch(() => {});
-});
-socket.on('play_question_audio', (data) => {
-    stopScreenAudio();
-    const audio = new Audio(resolveMedia(data.path));
-    _screenAudio = audio;
-    const trimStart = data.trim_start || 0;
-    const trimEnd = data.trim_end;
-    audio.currentTime = trimStart;
-    audio.play().catch(() => {});
-    if (trimEnd && trimEnd > trimStart) {
-        setTimeout(() => { if (_screenAudio === audio) stopScreenAudio(); }, (trimEnd - trimStart) * 1000);
-    } else {
-        audio.addEventListener('ended', () => { if (_screenAudio === audio) _screenAudio = null; }, {once: true});
+    if (data && data.path) {
+        AudioManager.play(`cue:${data.event || 'sfx'}`, { url: data.path, category: 'cue' });
     }
 });
-socket.on('stop_screen_audio', () => stopAllScreenAudio());
+socket.on('play_question_audio', (data) => {
+    AudioManager.play('question-bg', {
+        url: data.path,
+        category: 'background',
+        trimStart: data.trim_start,
+        trimEnd: data.trim_end,
+    });
+});
+socket.on('stop_screen_audio', () => AudioManager.stopCategory('background'));
 socket.on('scores_updated', () => {});
 
 socket.on('answer_submitted', (data) => {
@@ -1106,19 +1094,14 @@ function loadQuestion(q) {
 }
 
 function showAnswer(q) {
-    stopAllScreenAudio();
+    AudioManager.stopAll();
     if (q.question_type === 'audio' && q.audio_path) {
-        const bgAudio = new Audio(resolveMedia(q.audio_path));
-        _screenAudio = bgAudio;
-        const trimStart = q.audio_trim_start || 0;
-        const trimEnd = q.audio_trim_end;
-        bgAudio.currentTime = trimStart;
-        bgAudio.play().catch(() => {});
-        if (trimEnd && trimEnd > trimStart) {
-            setTimeout(() => { if (_screenAudio === bgAudio) stopAllScreenAudio(); }, (trimEnd - trimStart) * 1000);
-        } else {
-            bgAudio.addEventListener('ended', () => { if (_screenAudio === bgAudio) _screenAudio = null; }, {once: true});
-        }
+        AudioManager.play('answer-bg', {
+            url: q.audio_path,
+            category: 'background',
+            trimStart: q.audio_trim_start,
+            trimEnd: q.audio_trim_end,
+        });
     }
 
     const imgAnswerEl = document.getElementById('q-image-answer-pres');
@@ -1211,10 +1194,11 @@ function loadSlide(slide) {
         content.style.backdropFilter = '';
     }
     if (slide.audio) {
-        const audio = new Audio(resolveMedia(slide.audio));
-        audio.loop = true;
-        _screenAudio = audio;
-        audio.play().catch(() => {});
+        AudioManager.play('slide-bg', {
+            url: slide.audio,
+            category: 'background',
+            loop: true,
+        });
     }
 }
 

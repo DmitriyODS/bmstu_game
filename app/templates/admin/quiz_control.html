@@ -216,7 +216,6 @@
                     {# Аудио-секция (только для вопросов типа audio) #}
                     <div id="audio-question-section" class="hidden mt-3 pt-3 border-t border-base-200">
                         <div class="text-xs text-base-content/50 mb-2 font-semibold uppercase tracking-wide">Аудио вопрос</div>
-                        <audio id="question-audio-preview" preload="metadata" class="hidden"></audio>
                         <button onclick="playAudioAndTimer()" class="btn btn-success btn-sm w-full gap-1 mb-1" id="btn-play-audio-timer">
                             <span class="material-symbols-outlined icon-sm">play_circle</span>
                             Воспроизвести → Таймер
@@ -509,9 +508,6 @@ function setActiveQuestion(q) {
     const audioSection = document.getElementById('audio-question-section');
     audioSection.classList.toggle('hidden', q.question_type !== 'audio');
     if (q.question_type === 'audio' && q.audio_path) {
-        const player = document.getElementById('question-audio-preview');
-        player.src = q.audio_path;
-        player.classList.remove('hidden');
         resetAudioPlayBtn();
     }
 
@@ -573,17 +569,7 @@ async function playAudioAndTimer() {
     if (trimEnd && trimEnd > trimStart) {
         durationMs = (trimEnd - trimStart) * 1000;
     } else {
-        const player = document.getElementById('question-audio-preview');
-        const dur = await new Promise((resolve) => {
-            if (player.duration > 0 && !isNaN(player.duration)) {
-                resolve(player.duration);
-            } else {
-                const onMeta = () => resolve(player.duration || 0);
-                player.addEventListener('loadedmetadata', onMeta, {once: true});
-                if (!player.src) { player.src = currentQuestionAudioPath; }
-                player.load();
-            }
-        });
+        const dur = await AudioManager.getDuration(currentQuestionAudioPath);
         durationMs = Math.max(0, (dur - trimStart)) * 1000;
     }
 

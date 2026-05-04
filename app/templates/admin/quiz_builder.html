@@ -389,7 +389,6 @@
                                 <span class="material-symbols-outlined" style="font-size:14px">content_cut</span>
                                 Обрезка трека
                             </div>
-                            <audio id="q-trim-preview-audio" preload="metadata" class="hidden"></audio>
                             <div class="flex items-center gap-3 mb-2">
                                 <span class="text-xs text-base-content/50 shrink-0 w-16 text-right">Начало</span>
                                 <input type="range" id="q-trim-start" class="range range-xs flex-1" min="0" step="0.1" value="0" oninput="onTrimChange()">
@@ -1211,24 +1210,23 @@ function insertCols(cols) {
 
 // ── Audio trim ────────────────────────────────────────────────────
 
-function initAudioTrim(audioPath, trimStart, trimEnd) {
+let _trimAudioPath = null;
+let _trimAudioDuration = 0;
+
+async function initAudioTrim(audioPath, trimStart, trimEnd) {
     const trimSection = document.getElementById('q-audio-trim-section');
     trimSection.classList.remove('hidden');
-    const previewAudio = document.getElementById('q-trim-preview-audio');
-    previewAudio.src = audioPath;
-    previewAudio.load();
-    previewAudio.addEventListener('loadedmetadata', function onLoad() {
-        previewAudio.removeEventListener('loadedmetadata', onLoad);
-        const dur = previewAudio.duration;
-        if (!isFinite(dur) || dur <= 0) return;
-        const startRange = document.getElementById('q-trim-start');
-        const endRange = document.getElementById('q-trim-end');
-        startRange.max = dur.toFixed(1);
-        endRange.max = dur.toFixed(1);
-        startRange.value = (trimStart != null && trimStart > 0) ? trimStart : 0;
-        endRange.value = (trimEnd != null && trimEnd > 0 && trimEnd <= dur) ? trimEnd : dur.toFixed(1);
-        onTrimChange();
-    });
+    _trimAudioPath = audioPath;
+    const dur = await AudioManager.getDuration(audioPath);
+    if (!dur) return;
+    _trimAudioDuration = dur;
+    const startRange = document.getElementById('q-trim-start');
+    const endRange = document.getElementById('q-trim-end');
+    startRange.max = dur.toFixed(1);
+    endRange.max = dur.toFixed(1);
+    startRange.value = (trimStart != null && trimStart > 0) ? trimStart : 0;
+    endRange.value = (trimEnd != null && trimEnd > 0 && trimEnd <= dur) ? trimEnd : dur.toFixed(1);
+    onTrimChange();
 }
 
 function onTrimChange() {
@@ -1243,33 +1241,27 @@ function onTrimChange() {
     document.getElementById('trim-dur-label').textContent = Math.max(0, endVal - startVal).toFixed(1) + ' с';
 }
 
-let _trimTimeout = null;
-
 function previewTrim() {
-    const audio = document.getElementById('q-trim-preview-audio');
-    if (!audio.src) return;
-    if (_trimTimeout) clearTimeout(_trimTimeout);
+    if (!_trimAudioPath) return;
     const startVal = parseFloat(document.getElementById('q-trim-start').value) || 0;
     const endVal = parseFloat(document.getElementById('q-trim-end').value) || 0;
-    audio.currentTime = startVal;
-    audio.play().catch(() => {});
-    if (endVal > startVal) {
-        _trimTimeout = setTimeout(() => audio.pause(), (endVal - startVal) * 1000);
-    }
+    AudioManager.play('trim-preview', {
+        url: _trimAudioPath,
+        category: 'preview',
+        trimStart: startVal,
+        trimEnd: endVal > startVal ? endVal : null,
+    });
 }
 
 function stopTrimPreview() {
-    const audio = document.getElementById('q-trim-preview-audio');
-    audio.pause();
-    if (_trimTimeout) { clearTimeout(_trimTimeout); _trimTimeout = null; }
+    AudioManager.stop('trim-preview');
 }
 
 function resetTrim() {
-    const audio = document.getElementById('q-trim-preview-audio');
-    if (!audio.duration) return;
+    if (!_trimAudioDuration) return;
     stopTrimPreview();
     document.getElementById('q-trim-start').value = 0;
-    document.getElementById('q-trim-end').value = audio.duration.toFixed(1);
+    document.getElementById('q-trim-end').value = _trimAudioDuration.toFixed(1);
     onTrimChange();
 }
 

@@ -140,6 +140,9 @@ class TeamAnswer(db.Model):
     auto_checked = db.Column(db.Boolean, nullable=False, default=False)
     checked_by = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
     checked_by_at = db.Column(db.DateTime)
+    # Момент ПЕРВОГО захвата карточки судьёй (для жёсткого потолка времени блокировки,
+    # независимо от того, насколько активно бьётся heartbeat).
+    checked_lock_started_at = db.Column(db.DateTime)
 
     question = db.relationship('Question', backref='answers')
     checker = db.relationship('User', foreign_keys=[checked_by])

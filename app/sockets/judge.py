@@ -21,6 +21,8 @@ def on_disconnect():
     TeamAnswer.query.filter(
         TeamAnswer.checked_by == current_user.id,
         TeamAnswer.is_correct.is_(None),
-    ).update({'checked_by': None, 'checked_by_at': None},
+    ).update({'checked_by': None,
+              'checked_by_at': None,
+              'checked_lock_started_at': None},
              synchronize_session=False)
     db.session.commit()
