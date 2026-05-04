@@ -118,6 +118,7 @@ const TOURS_DATA = {{ tours_data | tojson }};
 let mode = localStorage.getItem('judge_mode') || 'tinder';
 let currentCard = null;
 let modalAnswer = null;
+let _heartbeatTimer = null;
 const socket = io('/judge');
 
 updateQuestionFilter();
@@ -206,7 +207,6 @@ function updateQuestionFilter() {
     }
 }
 
-let _heartbeatTimer = null;
 function stopHeartbeat() {
     if (_heartbeatTimer) {
         clearInterval(_heartbeatTimer);
