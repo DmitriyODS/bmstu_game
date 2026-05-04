@@ -17,6 +17,7 @@ def index():
     tours_data = [
         {
             'id': t.id,
+            'title': t.title,
             'questions': [
                 {'id': q.id, 'text': (q.text or '')[:80]}
                 for q in t.questions
@@ -37,33 +38,33 @@ def next_card():
     tour_id = request.args.get('tour_id')
     question_id = request.args.get('question_id')
 
-    # Release this judge's own stale locks (e.g. after page refresh without judging)
+    # Release this judge's own pending locks (refresh / new card without judging).
     TeamAnswer.query.filter(
         TeamAnswer.checked_by == current_user.id,
         TeamAnswer.is_correct.is_(None),
-    ).update({'checked_by': None, 'checked_by_at': None})
+    ).update({'checked_by': None, 'checked_by_at': None}, synchronize_session=False)
 
-    # Release timed-out locks from other judges (60s)
-    timeout = datetime.utcnow() - timedelta(seconds=60)
+    # Release timed-out pending locks from other judges (>30s without action).
+    # Filter by is_correct IS NULL — не трогаем уже проверенные ответы (сохраняем аудит).
+    timeout = datetime.utcnow() - timedelta(seconds=30)
     TeamAnswer.query.filter(
         TeamAnswer.checked_by.isnot(None),
-        TeamAnswer.checked_by_at < timeout
-    ).update({'checked_by': None, 'checked_by_at': None})
+        TeamAnswer.checked_by_at < timeout,
+        TeamAnswer.is_correct.is_(None),
+    ).update({'checked_by': None, 'checked_by_at': None}, synchronize_session=False)
     db.session.flush()
 
+    # Атомарный захват: SELECT ... FOR UPDATE SKIP LOCKED — если строка уже
+    # захвачена параллельной транзакцией (другим судьёй), пропускаем её.
     q = (TeamAnswer.query
          .join(Question).join(Tour)
-         .options(
-             joinedload(TeamAnswer.question).joinedload(Question.answer_options),
-             joinedload(TeamAnswer.question).joinedload(Question.matching_items),
-             joinedload(TeamAnswer.team),
-         )
          .filter(
              Tour.quiz_id == quiz.id,
              TeamAnswer.is_correct.is_(None),
              TeamAnswer.checked_by.is_(None),
          )
-         .order_by(TeamAnswer.submitted_at))
+         .order_by(TeamAnswer.submitted_at)
+         .with_for_update(skip_locked=True, of=TeamAnswer))
     if tour_id:
         q = q.filter(Tour.id == tour_id)
     if question_id:
@@ -77,6 +78,16 @@ def next_card():
     answer.checked_by = current_user.id
     answer.checked_by_at = datetime.utcnow()
     db.session.commit()
+
+    # После коммита подгружаем связи для рендера (вне FOR UPDATE-транзакции).
+    answer = (TeamAnswer.query
+              .options(
+                  joinedload(TeamAnswer.question).joinedload(Question.answer_options),
+                  joinedload(TeamAnswer.question).joinedload(Question.matching_items),
+                  joinedload(TeamAnswer.team),
+              )
+              .filter(TeamAnswer.id == answer.id)
+              .first())
 
     return jsonify({'answer': _answer_dict(answer, answer.team, answer.question)})
 
@@ -114,6 +125,20 @@ def check_answer(answer_id):
         _emit_scores(socketio, quiz)
 
     return jsonify({'ok': True, 'is_correct': answer.is_correct, 'score': answer.score})
+
+
+@judge_bp.route('/heartbeat/<answer_id>', methods=['POST'])
+@judge_required
+def heartbeat(answer_id):
+    """Frontend periodically pings — keeps the lock fresh while the card is on screen."""
+    updated = (TeamAnswer.query
+               .filter(TeamAnswer.id == answer_id,
+                       TeamAnswer.checked_by == current_user.id,
+                       TeamAnswer.is_correct.is_(None))
+               .update({'checked_by_at': datetime.utcnow()},
+                       synchronize_session=False))
+    db.session.commit()
+    return jsonify({'ok': bool(updated)})
 
 
 @judge_bp.route('/answers')

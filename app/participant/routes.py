@@ -138,6 +138,10 @@ def submit_answer():
         answer.score = 0
         answer.auto_checked = False
 
+    # Пересдача — сбрасываем блокировку/аудит, чтобы ответ сразу попал в очередь судей.
+    answer.checked_by = None
+    answer.checked_by_at = None
+
     db.session.commit()
 
     from app.sockets.utils import broadcast

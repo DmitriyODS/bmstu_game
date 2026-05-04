@@ -54,10 +54,10 @@ body { overflow: hidden; background: #f8fafc; }
 /* ── QUESTION ─────────────────────────────────────────────────────── */
 #screen-question {
     justify-content: flex-start;
-    padding: 2rem 3rem 37vh;
+    padding: 2rem 3rem 32vh;
     align-items: stretch;
-    gap: 1.5rem;
-    overflow-y: auto;
+    gap: 1.25rem;
+    overflow: hidden;
 }
 .q-topbar {
     display: flex;
@@ -106,13 +106,20 @@ body { overflow: hidden; background: #f8fafc; }
     overflow-wrap: anywhere;
 }
 #q-text-pres:empty { display: none; }
+#q-image-pres {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    flex-shrink: 1;
+}
 #q-image-pres img {
     max-height: 34vh;
     max-width: 100%;
     border-radius: 1rem;
     object-fit: contain;
     display: block;
-    margin: 0 auto 1rem;
+    margin: 0 auto;
 }
 #q-options-pres {
     display: grid;
@@ -356,10 +363,10 @@ body { overflow: hidden; background: #f8fafc; }
     backdrop-filter: blur(16px);
     border-top: 1.5px solid var(--c-border);
     box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
-    padding: 0.85rem 2.5rem 1rem;
+    padding: 0.7rem 2.5rem 0.85rem;
     transform: translateY(100%);
     transition: transform 0.35s cubic-bezier(.4,0,.2,1);
-    max-height: 35vh;
+    max-height: 30vh;
     overflow-y: auto;
 }
 #answers-panel.visible { transform: translateY(0); }
@@ -433,13 +440,30 @@ body { overflow: hidden; background: #f8fafc; }
 #screen-question.image-only-mode #q-options-pres { display: none !important; }
 
 /* ── TEXT + IMAGE QUESTION ────────────────────────────────────────── */
+/* Картинка раскрывается на всю ширину и тянется по высоте сколько можно;
+   текст-подпись фиксируется по высоте, шрифт ужимается под содержимое (см. fitTextToBox). */
 #screen-question.text-image-mode #q-image-pres {
     width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 #screen-question.text-image-mode #q-image-pres img {
-    max-height: 55vh;
+    max-height: 100%;
+    max-width: 100%;
     width: 100%;
+    height: 100%;
     object-fit: contain;
+}
+#screen-question.text-image-mode #q-text-pres {
+    flex: 0 0 auto;
+    height: 14vh;
+    overflow: hidden;
+    padding: 0.5rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
+    /* font-size задаётся в fitTextToBox по фактической вместимости */
 }
 
 /* ── FORMATTED TEXT QUESTION ──────────────────────────────────────── */
@@ -810,18 +834,41 @@ function buildOptionTile(letter, text, opts) {
     return tile;
 }
 
+function fitTextToBox(el, opts) {
+    if (!el) return;
+    const o = opts || {};
+    const minPx = o.min || 14;
+    const maxPx = o.max || 36;
+    // Сбрасываем кастомный font-size, чтобы измерение шло от maxPx.
+    el.style.fontSize = maxPx + 'px';
+    let size = maxPx;
+    // Уменьшаем шрифт пока контент не помещается в контейнер целиком.
+    while (size > minPx &&
+           (el.scrollHeight > el.clientHeight + 1 ||
+            el.scrollWidth > el.clientWidth + 1)) {
+        size -= 1;
+        el.style.fontSize = size + 'px';
+    }
+}
+
 function loadQuestion(q) {
     const screenEl = document.getElementById('screen-question');
     screenEl.classList.toggle('image-only-mode', q.question_type === 'image_only');
     screenEl.classList.toggle('text-image-mode', q.question_type === 'text_image');
 
     const textPresEl = document.getElementById('q-text-pres');
+    // Сбрасываем inline font-size перед каждой загрузкой (от прошлого text_image).
+    textPresEl.style.fontSize = '';
     if (q.question_type === 'formatted_text') {
         textPresEl.classList.add('formatted-mode');
         textPresEl.innerHTML = typeof marked !== 'undefined' ? renderFormatted(q.text || '') : (q.text || '');
     } else {
         textPresEl.classList.remove('formatted-mode');
         textPresEl.textContent = q.text || '';
+    }
+    if (q.question_type === 'text_image' && (q.text || '').trim()) {
+        // Картинка может ещё грузиться — ждём кадр + load(), чтобы ужать шрифт после раскладки.
+        requestAnimationFrame(() => fitTextToBox(textPresEl, {min: 14, max: 36}));
     }
     document.getElementById('q-meta-pres').textContent =
         `${q.points}\u2009балл${q.points === 1 ? '' : '(ов)'} · ${q.time_seconds}\u2009с`;

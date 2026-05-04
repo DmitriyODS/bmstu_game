@@ -120,6 +120,7 @@ let currentCard = null;
 let modalAnswer = null;
 const socket = io('/judge');
 
+updateQuestionFilter();
 setMode(mode);
 
 function escHtml(s) {
@@ -134,8 +135,13 @@ function setMode(m) {
     document.getElementById('mode-table').classList.toggle('hidden', m !== 'table');
     document.getElementById('btn-tinder').className = `btn btn-sm join-item ${m === 'tinder' ? 'btn-primary' : 'btn-outline'}`;
     document.getElementById('btn-table').className = `btn btn-sm join-item ${m === 'table' ? 'btn-primary' : 'btn-outline'}`;
-    if (m === 'tinder') loadNextCard();
-    else loadTable();
+    if (m === 'tinder') {
+        loadNextCard();
+    } else {
+        stopHeartbeat();
+        currentCard = null;
+        loadTable();
+    }
 }
 
 function getFilters() {
@@ -157,25 +163,56 @@ function updateQuestionFilter() {
     const sel = document.getElementById('filter-question');
     const currentVal = sel.value;
     sel.innerHTML = '<option value="">Все вопросы</option>';
-    if (!tourId) return;
-    const tour = TOURS_DATA.find(t => t.id === tourId);
-    if (!tour) return;
-    tour.questions.forEach(q => {
+
+    const addOpt = (parent, q) => {
         const opt = document.createElement('option');
         opt.value = q.id;
         opt.textContent = q.text || '(без текста)';
-        sel.appendChild(opt);
-    });
-    if ([...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
+        parent.appendChild(opt);
+    };
+
+    if (tourId) {
+        const tour = TOURS_DATA.find(t => t.id === tourId);
+        if (tour) tour.questions.forEach(q => addOpt(sel, q));
+    } else {
+        TOURS_DATA.forEach((t, idx) => {
+            if (!t.questions || !t.questions.length) return;
+            const grp = document.createElement('optgroup');
+            grp.label = t.title || `Тур ${idx + 1}`;
+            t.questions.forEach(q => addOpt(grp, q));
+            sel.appendChild(grp);
+        });
+    }
+
+    if ([...sel.querySelectorAll('option')].some(o => o.value === currentVal)) {
+        sel.value = currentVal;
+    }
+}
+
+let _heartbeatTimer = null;
+function stopHeartbeat() {
+    if (_heartbeatTimer) {
+        clearInterval(_heartbeatTimer);
+        _heartbeatTimer = null;
+    }
+}
+function startHeartbeat(answerId) {
+    stopHeartbeat();
+    _heartbeatTimer = setInterval(() => {
+        fetch(`/judge/heartbeat/${answerId}`, {method: 'POST', keepalive: true})
+            .catch(() => {});
+    }, 15000);
 }
 
 async function loadNextCard() {
+    stopHeartbeat();
     const f = getFilters();
     const params = new URLSearchParams(f);
     const res = await fetch(`/judge/next-card?${params}`);
     const data = await res.json();
     currentCard = data.answer;
     renderCard(currentCard);
+    if (currentCard) startHeartbeat(currentCard.id);
 }
 
 function renderAnswerContent(answer) {
