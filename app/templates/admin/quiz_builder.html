@@ -425,8 +425,26 @@
                     </div>
 
                     <div id="q-correct-block" class="mb-4 hidden">
-                        <label class="label"><span class="label-text">Правильный ответ (для судей)</span></label>
-                        <textarea id="q-correct" class="textarea textarea-bordered w-full" rows="2"></textarea>
+                        <label class="label"><span class="label-text">Правильный ответ</span></label>
+                        <div class="flex flex-wrap gap-1 mb-2 bg-base-200 p-1.5 rounded-lg">
+                            <button type="button" onclick="insertCorrectFmt('**','**')" class="btn btn-xs btn-ghost font-bold" title="Жирный">B</button>
+                            <button type="button" onclick="insertCorrectFmt('*','*')" class="btn btn-xs btn-ghost italic" title="Курсив">I</button>
+                            <div class="divider divider-horizontal mx-0 my-0"></div>
+                            <button type="button" onclick="insertCorrectFmt('# ','')" class="btn btn-xs btn-ghost text-xs">H1</button>
+                            <button type="button" onclick="insertCorrectFmt('## ','')" class="btn btn-xs btn-ghost text-xs">H2</button>
+                            <div class="divider divider-horizontal mx-0 my-0"></div>
+                            <button type="button" onclick="insertCorrectFmt('- ','')" class="btn btn-xs btn-ghost text-xs">• список</button>
+                        </div>
+                        <textarea id="q-correct" class="textarea textarea-bordered w-full font-mono text-sm" rows="3"
+                                  placeholder="Поддерживается Markdown: **жирный**, *курсив*, # заголовок, - список"
+                                  oninput="updateCorrectPreview()"></textarea>
+                        <div class="mt-2 border border-base-300 rounded-lg overflow-hidden" id="q-correct-preview-wrap">
+                            <div class="bg-base-200 px-3 py-1 text-xs text-base-content/50 font-medium flex items-center gap-1">
+                                <span class="material-symbols-outlined" style="font-size:14px">preview</span>
+                                Предпросмотр
+                            </div>
+                            <div id="q-correct-preview" class="p-3 min-h-8 text-sm formatted-content prose max-w-none"></div>
+                        </div>
                     </div>
 
                     <div class="flex gap-2 pt-2 border-t border-base-200">
@@ -663,6 +681,7 @@ async function selectQuestion(qId) {
     document.getElementById('q-text').value = q.text || '';
     document.getElementById('q-correct').value = q.correct_answer || '';
     document.getElementById('q-formatted-text').value = q.question_type === 'formatted_text' ? (q.text || '') : '';
+    updateCorrectPreview();
 
     document.getElementById('q-image-url').value = '';
     document.getElementById('q-image-preview').innerHTML =
@@ -1116,6 +1135,27 @@ function updateFmtPreview() {
     if (typeof marked !== 'undefined') {
         preview.innerHTML = renderFormatted(text);
     }
+}
+
+function updateCorrectPreview() {
+    const text = document.getElementById('q-correct').value;
+    const preview = document.getElementById('q-correct-preview');
+    if (!preview) return;
+    if (typeof marked !== 'undefined') {
+        preview.innerHTML = text ? marked.parse(text) : '';
+    }
+}
+
+function insertCorrectFmt(before, after) {
+    const ta = document.getElementById('q-correct');
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = ta.value.substring(start, end);
+    ta.value = ta.value.substring(0, start) + before + selected + after + ta.value.substring(end);
+    ta.selectionStart = start + before.length;
+    ta.selectionEnd = start + before.length + selected.length;
+    ta.focus();
+    updateCorrectPreview();
 }
 
 function insertFmt(before, after) {
