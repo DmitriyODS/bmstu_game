@@ -820,6 +820,17 @@ if (_preloadUrls.length > 0) {
 // удалённые URL'ы на blob: из preload-кеша.
 AudioManager.setMediaResolver(resolveMedia);
 
+// Preview-режим (iframe в админке): глушим звук и прячем оверлеи.
+const IS_PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
+if (IS_PREVIEW) {
+    AudioManager.play = () => null;
+    AudioManager.getDuration = () => Promise.resolve(0);
+    const _ovl = document.getElementById('audio-unlock-overlay');
+    if (_ovl) _ovl.style.display = 'none';
+    const _pi = document.getElementById('preload-indicator');
+    if (_pi) _pi.style.display = 'none';
+}
+
 // ── Screen ──────────────────────────────────────────────────────────────────────
 function showScreen(name) {
     document.querySelectorAll('.pres-screen').forEach(el => {

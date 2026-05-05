@@ -1,286 +1,466 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Управление: {{ quiz.title }}{% endblock %}
 
+{% block head %}
+<style>
+/* ── Live-миниатюра презентации ─────────────────────────────────────── */
+.preview-shell {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #0f172a;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    isolation: isolate;
+}
+.preview-shell > iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1920px;
+    height: 1080px;
+    border: 0;
+    transform-origin: top left;
+    pointer-events: none;
+}
+.preview-overlay-label {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 1;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.55rem;
+    border-radius: 0.4rem;
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+}
+.preview-overlay-label::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ef4444;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+    animation: blink 1.6s infinite;
+}
+@keyframes blink {
+    0%, 60% { opacity: 1; }
+    80%, 100% { opacity: 0.25; }
+}
+
+/* ── Программа: подсветка активного ─────────────────────────────────── */
+.q-row {
+    border-left: 3px solid transparent;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+.q-row.active {
+    background-color: hsl(var(--p) / 0.13);
+    border-left-color: hsl(var(--p));
+    font-weight: 600;
+}
+.tour-block.active-tour > .tour-header {
+    background-color: hsl(var(--p) / 0.07);
+}
+.slide-row.active {
+    background-color: hsl(var(--s) / 0.13);
+    border-left: 3px solid hsl(var(--s));
+}
+.slide-row {
+    border-left: 3px solid transparent;
+}
+
+/* Универсальные экраны: активная — заполненная primary */
+.screen-chip[data-active="1"] {
+    background-color: hsl(var(--p));
+    color: hsl(var(--pc));
+    border-color: hsl(var(--p));
+}
+.screen-chip[data-active="1"]:hover {
+    background-color: hsl(var(--p));
+    filter: brightness(1.05);
+}
+
+/* Скроллируемые области */
+.col-scroll {
+    min-height: 0;
+}
+@media (min-width: 1280px) {
+    .col-scroll {
+        max-height: calc(100vh - 110px);
+        overflow-y: auto;
+    }
+}
+
+/* Таймер */
+.timer-shell {
+    background: linear-gradient(180deg, hsl(var(--b1)) 0%, hsl(var(--b2)) 100%);
+    border: 1px solid hsl(var(--b3));
+}
+.timer-num {
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+.timer-num.danger { color: hsl(var(--er)); }
+.timer-num.normal { color: hsl(var(--p)); }
+
+.btn-timer-primary {
+    height: 3.25rem;
+    font-size: 0.95rem;
+}
+</style>
+{% endblock %}
+
 {% block admin_content %}
 
-{# ── Шапка ── #}
-<div class="flex flex-wrap justify-between items-center gap-3 mb-5">
-    <div>
-        <h1 class="text-xl sm:text-2xl font-bold">{{ quiz.title }}</h1>
-        <div class="flex items-center gap-2 mt-1 flex-wrap">
-            <span class="text-sm text-base-content/50">Экран:</span>
-            <span class="badge badge-primary" id="current-screen-badge">{{ gs.current_screen if gs else 'splash' }}</span>
-            <span class="badge badge-secondary hidden" id="question-position-badge"></span>
-        </div>
+{# ── Шапка ────────────────────────────────────────────────────────── #}
+<header class="flex flex-wrap items-center gap-3 mb-3">
+    <div class="flex items-center gap-2 min-w-0 flex-1">
+        <h1 class="text-lg sm:text-xl font-bold truncate min-w-0">{{ quiz.title }}</h1>
+        <span class="badge badge-primary gap-1 shrink-0">
+            <span class="material-symbols-outlined" style="font-size:13px">tv</span>
+            <span id="current-screen-badge">{{ gs.current_screen if gs else 'splash' }}</span>
+        </span>
+        <span id="question-position-badge" class="badge badge-secondary badge-outline hidden shrink-0"></span>
     </div>
-    <div class="flex flex-wrap gap-2">
+    <div class="flex flex-wrap items-center gap-1.5">
         <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-ghost btn-sm">
             <span class="material-symbols-outlined icon-sm">edit_note</span>
-            Конструктор
+            <span class="hidden sm:inline">Конструктор</span>
         </a>
-        <a href="/screen" target="_blank" class="btn btn-outline btn-sm">
-            <span class="material-symbols-outlined icon-sm">desktop_windows</span>
-            Презентация
+        <a href="/screen" target="_blank" class="btn btn-ghost btn-sm">
+            <span class="material-symbols-outlined icon-sm">open_in_new</span>
+            <span class="hidden sm:inline">Презентация</span>
         </a>
-
-        <a href="/judge/" target="_blank" class="btn btn-outline btn-sm">
+        <a href="/judge/" target="_blank" class="btn btn-ghost btn-sm">
             <span class="material-symbols-outlined icon-sm">balance</span>
-            Судьи
+            <span class="hidden sm:inline">Судьи</span>
         </a>
-        <form method="POST" action="{{ url_for('admin.quiz_deactivate', quiz_id=quiz.id) }}" id="deactivate-form">
+        <form method="POST" action="{{ url_for('admin.quiz_deactivate', quiz_id=quiz.id) }}" id="deactivate-form" class="inline">
             <button type="button" class="btn btn-error btn-sm"
                     onclick="confirmAndSubmit(document.getElementById('deactivate-form'), 'Завершить квиз и деактивировать?')">
                 <span class="material-symbols-outlined icon-sm">stop_circle</span>
-                Завершить квиз
+                <span class="hidden sm:inline">Завершить</span>
             </button>
         </form>
     </div>
-</div>
+</header>
 
-{# ── Быстрые экраны ── #}
-<div class="card bg-base-100 shadow mb-5">
-    <div class="card-body py-3 px-4">
-        <div class="flex flex-wrap gap-2 items-center">
-            <span class="text-xs text-base-content/50 font-semibold uppercase tracking-wide mr-1">Экраны</span>
-            <button onclick="changeScreen('splash')" class="btn btn-sm screen-btn" data-screen="splash">
-                <span class="material-symbols-outlined icon-sm">slideshow</span>Заставка
-            </button>
-            <button onclick="openRegistration()" class="btn btn-sm screen-btn" data-screen="registration">
-                <span class="material-symbols-outlined icon-sm">app_registration</span>Регистрация
-            </button>
-            <button onclick="changeScreen('teams')" class="btn btn-sm screen-btn" data-screen="teams">
-                <span class="material-symbols-outlined icon-sm">groups</span>Команды
-            </button>
-            <button onclick="changeScreen('waiting')" class="btn btn-sm screen-btn" data-screen="waiting">
-                <span class="material-symbols-outlined icon-sm">hourglass_empty</span>Ожидание
-            </button>
-            <div class="flex-1"></div>
-            <button onclick="changeScreen('game_results')" class="btn btn-sm btn-success screen-btn" data-screen="game_results">
-                <span class="material-symbols-outlined icon-sm">emoji_events</span>Итоги игры
-            </button>
-        </div>
-    </div>
-</div>
+{# ── Основная сетка ──────────────────────────────────────────────── #}
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start">
 
-{# ── Основная сетка ── #}
-<div class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
+    {# ─── Левая колонка: Программа ─── #}
+    <aside class="xl:col-span-5 flex flex-col gap-3 col-scroll">
 
-    {# ── Левая часть: туры и вопросы ── #}
-    <div class="xl:col-span-2 flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-220px)] pr-1">
-        {% set ns = namespace(tour_num=0) %}
-        {% for tour in quiz.tours %}
-        {% if tour.is_slide %}
-        {# Слайд #}
-        <div class="card bg-base-100 shadow border-l-4 border-secondary">
-            <div class="card-body p-0">
-                <div class="flex items-center justify-between gap-2 px-4 py-3">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <span class="material-symbols-outlined text-secondary shrink-0" style="font-size:18px">slideshow</span>
-                        <span class="font-bold text-base truncate">{{ tour.title }}</span>
-                        <span class="badge badge-secondary badge-sm shrink-0">Слайд</span>
-                    </div>
-                    <div class="flex gap-2 shrink-0">
-                        {% if tour.slide_audio_path %}
-                        <button onclick="stopScreenAudioCmd()" class="btn btn-xs btn-ghost" title="Стоп аудио">
-                            <span class="material-symbols-outlined icon-sm">stop_circle</span>
-                        </button>
-                        {% endif %}
-                        <button onclick="showCustomSlide('{{ tour.id }}')"
-                                class="btn btn-xs btn-secondary screen-btn" data-screen="custom_slide" data-tour-id="{{ tour.id }}">
-                            <span class="material-symbols-outlined icon-sm">open_in_full</span>
-                            Отобразить
-                        </button>
-                    </div>
+        {# Универсальные экраны #}
+        <section class="card bg-base-100 shadow-sm">
+            <div class="card-body p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-base-content/50">Экраны</h2>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                    <button onclick="changeScreen('splash')" class="btn btn-sm btn-outline screen-chip" data-screen="splash">
+                        <span class="material-symbols-outlined icon-sm">slideshow</span>Заставка
+                    </button>
+                    <button onclick="changeScreen('registration')" class="btn btn-sm btn-outline screen-chip" data-screen="registration">
+                        <span class="material-symbols-outlined icon-sm">app_registration</span>Регистрация
+                    </button>
+                    <button onclick="changeScreen('teams')" class="btn btn-sm btn-outline screen-chip" data-screen="teams">
+                        <span class="material-symbols-outlined icon-sm">groups</span>Команды
+                    </button>
+                    <button onclick="changeScreen('waiting')" class="btn btn-sm btn-outline screen-chip" data-screen="waiting">
+                        <span class="material-symbols-outlined icon-sm">hourglass_empty</span>Ожидание
+                    </button>
+                    <button onclick="changeScreen('game_results')" class="btn btn-sm btn-outline btn-success screen-chip" data-screen="game_results">
+                        <span class="material-symbols-outlined icon-sm">emoji_events</span>Итоги игры
+                    </button>
                 </div>
             </div>
-        </div>
-        {% else %}
-        {# Обычный тур #}
-        {% set ns.tour_num = ns.tour_num + 1 %}
-        <div class="card bg-base-100 shadow">
-            <div class="card-body p-0">
+        </section>
 
-                {# Заголовок тура #}
-                <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-base-200">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <span class="text-base-content/30 font-mono text-sm shrink-0">{{ ns.tour_num }}</span>
-                        <span class="font-bold text-base truncate min-w-0 flex-1 mr-2">{{ tour.title }}</span>
-                    </div>
-                    <div class="flex gap-2 shrink-0">
-                        <button onclick="showTourSplash('{{ tour.id }}')"
-                                class="btn btn-xs btn-ghost screen-btn" data-screen="tour_splash" data-tour-id="{{ tour.id }}">
-                            <span class="material-symbols-outlined icon-sm">photo_library</span>
-                            <span class="hidden sm:inline">Заставка тура</span>
-                        </button>
-                        <button onclick="showTourResults('{{ tour.id }}')"
-                                class="btn btn-xs btn-ghost screen-btn" data-screen="tour_results" data-tour-id="{{ tour.id }}">
-                            <span class="material-symbols-outlined icon-sm">bar_chart</span>
-                            <span class="hidden sm:inline">Итоги тура</span>
-                        </button>
-                    </div>
+        {# Туры и вопросы #}
+        <section class="card bg-base-100 shadow-sm flex flex-col flex-1 min-h-0">
+            <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-base-200">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-base-content/50">Программа</h2>
+                <div class="flex gap-0.5">
+                    <button onclick="toggleAllTours(true)" class="btn btn-ghost btn-xs btn-square" title="Развернуть все">
+                        <span class="material-symbols-outlined" style="font-size:16px">unfold_more</span>
+                    </button>
+                    <button onclick="toggleAllTours(false)" class="btn btn-ghost btn-xs btn-square" title="Свернуть все">
+                        <span class="material-symbols-outlined" style="font-size:16px">unfold_less</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-y-auto flex-1 min-h-0" id="program-list">
+            {% set ns = namespace(tour_num=0) %}
+            {% for tour in quiz.tours %}
+
+                {% if tour.is_slide %}
+                {# ─── Слайд ─── #}
+                <div class="slide-row flex items-center gap-2 px-3 py-2 hover:bg-base-200/50 border-b border-base-200/60"
+                     data-tour-id="{{ tour.id }}"
+                     data-screen="custom_slide">
+                    <span class="material-symbols-outlined text-secondary shrink-0" style="font-size:18px">slideshow</span>
+                    <span class="badge badge-secondary badge-sm shrink-0">Слайд</span>
+                    <span class="font-semibold text-sm truncate flex-1 min-w-0">{{ tour.title }}</span>
+                    {% if tour.slide_audio_path %}
+                    <button onclick="stopScreenAudioCmd()" class="btn btn-ghost btn-xs btn-square" title="Стоп аудио">
+                        <span class="material-symbols-outlined icon-sm">volume_off</span>
+                    </button>
+                    {% endif %}
+                    <button onclick="showCustomSlide('{{ tour.id }}')"
+                            class="btn btn-xs btn-secondary screen-btn" data-screen="custom_slide" data-tour-id="{{ tour.id }}">
+                        <span class="material-symbols-outlined icon-sm">play_arrow</span>Показать
+                    </button>
                 </div>
 
-                {# Список вопросов #}
-                {% if tour.questions %}
-                <div class="divide-y divide-base-200">
-                    {% for q in tour.questions %}
-                    <div class="flex items-center gap-3 px-4 py-2 hover:bg-base-200/50 transition-colors question-row"
-                         id="qrow-{{ q.id }}" data-q-id="{{ q.id }}">
+                {% else %}
+                {# ─── Обычный тур ─── #}
+                {% set ns.tour_num = ns.tour_num + 1 %}
+                <div class="tour-block border-b border-base-200/60" data-tour-id="{{ tour.id }}" id="tour-block-{{ tour.id }}">
 
-                        {# Номер #}
-                        <span class="text-base-content/40 font-mono text-sm w-6 text-right shrink-0">{{ loop.index }}</span>
-
-                        {# Текст вопроса #}
-                        <span class="flex-1 text-sm truncate">
-                            {{ q.text or '— без текста —' }}
-                        </span>
-
-                        {# Тип ответа #}
-                        <span class="badge badge-ghost badge-sm shrink-0 hidden sm:flex">
-                            {% if q.answer_type == 'single_choice' %}один
-                            {% elif q.answer_type == 'multiple_choice' %}несколько
-                            {% elif q.answer_type == 'short_text' %}текст
-                            {% elif q.answer_type == 'long_text' %}текст
-                            {% elif q.answer_type == 'matching' %}соответствие
-                            {% else %}{{ q.answer_type }}{% endif %}
-                        </span>
-
-                        {# Время #}
-                        <span class="text-xs text-base-content/40 shrink-0 hidden md:block">{{ q.time_seconds }}с</span>
-
-                        {# Кнопки действий #}
+                    <div class="tour-header flex items-center gap-2 px-2 py-2 hover:bg-base-200/30">
+                        <button onclick="toggleTour('{{ tour.id }}')"
+                                class="btn btn-ghost btn-xs btn-square shrink-0" title="Свернуть/развернуть">
+                            <span class="material-symbols-outlined tour-toggle-icon" style="font-size:18px">expand_more</span>
+                        </button>
+                        <span class="text-base-content/40 font-mono text-xs w-6 text-center shrink-0">{{ ns.tour_num }}</span>
+                        <span class="font-semibold text-sm truncate flex-1 min-w-0">{{ tour.title }}</span>
                         <div class="flex gap-1 shrink-0">
-                            <button onclick="showQuestion('{{ q.id }}')"
-                                    class="btn btn-xs btn-outline" title="Показать вопрос">
-                                <span class="material-symbols-outlined icon-sm">play_arrow</span>
+                            <button onclick="showTourSplash('{{ tour.id }}')"
+                                    class="btn btn-ghost btn-xs screen-btn" data-screen="tour_splash" data-tour-id="{{ tour.id }}"
+                                    title="Заставка тура">
+                                <span class="material-symbols-outlined icon-sm">photo_library</span>
                             </button>
-                            <button onclick="showQuestionAnswer('{{ q.id }}')"
-                                    class="btn btn-xs btn-outline btn-info" title="Показать ответ">
-                                <span class="material-symbols-outlined icon-sm">check_circle</span>
+                            <button onclick="showTourResults('{{ tour.id }}')"
+                                    class="btn btn-ghost btn-xs screen-btn" data-screen="tour_results" data-tour-id="{{ tour.id }}"
+                                    title="Итоги тура">
+                                <span class="material-symbols-outlined icon-sm">leaderboard</span>
                             </button>
                         </div>
                     </div>
-                    {% endfor %}
+
+                    <div class="tour-questions">
+                    {% if tour.questions %}
+                        {% for q in tour.questions %}
+                        <div class="q-row flex items-center gap-2 pl-10 pr-2 py-1.5 hover:bg-base-200/40"
+                             id="qrow-{{ q.id }}" data-q-id="{{ q.id }}">
+                            <span class="text-base-content/40 font-mono text-xs w-5 text-right shrink-0">{{ loop.index }}</span>
+                            <span class="material-symbols-outlined text-base-content/50 shrink-0" style="font-size:14px"
+                                  title="{{ q.question_type }}">
+                                {% if q.question_type == 'audio' %}music_note
+                                {% elif q.question_type == 'image_only' %}image
+                                {% elif q.question_type == 'text_image' %}image
+                                {% elif q.question_type == 'formatted_text' %}format_color_text
+                                {% else %}help{% endif %}
+                            </span>
+                            <span class="text-sm truncate flex-1 min-w-0 {% if not q.text %}italic text-base-content/40{% endif %}">
+                                {{ q.text or '— без текста —' }}
+                            </span>
+                            <span class="text-xs text-base-content/40 shrink-0 hidden sm:inline">{{ q.time_seconds }}с</span>
+                            <span class="text-xs text-base-content/40 shrink-0 hidden md:inline" title="Баллы">{{ q.points }}б</span>
+                            <div class="flex gap-0.5 shrink-0">
+                                <button onclick="showQuestion('{{ q.id }}')"
+                                        class="btn btn-xs btn-ghost btn-square" title="Показать вопрос">
+                                    <span class="material-symbols-outlined icon-sm text-primary">play_arrow</span>
+                                </button>
+                                <button onclick="showQuestionAnswer('{{ q.id }}')"
+                                        class="btn btn-xs btn-ghost btn-square" title="Показать ответ">
+                                    <span class="material-symbols-outlined icon-sm text-info">check_circle</span>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="pl-10 pr-3 py-2 text-xs italic text-base-content/40">Нет вопросов</div>
+                    {% endif %}
+                    </div>
                 </div>
-                {% else %}
-                <div class="px-4 py-3 text-sm text-base-content/40">Нет вопросов</div>
                 {% endif %}
+            {% endfor %}
 
+            {% if not quiz.tours %}
+            <div class="px-3 py-6 text-center text-sm text-base-content/40">
+                Нет туров. Перейдите в
+                <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="link link-primary">конструктор</a>.
             </div>
-        </div>
-        {% endif %}
-        {% endfor %}
-    </div>
+            {% endif %}
+            </div>
+        </section>
 
-    {# ── Правая часть: управление ── #}
-    <div class="flex flex-col gap-4 sticky top-4">
+    </aside>
+
+    {# ─── Правая колонка: Сцена ─── #}
+    <main class="xl:col-span-7 flex flex-col gap-3 col-scroll">
+
+        {# Live-миниатюра #}
+        <section class="card bg-base-100 shadow-sm">
+            <div class="card-body p-3">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-base-content/50 flex items-center gap-1">
+                        <span class="material-symbols-outlined" style="font-size:14px">tv</span>
+                        На экране
+                    </h2>
+                    <div class="flex items-center gap-1">
+                        <button onclick="reloadPreview()" class="btn btn-ghost btn-xs btn-square" title="Обновить миниатюру">
+                            <span class="material-symbols-outlined icon-sm">refresh</span>
+                        </button>
+                        <button onclick="hideScreen()" class="btn btn-ghost btn-xs gap-1" title="Скрыть (вернуться к заставке)">
+                            <span class="material-symbols-outlined icon-sm">visibility_off</span>
+                            <span class="hidden sm:inline">Скрыть</span>
+                        </button>
+                        <a href="/screen" target="_blank" class="btn btn-ghost btn-xs btn-square" title="Открыть в новом окне">
+                            <span class="material-symbols-outlined icon-sm">open_in_new</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="preview-shell" id="preview-shell">
+                    <span class="preview-overlay-label">LIVE</span>
+                    <iframe id="preview-iframe" src="/screen?preview=1" tabindex="-1"></iframe>
+                </div>
+            </div>
+        </section>
 
         {# Активный вопрос + таймер #}
-        <div class="card bg-base-100 shadow" id="active-question-card">
-            <div class="card-body">
-                <h2 class="card-title text-sm text-base-content/60 font-semibold uppercase tracking-wide">Активный вопрос</h2>
-
-                <div id="no-question-hint" class="text-sm text-base-content/40 text-center py-4">
-                    Выберите вопрос слева
+        <section class="card bg-base-100 shadow-sm" id="active-question-card">
+            <div class="card-body p-4">
+                <div id="no-question-hint" class="flex flex-col items-center justify-center text-center py-6 text-base-content/40">
+                    <span class="material-symbols-outlined" style="font-size:36px">touch_app</span>
+                    <div class="text-sm mt-1">Выберите вопрос в списке слева</div>
                 </div>
 
                 <div id="question-controls" class="hidden">
-                    <div id="active-q-position" class="hidden text-xs font-semibold text-secondary mb-1"></div>
-                    <p class="text-sm text-base-content/70 mb-3 line-clamp-2" id="active-q-text"></p>
-                    <div class="flex gap-2 items-center mb-1">
-                        <span class="text-xs text-base-content/40" id="active-q-meta"></span>
+                    <div class="flex items-start justify-between gap-2 mb-3">
+                        <div class="min-w-0 flex-1">
+                            <div class="text-xs font-bold uppercase tracking-wider text-secondary mb-0.5" id="active-q-position"></div>
+                            <p class="text-sm leading-snug line-clamp-2" id="active-q-text">—</p>
+                            <div class="text-xs text-base-content/50 mt-1" id="active-q-meta"></div>
+                        </div>
+                        <div class="flex flex-col gap-1 shrink-0">
+                            <button onclick="navQuestion(-1)" class="btn btn-ghost btn-xs btn-square" id="btn-nav-prev" title="Предыдущий вопрос">
+                                <span class="material-symbols-outlined icon-sm">keyboard_arrow_up</span>
+                            </button>
+                            <button onclick="navQuestion(1)" class="btn btn-ghost btn-xs btn-square" id="btn-nav-next" title="Следующий вопрос">
+                                <span class="material-symbols-outlined icon-sm">keyboard_arrow_down</span>
+                            </button>
+                        </div>
                     </div>
 
-                    {# Таймер #}
-                    <div class="text-center my-3">
-                        <div class="text-7xl font-mono font-bold leading-none" id="timer-display">--</div>
-                        <div class="text-xs text-base-content/40 mt-1">секунд</div>
-                    </div>
-
-                    {# Кнопки таймера #}
-                    <div class="grid grid-cols-3 gap-2 mb-3">
-                        <button onclick="startTimer()" class="btn btn-success btn-sm" id="btn-start-timer">
-                            <span class="material-symbols-outlined icon-sm">play_arrow</span>
-                            Старт
-                        </button>
-                        <button onclick="pauseTimer()" class="btn btn-warning btn-sm" id="btn-pause-timer">
-                            <span class="material-symbols-outlined icon-sm">pause</span>
-                            Пауза
-                        </button>
-                        <button onclick="resetTimer()" class="btn btn-ghost btn-sm">
-                            <span class="material-symbols-outlined icon-sm">refresh</span>
-                            Сброс
-                        </button>
+                    {# Таймер + кнопки #}
+                    <div class="grid grid-cols-1 sm:grid-cols-[1fr_10rem] gap-3">
+                        <div class="timer-shell rounded-xl flex flex-col items-center justify-center py-3">
+                            <div class="text-6xl sm:text-7xl font-black timer-num normal" id="timer-display">--</div>
+                            <div class="text-xs uppercase tracking-wider text-base-content/40 mt-0.5">секунд</div>
+                        </div>
+                        <div class="grid grid-cols-3 sm:grid-cols-1 gap-2">
+                            <button onclick="startTimer()" class="btn btn-success btn-timer-primary gap-1" id="btn-start-timer">
+                                <span class="material-symbols-outlined icon-sm">play_arrow</span>
+                                Старт
+                            </button>
+                            <button onclick="pauseTimer()" class="btn btn-warning btn-timer-primary gap-1">
+                                <span class="material-symbols-outlined icon-sm">pause</span>
+                                Пауза
+                            </button>
+                            <button onclick="resetTimer()" class="btn btn-ghost btn-timer-primary gap-1">
+                                <span class="material-symbols-outlined icon-sm">refresh</span>
+                                Сброс
+                            </button>
+                        </div>
                     </div>
 
                     {# Аудио-секция (только для вопросов типа audio) #}
                     <div id="audio-question-section" class="hidden mt-3 pt-3 border-t border-base-200">
-                        <div class="text-xs text-base-content/50 mb-2 font-semibold uppercase tracking-wide">Аудио вопрос</div>
-                        <button onclick="playAudioAndTimer()" class="btn btn-success btn-sm w-full gap-1 mb-1" id="btn-play-audio-timer">
-                            <span class="material-symbols-outlined icon-sm">play_circle</span>
-                            Воспроизвести → Таймер
-                        </button>
-                        <div id="audio-play-progress" class="hidden mt-1">
-                            <progress class="progress progress-success w-full" id="audio-progress-bar" value="0" max="100"></progress>
-                            <div class="text-xs text-center text-base-content/40 mt-0.5">Воспроизведение...</div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="material-symbols-outlined text-primary" style="font-size:18px">music_note</span>
+                            <span class="text-xs font-bold uppercase tracking-wider text-base-content/60">Аудио вопрос</span>
                         </div>
-                        <button onclick="stopScreenAudioCmd()" class="btn btn-error btn-outline btn-sm w-full gap-1 mt-1">
-                            <span class="material-symbols-outlined icon-sm">stop_circle</span>
-                            Остановить звук на экране
-                        </button>
+                        <div class="flex gap-2">
+                            <button onclick="playAudioAndTimer()" class="btn btn-success btn-sm flex-1 gap-1" id="btn-play-audio-timer">
+                                <span class="material-symbols-outlined icon-sm">play_circle</span>
+                                Воспроизвести → Таймер
+                            </button>
+                            <button onclick="stopScreenAudioCmd()" class="btn btn-error btn-outline btn-sm btn-square" title="Остановить звук">
+                                <span class="material-symbols-outlined icon-sm">stop_circle</span>
+                            </button>
+                        </div>
+                        <div id="audio-play-progress" class="hidden mt-2">
+                            <progress class="progress progress-success w-full" id="audio-progress-bar" value="0" max="100"></progress>
+                        </div>
                     </div>
 
-                    <button onclick="showAnswer()" class="btn btn-info btn-sm w-full mt-3">
+                    <button onclick="showAnswer()" class="btn btn-info btn-sm w-full mt-3 gap-1">
                         <span class="material-symbols-outlined icon-sm">check_circle</span>
                         Показать ответ
                     </button>
                 </div>
-            </div>
-        </div>
 
-        {# Ответы #}
-        <div class="card bg-base-100 shadow">
-            <div class="card-body">
-                <h2 class="card-title text-sm text-base-content/60 font-semibold uppercase tracking-wide">Ответы</h2>
-                <div class="flex items-end gap-2 mt-1">
-                    <span class="text-5xl font-bold leading-none" id="answers-count">0</span>
-                    <span class="text-base-content/40 text-lg pb-1">/ <span id="teams-total">{{ quiz.teams|length }}</span></span>
-                </div>
-                <progress class="progress progress-primary mt-2" id="answers-progress"
-                          value="0" max="{{ quiz.teams|length }}"></progress>
-            </div>
-        </div>
-
-        {# Команды #}
-        <div class="card bg-base-100 shadow">
-            <div class="card-body">
-                <h2 class="card-title text-sm text-base-content/60 font-semibold uppercase tracking-wide">
-                    Команды
-                    <span class="badge badge-ghost ml-1 teams-counter">{{ quiz.teams|length }}</span>
-                </h2>
-                <div class="flex flex-col gap-1 mt-2 max-h-72 overflow-y-auto" id="teams-list">
-                    {% for team in quiz.teams %}
-                    <div class="flex items-center justify-between text-sm py-1 px-1 rounded gap-2"
-                         id="team-row-{{ team.id }}">
-                        <span class="truncate team-name">{{ team.name }}</span>
-                        <div class="flex items-center gap-2 shrink-0">
-                            <span class="text-xs text-success answered-mark hidden"
-                                  id="team-ans-{{ team.id }}" title="Ответил">
-                                <span class="material-symbols-outlined" style="font-size:14px">check</span>
-                            </span>
-                            <span class="badge badge-ghost badge-sm font-mono"
-                                  id="team-score-{{ team.id }}">0</span>
+                {# Контекстная панель «Регистрация» #}
+                <div id="reg-controls" class="hidden mt-3 pt-3 border-t border-base-200">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="text-sm">
+                            <div class="font-semibold">Регистрация открыта</div>
+                            <div class="text-xs text-base-content/50">Команды могут подключаться по QR-коду</div>
                         </div>
+                        <button onclick="closeRegistration()" class="btn btn-warning btn-sm gap-1">
+                            <span class="material-symbols-outlined icon-sm">lock</span>
+                            Закрыть
+                        </button>
                     </div>
-                    {% endfor %}
-                    {% if not quiz.teams %}
-                    <div class="text-sm text-base-content/40" id="teams-empty">Нет команд</div>
-                    {% endif %}
                 </div>
             </div>
+        </section>
+
+        {# Команды + ответы (компактно) #}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <section class="card bg-base-100 shadow-sm">
+                <div class="card-body p-3">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-base-content/50 mb-1">Ответы</h2>
+                    <div class="flex items-end gap-2">
+                        <span class="text-3xl sm:text-4xl font-black leading-none text-primary" id="answers-count">0</span>
+                        <span class="text-base-content/50 pb-0.5">/ <span id="teams-total">{{ quiz.teams|length }}</span></span>
+                    </div>
+                    <progress class="progress progress-primary mt-2" id="answers-progress"
+                              value="0" max="{{ quiz.teams|length or 1 }}"></progress>
+                </div>
+            </section>
+
+            <section class="card bg-base-100 shadow-sm">
+                <div class="card-body p-3">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-base-content/50 mb-1 flex items-center gap-1">
+                        Команды
+                        <span class="badge badge-ghost badge-sm teams-counter">{{ quiz.teams|length }}</span>
+                    </h2>
+                    <div class="flex flex-col gap-0.5 max-h-44 overflow-y-auto" id="teams-list">
+                        {% for team in quiz.teams %}
+                        <div class="flex items-center justify-between text-sm py-0.5 px-1 rounded gap-2"
+                             id="team-row-{{ team.id }}">
+                            <span class="truncate team-name">{{ team.name }}</span>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <span class="text-success answered-mark hidden"
+                                      id="team-ans-{{ team.id }}" title="Ответил">
+                                    <span class="material-symbols-outlined" style="font-size:14px">check</span>
+                                </span>
+                                <span class="badge badge-ghost badge-sm font-mono"
+                                      id="team-score-{{ team.id }}">0</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% if not quiz.teams %}
+                        <div class="text-sm text-base-content/40" id="teams-empty">Нет команд</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
         </div>
 
-    </div>
+    </main>
 </div>
 
 {% endblock %}
@@ -289,7 +469,14 @@
 <script>
 const QUIZ_ID = '{{ quiz.id }}';
 
-// Предвычисленная карта question_id -> {tourNum, qNum, tourTitle}
+// Линейный список вопросов для prev/next.
+const allQuestions = [
+{% for tour in quiz.tours %}{% if not tour.is_slide %}{% for q in tour.questions %}
+    { id: {{ q.id|tojson }}, tourId: {{ tour.id|tojson }} },
+{% endfor %}{% endif %}{% endfor %}
+];
+
+// Карта question_id -> позиция (тур/№ вопроса).
 const qPositions = {};
 {% set ns = namespace(tour_num=0) %}
 {% for tour in quiz.tours %}{% if not tour.is_slide %}{% set ns.tour_num = ns.tour_num + 1 %}{% for q in tour.questions %}
@@ -302,6 +489,8 @@ let currentQuestionTimeSeconds = null;
 let currentQuestionType = null;
 let currentQuestionTrimStart = 0;
 let currentQuestionTrimEnd = null;
+let currentScreen = '{{ gs.current_screen if gs else "splash" }}';
+let currentTourId = {{ (gs.current_tour_id|tojson) if gs and gs.current_tour_id else 'null' }};
 let answersCount = 0;
 let answeredTeams = new Set();
 let totalTeams = {{ quiz.teams|length }};
@@ -313,32 +502,49 @@ function escHtml(s) {
                           .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// ── Socket events ──────────────────────────────────────────────────────────────
+const screenNames = {
+    splash: 'Заставка', registration: 'Регистрация', teams: 'Команды',
+    waiting: 'Ожидание', question: 'Вопрос', question_answer: 'Ответ',
+    tour_splash: 'Заставка тура', tour_results: 'Итоги тура',
+    game_results: 'Итоги игры', custom_slide: 'Слайд'
+};
 
+// ── Live preview (iframe) ─────────────────────────────────────────────────────
+function fitPreview() {
+    const shell = document.getElementById('preview-shell');
+    const iframe = document.getElementById('preview-iframe');
+    if (!shell || !iframe) return;
+    const w = shell.clientWidth;
+    if (w > 0) iframe.style.transform = `scale(${w / 1920})`;
+}
+function reloadPreview() {
+    const iframe = document.getElementById('preview-iframe');
+    if (iframe) iframe.src = iframe.src;
+}
+window.addEventListener('resize', fitPreview);
+
+// ── Socket events ─────────────────────────────────────────────────────────────
 socket.on('screen_changed', (data) => {
-    // Любая смена экрана отменяет pre-timer (сервер сделает это сам); сбросим UI.
     resetAudioPlayBtn();
+    currentScreen = data.screen;
+    currentTourId = data.tour ? data.tour.id : null;
     updateScreenBadge(data.screen);
 
-    if (data.screen === 'question' && data.question) {
+    if ((data.screen === 'question' || data.screen === 'question_answer') && data.question) {
         setActiveQuestion(data.question);
-        answeredTeams.clear();
-        updateAnswersCount(0);
-        if (data.timer_active && data.timer_remaining != null) {
-            updateTimerDisplay(data.timer_remaining);
-        }
-    } else {
-        // Not a question screen — hide controls if no current question
-        if (data.screen !== 'question_answer') {
-            // keep showing last active question for convenience
+        if (data.screen === 'question') {
+            answeredTeams.clear();
+            updateAnswersCount(0);
+            if (data.timer_active && data.timer_remaining != null) {
+                updateTimerDisplay(data.timer_remaining);
+            }
         }
     }
 
-    highlightScreenBtn(data.screen, data);
+    highlightUI(data);
 });
 
 socket.on('timer_started', (data) => {
-    // Аудио (если оно играло перед таймером) уже завершилось — снимаем прогресс.
     resetAudioPlayBtn();
     updateTimerDisplay(data.seconds);
 });
@@ -349,11 +555,8 @@ socket.on('timer_reset', () => {
     resetAudioPlayBtn();
     updateTimerDisplay(currentQuestionTimeSeconds || '--');
 });
-
-// Сервер шлёт это всем админкам после stop/reset/pause — нужно убрать локальный прогресс-бар.
 socket.on('stop_screen_audio', () => resetAudioPlayBtn());
 
-// Сервер шлёт когда стартует pre-timer на другой вкладке админки — синхронизируемся.
 socket.on('audio_pre_timer_started', (data) => {
     if (data && data.duration_ms != null) startAudioProgress(data.duration_ms);
     const btn = document.getElementById('btn-play-audio-timer');
@@ -389,7 +592,6 @@ socket.on('team_registered', (data) => {
     document.getElementById('teams-total').textContent = totalTeams;
     const prog = document.getElementById('answers-progress');
     prog.max = Math.max(totalTeams, 1);
-    // Удаляем заглушку «Нет команд», если была
     const empty = document.getElementById('teams-empty');
     if (empty) empty.remove();
 });
@@ -401,6 +603,7 @@ socket.on('team_name_updated', (data) => {
         if (nameEl) nameEl.textContent = data.name;
     }
 });
+
 socket.on('team_deleted', (data) => {
     const row = document.getElementById(`team-row-${data.team_id}`);
     if (row) {
@@ -426,11 +629,11 @@ function addTeamRow(teamId, name) {
     if (!list) return;
     const row = document.createElement('div');
     row.id = `team-row-${teamId}`;
-    row.className = 'flex items-center justify-between text-sm py-1 px-1 rounded gap-2';
+    row.className = 'flex items-center justify-between text-sm py-0.5 px-1 rounded gap-2';
     row.innerHTML = `
         <span class="truncate team-name">${escHtml(name)}</span>
-        <div class="flex items-center gap-2 shrink-0">
-            <span class="text-xs text-success answered-mark hidden" id="team-ans-${escHtml(teamId)}" title="Ответил">
+        <div class="flex items-center gap-1.5 shrink-0">
+            <span class="text-success answered-mark hidden" id="team-ans-${escHtml(teamId)}" title="Ответил">
                 <span class="material-symbols-outlined" style="font-size:14px">check</span>
             </span>
             <span class="badge badge-ghost badge-sm font-mono" id="team-score-${escHtml(teamId)}">0</span>
@@ -438,40 +641,63 @@ function addTeamRow(teamId, name) {
     list.appendChild(row);
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
+// ── Подсветка состояния ───────────────────────────────────────────────────────
 function updateScreenBadge(screen) {
-    const screenNames = {
-        splash: 'Заставка', registration: 'Регистрация', teams: 'Команды',
-        waiting: 'Ожидание', question: 'Вопрос', question_answer: 'Ответ',
-        tour_splash: 'Тур', tour_results: 'Итоги тура', game_results: 'Итоги игры',
-        custom_slide: 'Слайд'
-    };
     document.getElementById('current-screen-badge').textContent = screenNames[screen] || screen;
     if (!['question', 'question_answer'].includes(screen)) {
         document.getElementById('question-position-badge').classList.add('hidden');
     }
 }
 
-function highlightScreenBtn(screen, data) {
+function highlightUI(data) {
+    const screen = data.screen;
+    const tourId = data.tour ? data.tour.id : null;
+
+    // Универсальные «экраны»: btn-active маркером.
+    document.querySelectorAll('.screen-chip').forEach(b => {
+        const match = b.dataset.screen === screen;
+        b.dataset.active = match ? '1' : '0';
+    });
+
+    // Кнопки заставка/итоги тура — primary при попадании.
     document.querySelectorAll('.screen-btn').forEach(b => {
-        const match = b.dataset.screen === screen &&
-            (!b.dataset.tourId || !data || b.dataset.tourId === data.tour?.id);
+        const match = b.dataset.screen === screen
+                      && (!b.dataset.tourId || b.dataset.tourId === tourId);
         b.classList.toggle('btn-primary', match);
-        b.classList.toggle('btn-outline', false);
-        if (!match) {
-            b.classList.remove('btn-primary');
+        b.classList.toggle('btn-ghost', !match);
+        // Слайд с фиолетовым акцентом — оставим btn-secondary всегда:
+        if (b.dataset.screen === 'custom_slide') {
+            b.classList.toggle('btn-secondary', true);
+            b.classList.toggle('btn-primary', false);
+            b.classList.toggle('btn-ghost', false);
         }
     });
 
-    document.querySelectorAll('.question-row').forEach(row => {
-        const isActive = (screen === 'question' || screen === 'question_answer') && row.dataset.qId === currentQuestionId;
-        row.classList.toggle('bg-primary/10', isActive);
-        row.classList.toggle('border-l-2', isActive);
-        row.classList.toggle('border-primary', isActive);
+    // Фон активного тура.
+    document.querySelectorAll('.tour-block').forEach(block => {
+        const isActive = ['tour_splash', 'tour_results'].includes(screen)
+                         && block.dataset.tourId === tourId;
+        block.classList.toggle('active-tour', isActive);
     });
+
+    // Активный слайд.
+    document.querySelectorAll('.slide-row').forEach(row => {
+        const isActive = screen === 'custom_slide' && row.dataset.tourId === tourId;
+        row.classList.toggle('active', isActive);
+    });
+
+    // Активный вопрос.
+    document.querySelectorAll('.q-row').forEach(row => {
+        const isActive = (screen === 'question' || screen === 'question_answer')
+                         && row.dataset.qId === currentQuestionId;
+        row.classList.toggle('active', isActive);
+    });
+
+    // Контекст «регистрация».
+    document.getElementById('reg-controls').classList.toggle('hidden', screen !== 'registration');
 }
 
+// ── Активный вопрос ───────────────────────────────────────────────────────────
 function setActiveQuestion(q) {
     currentQuestionId = q.id;
     currentQuestionAudioPath = q.audio_path || null;
@@ -485,38 +711,51 @@ function setActiveQuestion(q) {
 
     document.getElementById('active-q-text').textContent = q.text || '(без текста)';
     document.getElementById('active-q-meta').textContent =
-        `${q.points} балл(ов) · ${q.time_seconds}с`;
+        `${q.points} балл(ов) · ${q.time_seconds}с · ${typeLabel(q.question_type, q.answer_type)}`;
 
     const pos = qPositions[q.id];
     const posEl = document.getElementById('active-q-position');
     const posBadge = document.getElementById('question-position-badge');
     if (pos && posEl) {
-        const label = `Тур ${pos.tourNum} / Вопрос ${pos.qNum}`;
+        const label = `Тур ${pos.tourNum} · Вопрос ${pos.qNum}`;
         posEl.textContent = label;
         posEl.classList.remove('hidden');
         if (posBadge) { posBadge.textContent = label; posBadge.classList.remove('hidden'); }
     } else if (posEl) {
-        posEl.classList.add('hidden');
+        posEl.textContent = '';
         if (posBadge) posBadge.classList.add('hidden');
     }
 
     const timerEl = document.getElementById('timer-display');
     timerEl.textContent = q.time_seconds;
-    timerEl.className = 'text-7xl font-mono font-bold leading-none text-primary';
+    timerEl.classList.remove('danger');
+    timerEl.classList.add('normal');
 
-    // Аудио-секция
     const audioSection = document.getElementById('audio-question-section');
-    audioSection.classList.toggle('hidden', q.question_type !== 'audio');
-    if (q.question_type === 'audio' && q.audio_path) {
-        resetAudioPlayBtn();
-    }
+    audioSection.classList.toggle('hidden', q.question_type !== 'audio' || !q.audio_path);
 
-    // Reset answered marks
     document.querySelectorAll('.answered-mark').forEach(el => el.classList.add('hidden'));
+
+    updateNavButtons();
 }
 
-// Локальный интервал только для отрисовки прогресс-бара.
-// Запуск/остановка таймера — на сервере.
+function typeLabel(qType, aType) {
+    const m = {
+        single_choice: 'один из', multiple_choice: 'несколько из',
+        short_text: 'текст', long_text: 'текст', matching: 'соответствие',
+    };
+    return m[aType] || aType || '';
+}
+
+function updateNavButtons() {
+    const idx = allQuestions.findIndex(x => x.id === currentQuestionId);
+    const prev = document.getElementById('btn-nav-prev');
+    const next = document.getElementById('btn-nav-next');
+    if (prev) prev.disabled = idx <= 0;
+    if (next) next.disabled = idx === -1 || idx >= allQuestions.length - 1;
+}
+
+// ── Аудио прогресс ────────────────────────────────────────────────────────────
 let _audioProgressInterval = null;
 
 function clearAudioProgress() {
@@ -564,7 +803,6 @@ async function playAudioAndTimer() {
     btn.disabled = true;
     btn.innerHTML = `<span class="material-symbols-outlined icon-sm">pause_circle</span> Воспроизведение...`;
 
-    // Считаем длительность: либо trimEnd-trimStart, либо длительность файла - trimStart.
     let durationMs = 0;
     if (trimEnd && trimEnd > trimStart) {
         durationMs = (trimEnd - trimStart) * 1000;
@@ -585,8 +823,6 @@ async function playAudioAndTimer() {
 }
 
 function stopScreenAudioCmd() {
-    // Локально сбрасываем UI прогресса; сервер также пришлёт stop_screen_audio
-    // и убьёт pre-timer greenlet, чтобы таймер не стартовал.
     resetAudioPlayBtn();
     socket.emit('stop_screen_audio');
 }
@@ -594,7 +830,9 @@ function stopScreenAudioCmd() {
 function updateTimerDisplay(remaining) {
     const el = document.getElementById('timer-display');
     el.textContent = remaining;
-    el.className = `text-7xl font-mono font-bold leading-none ${remaining <= 10 && remaining >= 0 ? 'text-error' : 'text-primary'}`;
+    const danger = remaining <= 10 && remaining >= 0;
+    el.classList.toggle('danger', danger);
+    el.classList.toggle('normal', !danger);
 }
 
 function updateAnswersCount(count) {
@@ -610,75 +848,98 @@ function markTeamAnswered(teamId) {
     if (mark) mark.classList.remove('hidden');
 }
 
-// ── Actions ────────────────────────────────────────────────────────────────────
-
+// ── Действия ──────────────────────────────────────────────────────────────────
 function changeScreen(screen, params = {}) {
     socket.emit('change_screen', {screen, ...params});
 }
+function hideScreen() { changeScreen('splash'); }
+function closeRegistration() { socket.emit('close_registration'); }
 
-function openRegistration() {
-    changeScreen('registration');
-}
-
-function showCustomSlide(tourId) {
-    changeScreen('custom_slide', {tour_id: tourId});
-}
-
-function showTourSplash(tourId) {
-    changeScreen('tour_splash', {tour_id: tourId});
-}
-
-function showTourResults(tourId) {
-    changeScreen('tour_results', {tour_id: tourId});
-}
-
-function showQuestion(qId) {
-    changeScreen('question', {question_id: qId});
-}
-
-function showQuestionAnswer(qId) {
-    changeScreen('question_answer', {question_id: qId});
-}
+function showCustomSlide(tourId) { changeScreen('custom_slide', {tour_id: tourId}); }
+function showTourSplash(tourId) { changeScreen('tour_splash', {tour_id: tourId}); }
+function showTourResults(tourId) { changeScreen('tour_results', {tour_id: tourId}); }
+function showQuestion(qId) { changeScreen('question', {question_id: qId}); }
+function showQuestionAnswer(qId) { changeScreen('question_answer', {question_id: qId}); }
 
 function startTimer() {
     if (!currentQuestionId) return;
     socket.emit('start_timer', {question_id: currentQuestionId});
 }
-
-function pauseTimer() {
-    socket.emit('pause_timer');
-}
-
+function pauseTimer() { socket.emit('pause_timer'); }
 function resetTimer() {
     socket.emit('reset_timer');
     document.getElementById('timer-display').textContent = currentQuestionTimeSeconds ?? '--';
 }
-
 function showAnswer() {
     if (!currentQuestionId) return;
     changeScreen('question_answer', {question_id: currentQuestionId});
 }
+function navQuestion(dir) {
+    const idx = allQuestions.findIndex(x => x.id === currentQuestionId);
+    if (idx === -1) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= allQuestions.length) return;
+    showQuestion(allQuestions[newIdx].id);
+}
 
+// ── Сворачивание туров (с persisted состоянием) ───────────────────────────────
+const COLLAPSE_KEY = 'qctrl_tourCollapsed_' + QUIZ_ID;
 
-// ── Init ───────────────────────────────────────────────────────────────────────
-{% if gs and gs.current_screen %}
-updateScreenBadge('{{ gs.current_screen }}');
-{% endif %}
+function getCollapsedSet() {
+    try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); }
+    catch { return new Set(); }
+}
+function saveCollapsed(set) {
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set])); } catch (_) {}
+}
+function applyCollapsed() {
+    const s = getCollapsedSet();
+    document.querySelectorAll('.tour-block').forEach(block => {
+        const id = block.dataset.tourId;
+        const questions = block.querySelector('.tour-questions');
+        const icon = block.querySelector('.tour-toggle-icon');
+        const collapsed = s.has(id);
+        if (questions) questions.classList.toggle('hidden', collapsed);
+        if (icon) icon.textContent = collapsed ? 'chevron_right' : 'expand_more';
+    });
+}
+function toggleTour(tourId) {
+    const s = getCollapsedSet();
+    if (s.has(tourId)) s.delete(tourId);
+    else s.add(tourId);
+    saveCollapsed(s);
+    applyCollapsed();
+}
+function toggleAllTours(expand) {
+    const s = expand ? new Set() : new Set();
+    if (!expand) {
+        document.querySelectorAll('.tour-block').forEach(b => s.add(b.dataset.tourId));
+    }
+    saveCollapsed(s);
+    applyCollapsed();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+applyCollapsed();
+fitPreview();
+window.requestAnimationFrame(fitPreview);
+document.getElementById('preview-iframe').addEventListener('load', fitPreview);
+
+updateScreenBadge(currentScreen);
+
 {% if gs and gs.current_question_id %}
 currentQuestionId = '{{ gs.current_question_id }}';
-// show controls for the already-active question without full setActiveQuestion
 (function() {
     const el = document.getElementById('question-controls');
     const hint = document.getElementById('no-question-hint');
     if (el && hint) { el.classList.remove('hidden'); hint.classList.add('hidden'); }
-    {% if gs.current_question_id %}
-    document.querySelectorAll('.question-row').forEach(row => {
-        if (row.dataset.qId === '{{ gs.current_question_id }}') {
-            row.classList.add('bg-primary/10', 'border-l-2', 'border-primary');
-        }
+    document.querySelectorAll('.q-row').forEach(row => {
+        if (row.dataset.qId === currentQuestionId) row.classList.add('active');
     });
-    {% endif %}
 })();
 {% endif %}
+
+// Подсветка по начальному состоянию (до прихода первого socket-события).
+highlightUI({ screen: currentScreen, tour: currentTourId ? { id: currentTourId } : null });
 </script>
 {% endblock %}
