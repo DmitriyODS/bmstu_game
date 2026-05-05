@@ -1187,15 +1187,7 @@ function loadSlide(slide) {
     if (slide.image) {
         bg.style.backgroundImage = `url('${escHtml(resolveMedia(slide.image))}')`;
         bg.style.display = 'block';
-        if (!slide.text && !slide.title) {
-            content.style.display = 'none';
-        } else {
-            content.style.display = '';
-            content.style.background = 'rgba(255,255,255,0.92)';
-            content.style.borderRadius = '1.5rem';
-            content.style.padding = '2rem 3rem';
-            content.style.backdropFilter = 'blur(8px)';
-        }
+        content.style.display = 'none';
     } else {
         bg.style.display = 'none';
         content.style.display = '';
