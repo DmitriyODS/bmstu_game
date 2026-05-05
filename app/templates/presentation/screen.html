@@ -708,6 +708,7 @@ body { overflow: hidden; background: #f8fafc; }
         <div id="slide-bg-pres"></div>
         <div id="slide-content-pres">
             <h2 id="slide-title-pres"></h2>
+            <div id="slide-text-pres"></div>
         </div>
     </div>
 
@@ -1173,6 +1174,14 @@ function showAnswer(q) {
 
 function loadSlide(slide) {
     document.getElementById('slide-title-pres').textContent = slide.title || '';
+    const textEl = document.getElementById('slide-text-pres');
+    if (slide.text) {
+        textEl.innerHTML = typeof marked !== 'undefined' ? renderFormatted(slide.text) : escHtml(slide.text);
+        textEl.style.textAlign = 'left';
+    } else {
+        textEl.innerHTML = '';
+        textEl.style.textAlign = '';
+    }
     const bg = document.getElementById('slide-bg-pres');
     const content = document.getElementById('slide-content-pres');
     if (slide.image) {
