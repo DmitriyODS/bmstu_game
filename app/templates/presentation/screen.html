@@ -1106,13 +1106,16 @@ function loadQuestion(q) {
 
 function showAnswer(q) {
     AudioManager.stopAll();
-    if (q.question_type === 'audio' && q.audio_path) {
-        AudioManager.play('answer-bg', {
-            url: q.audio_path,
-            category: 'background',
-            trimStart: q.audio_trim_start,
-            trimEnd: q.audio_trim_end,
-        });
+    if (q.question_type === 'audio') {
+        const answerAudio = q.answer_audio_path || q.audio_path;
+        if (answerAudio) {
+            AudioManager.play('answer-bg', {
+                url: answerAudio,
+                category: 'background',
+                trimStart: answerAudio === q.audio_path ? (q.audio_trim_start || 0) : 0,
+                trimEnd: answerAudio === q.audio_path ? q.audio_trim_end : null,
+            });
+        }
     }
 
     const imgAnswerEl = document.getElementById('q-image-answer-pres');

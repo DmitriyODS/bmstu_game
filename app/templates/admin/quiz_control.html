@@ -61,9 +61,11 @@
     transition: background-color 0.15s, border-color 0.15s;
 }
 .q-row.active {
-    background-color: hsl(var(--p) / 0.13);
+    background-color: hsl(var(--p) / 0.2);
     border-left-color: hsl(var(--p));
-    font-weight: 600;
+    border-left-width: 4px;
+    font-weight: 700;
+    color: hsl(var(--p));
 }
 .tour-block.active-tour > .tour-header {
     background-color: hsl(var(--p) / 0.07);
@@ -232,7 +234,8 @@
                             <span class="material-symbols-outlined tour-toggle-icon" style="font-size:18px">expand_more</span>
                         </button>
                         <span class="text-base-content/40 font-mono text-xs w-6 text-center shrink-0">{{ ns.tour_num }}</span>
-                        <span class="font-semibold text-sm truncate flex-1 min-w-0">{{ tour.title }}</span>
+                        <span class="font-semibold text-sm truncate flex-1 min-w-0">Тур {{ ns.tour_num }}</span>
+                        <span class="text-xs text-base-content/30 truncate hidden lg:inline" title="{{ tour.title }}">{{ tour.title }}</span>
                         <div class="flex gap-1 shrink-0">
                             <button onclick="showTourSplash('{{ tour.id }}')"
                                     class="btn btn-ghost btn-xs screen-btn" data-screen="tour_splash" data-tour-id="{{ tour.id }}"
@@ -261,9 +264,7 @@
                                 {% elif q.question_type == 'formatted_text' %}format_color_text
                                 {% else %}help{% endif %}
                             </span>
-                            <span class="text-sm truncate flex-1 min-w-0 {% if not q.text %}italic text-base-content/40{% endif %}">
-                                {{ q.text or '— без текста —' }}
-                            </span>
+                            <span class="text-sm font-medium flex-1 min-w-0">Вопрос {{ loop.index }}</span>
                             <span class="text-xs text-base-content/40 shrink-0 hidden sm:inline">{{ q.time_seconds }}с</span>
                             <span class="text-xs text-base-content/40 shrink-0 hidden md:inline" title="Баллы">{{ q.points }}б</span>
                             <div class="flex gap-0.5 shrink-0">

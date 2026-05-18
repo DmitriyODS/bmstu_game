@@ -348,7 +348,8 @@ def question_update(question_id):
         return jsonify(_question_dict(q))
     data = request.get_json(silent=True) or {}
     for field in ('question_type', 'answer_type', 'text', 'time_seconds', 'points',
-                  'auto_check', 'correct_answer', 'order', 'audio_trim_start', 'audio_trim_end'):
+                  'auto_check', 'correct_answer', 'order', 'audio_trim_start', 'audio_trim_end',
+                  'answer_audio_path', 'answer_audio_original_name'):
         if field in data:
             setattr(q, field, data[field])
     # auto_check имеет смысл только для вариантов; принудительно нормализуем
@@ -373,7 +374,7 @@ def question_reorder(question_id):
 @admin_required
 def question_upload(question_id):
     q = Question.query.get_or_404(question_id)
-    file_type = request.form.get('type', 'image')  # image | audio | sound_start | sound_mid | sound_end
+    file_type = request.form.get('type', 'image')  # image | audio | answer_audio | sound_start | sound_mid | sound_end
     f = request.files.get('file')
     if not f:
         return jsonify({'error': 'No file'}), 400
@@ -400,12 +401,16 @@ def question_upload(question_id):
     field_map = {
         'image': 'image_path',
         'audio': 'audio_path',
+        'answer_audio': 'answer_audio_path',
     }
     setattr(q, field_map.get(file_type, 'image_path'), path)
     if file_type == 'audio':
         q.audio_original_name = f.filename or unique_name
+    elif file_type == 'answer_audio':
+        q.answer_audio_original_name = f.filename or unique_name
     db.session.commit()
-    return jsonify({'path': path, 'original_name': q.audio_original_name})
+    original_name = q.answer_audio_original_name if file_type == 'answer_audio' else q.audio_original_name
+    return jsonify({'path': path, 'original_name': original_name})
 
 
 @admin_bp.route('/questions/<question_id>/set-image-url', methods=['POST'])
@@ -846,6 +851,8 @@ def quiz_export_zip(quiz_id):
                     'audio_original_name': q.audio_original_name,
                     'audio_trim_start': q.audio_trim_start,
                     'audio_trim_end': q.audio_trim_end,
+                    'answer_audio_path': add_media(q.answer_audio_path),
+                    'answer_audio_original_name': q.answer_audio_original_name,
                     'answer_options': [
                         {'text': o.text, 'is_correct': o.is_correct, 'order': o.order}
                         for o in q.answer_options
@@ -944,11 +951,13 @@ def quiz_import_zip():
                     audio_original_name=q_data.get('audio_original_name'),
                     audio_trim_start=float(q_data.get('audio_trim_start') or 0),
                     audio_trim_end=q_data.get('audio_trim_end'),
+                    answer_audio_original_name=q_data.get('answer_audio_original_name'),
                 )
                 db.session.add(q)
                 db.session.flush()
                 q.image_path = copy_media(q_data.get('image_path'))
                 q.audio_path = copy_media(q_data.get('audio_path'))
+                q.answer_audio_path = copy_media(q_data.get('answer_audio_path'))
 
                 for o_data in q_data.get('answer_options', []):
                     db.session.add(AnswerOption(
@@ -1019,6 +1028,8 @@ def _question_dict(q):
         'audio_original_name': q.audio_original_name,
         'audio_trim_start': q.audio_trim_start if q.audio_trim_start is not None else 0.0,
         'audio_trim_end': q.audio_trim_end,
+        'answer_audio_path': q.answer_audio_path,
+        'answer_audio_original_name': q.answer_audio_original_name,
         'time_seconds': q.time_seconds,
         'points': q.points,
         'auto_check': q.auto_check,

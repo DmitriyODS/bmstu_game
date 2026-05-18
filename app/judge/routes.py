@@ -18,17 +18,21 @@ def index():
     if not quiz:
         return render_template('judge/no_quiz.html')
     tours = quiz.tours
-    tours_data = [
-        {
+    tours_data = []
+    tour_num = 0
+    for t in tours:
+        if t.is_slide:
+            continue
+        tour_num += 1
+        tours_data.append({
             'id': t.id,
             'title': t.title,
+            'num': tour_num,
             'questions': [
-                {'id': q.id, 'text': (q.text or '')[:80]}
-                for q in t.questions
+                {'id': q.id, 'text': (q.text or '')[:80], 'num': idx + 1}
+                for idx, q in enumerate(t.questions)
             ]
-        }
-        for t in tours
-    ]
+        })
     return render_template('judge/judge.html', quiz=quiz, tours=tours, tours_data=tours_data)
 
 
@@ -43,18 +47,24 @@ def next_card():
     question_id = request.args.get('question_id')
 
     # Release this judge's own pending locks (refresh / new card without judging).
-    TeamAnswer.query.filter(
+    # Делаем отдельный commit, чтобы освобождение стало видно другим транзакциям
+    # немедленно — иначе параллельный SELECT FOR UPDATE SKIP LOCKED у другого
+    # судьи не увидит освобождённую строку до конца нашей транзакции.
+    n = TeamAnswer.query.filter(
         TeamAnswer.checked_by == current_user.id,
         TeamAnswer.is_correct.is_(None),
     ).update({'checked_by': None,
               'checked_by_at': None,
               'checked_lock_started_at': None},
              synchronize_session=False)
+    if n:
+        db.session.commit()
+    else:
+        db.session.rollback()
 
     # Заодно пробежимся по всем протухшим — на случай если фоновой sweeper
     # ещё не добежал до этого тика.
     release_stale_locks()
-    db.session.flush()
 
     # Атомарный захват: SELECT ... FOR UPDATE SKIP LOCKED — если строка уже
     # захвачена параллельной транзакцией (другим судьёй), пропускаем её.
@@ -229,6 +239,53 @@ def answers_table():
     answers = q.all()
     result = [_answer_dict(ans, ans.team, ans.question) for ans in answers]
     return jsonify({'answers': result})
+
+
+@judge_bp.route('/results')
+@judge_required
+def results():
+    quiz = Quiz.query.filter_by(is_active=True).first()
+    if not quiz:
+        return jsonify({'tours': [], 'total': []})
+
+    teams = Team.query.filter_by(quiz_id=quiz.id).order_by(Team.name).all()
+    team_map = {t.id: t.name for t in teams}
+
+    tours_result = []
+    total_scores = {t.id: 0 for t in teams}
+
+    regular_tours = [t for t in quiz.tours if not t.is_slide]
+    for tour_num, tour in enumerate(regular_tours, 1):
+        q_ids = {q.id for q in tour.questions}
+        answers = (TeamAnswer.query
+                   .filter(TeamAnswer.question_id.in_(q_ids))
+                   .all()) if q_ids else []
+
+        team_scores = {t.id: 0 for t in teams}
+        for ans in answers:
+            if ans.score:
+                team_scores[ans.team_id] = team_scores.get(ans.team_id, 0) + ans.score
+                total_scores[ans.team_id] = total_scores.get(ans.team_id, 0) + ans.score
+
+        rows = sorted(
+            [{'team_id': tid, 'team_name': team_map.get(tid, '?'), 'score': sc}
+             for tid, sc in team_scores.items()],
+            key=lambda x: -x['score']
+        )
+        for i, r in enumerate(rows):
+            r['place'] = i + 1
+
+        tours_result.append({'tour_num': tour_num, 'tour_title': tour.title, 'scores': rows})
+
+    total_rows = sorted(
+        [{'team_id': tid, 'team_name': team_map.get(tid, '?'), 'score': sc}
+         for tid, sc in total_scores.items()],
+        key=lambda x: -x['score']
+    )
+    for i, r in enumerate(total_rows):
+        r['place'] = i + 1
+
+    return jsonify({'tours': tours_result, 'total': total_rows})
 
 
 def _answer_dict(answer, team, question):

@@ -20,6 +20,10 @@
                     <span class="hidden sm:inline">Таблица</span>
                 </button>
             </div>
+            <button onclick="openResultsModal()" class="btn btn-ghost btn-sm" title="Итоги по турам">
+                <span class="material-symbols-outlined icon-sm">leaderboard</span>
+                <span class="hidden sm:inline">Итоги</span>
+            </button>
             <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost btn-sm">
                 <span class="material-symbols-outlined icon-sm">logout</span>
                 <span class="hidden sm:inline">Выйти</span>
@@ -31,8 +35,8 @@
     <div class="flex flex-wrap gap-2 sm:gap-3 mb-4 items-center">
         <select id="filter-tour" class="select select-bordered select-sm" onchange="onFilterChange()">
             <option value="">Все туры</option>
-            {% for tour in tours %}
-            <option value="{{ tour.id }}">{{ tour.title }}</option>
+            {% for td in tours_data %}
+            <option value="{{ td.id }}">Тур {{ td.num }}</option>
             {% endfor %}
         </select>
         <select id="filter-question" class="select select-bordered select-sm max-w-xs" onchange="onFilterChange()">
@@ -78,6 +82,28 @@
     </div>
 </div>
 
+<!-- Modal: итоги по турам -->
+<dialog id="results-modal" class="modal">
+    <div class="modal-box w-full max-w-3xl">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">leaderboard</span>
+                Итоги
+            </h3>
+            <form method="dialog"><button class="btn btn-ghost btn-sm btn-square"><span class="material-symbols-outlined icon-sm">close</span></button></form>
+        </div>
+
+        <!-- Табы -->
+        <div role="tablist" class="tabs tabs-bordered mb-4" id="results-tabs"></div>
+
+        <!-- Содержимое -->
+        <div id="results-content">
+            <div class="flex justify-center py-8"><span class="loading loading-spinner loading-lg"></span></div>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <!-- Modal for table cell edit -->
 <dialog id="answer-modal" class="modal">
     <div class="modal-box w-full max-w-lg">
@@ -119,6 +145,7 @@ let mode = localStorage.getItem('judge_mode') || 'tinder';
 let currentCard = null;
 let modalAnswer = null;
 let _heartbeatTimer = null;
+let _retryTimer = null;
 const socket = io('/judge');
 
 updateQuestionFilter();
@@ -143,6 +170,7 @@ function setMode(m) {
         // чтобы её немедленно мог взять другой судья (а не ждать 30с таймаута).
         releaseCurrentCard();
         stopHeartbeat();
+        stopRetry();
         currentCard = null;
         loadTable();
     }
@@ -185,7 +213,7 @@ function updateQuestionFilter() {
     const addOpt = (parent, q) => {
         const opt = document.createElement('option');
         opt.value = q.id;
-        opt.textContent = q.text || '(без текста)';
+        opt.textContent = `Вопрос ${q.num}`;
         parent.appendChild(opt);
     };
 
@@ -193,10 +221,10 @@ function updateQuestionFilter() {
         const tour = TOURS_DATA.find(t => t.id === tourId);
         if (tour) tour.questions.forEach(q => addOpt(sel, q));
     } else {
-        TOURS_DATA.forEach((t, idx) => {
+        TOURS_DATA.forEach(t => {
             if (!t.questions || !t.questions.length) return;
             const grp = document.createElement('optgroup');
-            grp.label = t.title || `Тур ${idx + 1}`;
+            grp.label = `Тур ${t.num}`;
             t.questions.forEach(q => addOpt(grp, q));
             sel.appendChild(grp);
         });
@@ -212,6 +240,23 @@ function stopHeartbeat() {
         clearInterval(_heartbeatTimer);
         _heartbeatTimer = null;
     }
+}
+
+function stopRetry() {
+    if (_retryTimer) {
+        clearTimeout(_retryTimer);
+        _retryTimer = null;
+    }
+}
+
+function scheduleRetry() {
+    if (_retryTimer || currentCard || mode !== 'tinder') return;
+    // Случайная задержка 1-4 сек чтобы судьи не стучали одновременно.
+    const delay = 1000 + Math.random() * 3000;
+    _retryTimer = setTimeout(() => {
+        _retryTimer = null;
+        if (mode === 'tinder' && !currentCard) loadNextCard();
+    }, delay);
 }
 function startHeartbeat(answerId) {
     stopHeartbeat();
@@ -250,13 +295,20 @@ function showToast(text, kind) {
 
 async function loadNextCard() {
     stopHeartbeat();
+    stopRetry();
     const f = getFilters();
     const params = new URLSearchParams(f);
     const res = await fetch(`/judge/next-card?${params}`);
     const data = await res.json();
     currentCard = data.answer;
     renderCard(currentCard);
-    if (currentCard) startHeartbeat(currentCard.id);
+    if (currentCard) {
+        startHeartbeat(currentCard.id);
+    } else {
+        // Не получили карточку — через случайное время попробуем снова,
+        // на случай если другой судья скоро освободит карточку.
+        scheduleRetry();
+    }
 }
 
 function renderAnswerContent(answer) {
@@ -438,6 +490,68 @@ socket.on('answer_submitted', () => {
     else if (mode === 'table') loadTable();
 });
 
+// ── Модалка итогов ────────────────────────────────────────────────────────────
+let _resultsData = null;
+let _activeResultsTab = 'total';
+
+async function openResultsModal() {
+    document.getElementById('results-modal').showModal();
+    const res = await fetch('/judge/results');
+    _resultsData = await res.json();
+    renderResultsTabs();
+}
+
+function renderResultsTabs() {
+    if (!_resultsData) return;
+    const tabs = document.getElementById('results-tabs');
+    const tabItems = [
+        {key: 'total', label: 'Итого'},
+        ..._resultsData.tours.map(t => ({key: `tour_${t.tour_num}`, label: `Тур ${t.tour_num}`})),
+    ];
+    tabs.innerHTML = tabItems.map(t =>
+        `<button role="tab" class="tab${_activeResultsTab === t.key ? ' tab-active' : ''}"
+                 onclick="selectResultsTab('${t.key}')">${escHtml(t.label)}</button>`
+    ).join('');
+    renderResultsContent(_activeResultsTab);
+}
+
+function selectResultsTab(key) {
+    _activeResultsTab = key;
+    renderResultsTabs();
+}
+
+function renderResultsContent(key) {
+    const el = document.getElementById('results-content');
+    if (!_resultsData) return;
+
+    let rows;
+    if (key === 'total') {
+        rows = _resultsData.total;
+    } else {
+        const num = parseInt(key.replace('tour_', ''));
+        const tour = _resultsData.tours.find(t => t.tour_num === num);
+        rows = tour ? tour.scores : [];
+    }
+
+    if (!rows || !rows.length) {
+        el.innerHTML = '<p class="text-center text-base-content/50 py-8">Нет данных</p>';
+        return;
+    }
+
+    el.innerHTML = `<div class="overflow-x-auto">
+        <table class="table table-sm w-full">
+            <thead><tr><th class="w-10">#</th><th>Команда</th><th class="text-right">Баллы</th></tr></thead>
+            <tbody>${rows.map(r => `
+                <tr class="${r.place === 1 ? 'bg-warning/10 font-bold' : r.place === 2 ? 'bg-base-200/50' : ''}">
+                    <td class="font-mono text-base-content/60">${r.place}</td>
+                    <td>${escHtml(r.team_name)}</td>
+                    <td class="text-right font-mono font-bold">${r.score}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>
+    </div>`;
+}
+
 socket.on('answer_checked', () => {
     if (mode === 'table') loadTable();
     // В tinder, если мы стоим на пустой карточке, чужая проверка может означать,
@@ -450,6 +564,7 @@ document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden' && currentCard) {
         releaseCurrentCard();
         stopHeartbeat();
+        stopRetry();
         currentCard = null;
     } else if (document.visibilityState === 'visible' && mode === 'tinder' && !currentCard) {
         loadNextCard();

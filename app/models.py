@@ -80,6 +80,8 @@ class Question(db.Model):
     audio_original_name = db.Column(db.String(512))
     audio_trim_start = db.Column(db.Float, nullable=False, default=0.0)
     audio_trim_end = db.Column(db.Float)
+    answer_audio_path = db.Column(db.String(512))
+    answer_audio_original_name = db.Column(db.String(512))
     time_seconds = db.Column(db.Integer, nullable=False, default=60)
     points = db.Column(db.Integer, nullable=False, default=1)
     auto_check = db.Column(db.Boolean, nullable=False, default=False)
