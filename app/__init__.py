@@ -82,6 +82,14 @@ def create_app():
                 return redirect(url_for('judge.index'))
         return redirect(url_for('auth.login'))
 
+    # nginx кэширует /static/ на 7 дней — версия по mtime сбрасывает кэш после деплоя
+    @app.url_defaults
+    def static_version(endpoint, values):
+        if endpoint == 'static' and 'filename' in values and 'v' not in values:
+            path = os.path.join(app.static_folder, values['filename'])
+            if os.path.isfile(path):
+                values['v'] = int(os.path.getmtime(path))
+
     with app.app_context():
         _init_db(app)
 
