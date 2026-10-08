@@ -11,9 +11,14 @@ from flask import (render_template, redirect, url_for, request, flash,
 from flask_login import current_user
 from app.admin import admin_bp
 from app.auth import admin_required, judge_required
+from app.scoring import rank_scores, question_stats
 from app.models import db, Quiz, Tour, Question, AnswerOption, MatchingItem, Team, TeamAnswer, GameState, User
+from werkzeug.utils import secure_filename
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+
+_IMAGE_EXTS = ('jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'tif')
+_AUDIO_EXTS = ('mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac')
 
 
 # ── Dashboard ──────────────────────────────────────────────────────────────────
@@ -61,11 +66,32 @@ def quiz_new():
 def quiz_edit(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
     if request.method == 'POST':
-        quiz.title = request.form.get('title', quiz.title).strip()
-        quiz.description = request.form.get('description', '').strip() or None
-        db.session.commit()
-        flash('Квиз обновлён', 'success')
-    return render_template('admin/quiz_builder.html', quiz=quiz)
+        title = request.form.get('title', quiz.title).strip()[:256]
+        if not title:
+            flash('Название не может быть пустым', 'error')
+        else:
+            quiz.title = title
+            quiz.description = request.form.get('description', '').strip() or None
+            db.session.commit()
+            flash('Квиз обновлён', 'success')
+        # PRG: обновление страницы не должно повторно отправлять форму.
+        return redirect(url_for('admin.quiz_edit', quiz_id=quiz.id))
+    # Структура для левой панели: её рисует JS, чтобы начальный рендер и
+    # добавленные на лету туры/вопросы выглядели одинаково.
+    tours_data = [{
+        'id': t.id,
+        'title': t.title,
+        'is_slide': t.is_slide,
+        'questions': [{
+            'id': q.id,
+            'text': q.text,
+            'question_type': q.question_type,
+            'answer_type': q.answer_type,
+            'time_seconds': q.time_seconds,
+            'points': q.points,
+        } for q in t.questions],
+    } for t in quiz.tours]
+    return render_template('admin/quiz_builder.html', quiz=quiz, tours_data=tours_data)
 
 
 @admin_bp.route('/quizzes/<quiz_id>/upload-splash', methods=['POST', 'DELETE'])
@@ -103,6 +129,24 @@ def quiz_delete(quiz_id):
     db.session.commit()
     flash('Квиз удалён', 'success')
     return redirect(url_for('admin.quizzes'))
+
+
+@admin_bp.route('/quizzes/<quiz_id>/duplicate', methods=['POST'])
+@admin_required
+def quiz_duplicate(quiz_id):
+    src = Quiz.query.get_or_404(quiz_id)
+    # Копируется только структура: команды, ответы и состояние игры — нет.
+    copy = Quiz(title=_copy_title(src.title))
+    for field in ('description', 'splash_image', 'sound_start_path', 'sound_mid_path',
+                  'sound_mid_seconds', 'sound_end_path'):
+        setattr(copy, field, getattr(src, field))
+    db.session.add(copy)
+    db.session.flush()
+    for tour in src.tours:
+        _clone_tour(tour, copy.id, tour.order)
+    db.session.commit()
+    flash(f'Создана копия квиза «{src.title}»', 'success')
+    return redirect(url_for('admin.quiz_edit', quiz_id=copy.id))
 
 
 @admin_bp.route('/quizzes/<quiz_id>/deactivate', methods=['POST'])
@@ -156,7 +200,16 @@ def quiz_control(quiz_id):
     if not gs:
         flash('Сначала активируйте квиз', 'warning')
         return redirect(url_for('admin.quiz_edit', quiz_id=quiz_id))
-    return render_template('admin/quiz_control.html', quiz=quiz, gs=gs)
+    # Текущие баллы — чтобы после перезагрузки пульта не показывались нули
+    # до первого scores_updated.
+    team_scores = dict(
+        db.session.query(TeamAnswer.team_id, db.func.coalesce(db.func.sum(TeamAnswer.score), 0))
+        .join(Team, Team.id == TeamAnswer.team_id)
+        .filter(Team.quiz_id == quiz_id)
+        .group_by(TeamAnswer.team_id)
+        .all()
+    )
+    return render_template('admin/quiz_control.html', quiz=quiz, gs=gs, team_scores=team_scores)
 
 
 # ── Tours API ──────────────────────────────────────────────────────────────────
@@ -185,14 +238,15 @@ def tour_update(tour_id):
     tour = Tour.query.get_or_404(tour_id)
     if request.method == 'DELETE':
         q_ids = [q.id for q in tour.questions]
+        # Null out GameState references to questions/tour being deleted
+        # (в т.ч. для слайда/пустого тура, который сейчас на экране).
+        gs = GameState.query.filter_by(quiz_id=tour.quiz_id).first()
+        if gs:
+            if gs.current_tour_id == tour_id:
+                gs.current_tour_id = None
+            if gs.current_question_id in q_ids:
+                gs.current_question_id = None
         if q_ids:
-            # Null out GameState references to questions/tour being deleted
-            gs = GameState.query.filter_by(quiz_id=tour.quiz_id).first()
-            if gs:
-                if gs.current_tour_id == tour_id:
-                    gs.current_tour_id = None
-                if gs.current_question_id in q_ids:
-                    gs.current_question_id = None
             # Delete TeamAnswers referencing these questions
             TeamAnswer.query.filter(TeamAnswer.question_id.in_(q_ids)).delete(synchronize_session=False)
         db.session.delete(tour)
@@ -221,6 +275,22 @@ def tour_reorder(tour_id):
             Tour.query.filter_by(id=item['id']).update({'order': item['order']})
     db.session.commit()
     return jsonify({'ok': True})
+
+
+@admin_bp.route('/tours/<tour_id>/duplicate', methods=['POST'])
+@admin_required
+def tour_duplicate(tour_id):
+    src = Tour.query.get_or_404(tour_id)
+    copy = _clone_tour(src, src.quiz_id, src.order, title=_copy_title(src.title))
+    # Копия встаёт сразу после оригинала; порядок перенумеровываем подряд.
+    tours = [t for t in src.quiz.tours if t.id != copy.id]
+    tours.insert(tours.index(src) + 1, copy)
+    for i, t in enumerate(tours):
+        t.order = i
+    db.session.commit()
+    data = _tour_dict(copy)
+    data['questions'] = [_question_dict(q) for q in copy.questions]
+    return jsonify(data)
 
 
 # Tour image upload
@@ -322,8 +392,8 @@ def question_create(tour_id):
         question_type=data.get('question_type', 'text'),
         answer_type=data.get('answer_type', 'short_text'),
         text=data.get('text', ''),
-        time_seconds=data.get('time_seconds', 60),
-        points=data.get('points', 1),
+        time_seconds=_int_or_default(data.get('time_seconds'), 1, 3600, 60),
+        points=_int_or_default(data.get('points'), 0, 1000, 1),
     )
     db.session.add(q)
     db.session.commit()
@@ -347,6 +417,14 @@ def question_update(question_id):
     if request.method == 'GET':
         return jsonify(_question_dict(q))
     data = request.get_json(silent=True) or {}
+    if 'time_seconds' in data:
+        data['time_seconds'] = _int_in_range(data['time_seconds'], 1, 3600)
+        if data['time_seconds'] is None:
+            return jsonify({'error': 'Время на ответ — целое число от 1 до 3600 секунд'}), 400
+    if 'points' in data:
+        data['points'] = _int_in_range(data['points'], 0, 1000)
+        if data['points'] is None:
+            return jsonify({'error': 'Баллы — целое число от 0 до 1000'}), 400
     for field in ('question_type', 'answer_type', 'text', 'time_seconds', 'points',
                   'auto_check', 'correct_answer', 'order', 'audio_trim_start', 'audio_trim_end',
                   'answer_audio_path', 'answer_audio_original_name'):
@@ -368,6 +446,20 @@ def question_reorder(question_id):
             Question.query.filter_by(id=item['id']).update({'order': item['order']})
     db.session.commit()
     return jsonify({'ok': True})
+
+
+@admin_bp.route('/questions/<question_id>/duplicate', methods=['POST'])
+@admin_required
+def question_duplicate(question_id):
+    src = Question.query.get_or_404(question_id)
+    copy = _clone_question(src, src.tour_id, src.order)
+    questions = Question.query.filter(Question.tour_id == src.tour_id, Question.id != copy.id) \
+        .order_by(Question.order).all()
+    questions.insert(questions.index(src) + 1, copy)
+    for i, q in enumerate(questions):
+        q.order = i
+    db.session.commit()
+    return jsonify(_question_dict(copy))
 
 
 @admin_bp.route('/questions/<question_id>/upload', methods=['POST'])
@@ -462,6 +554,13 @@ def option_update(option_id):
         opt.text = data['text']
     if 'is_correct' in data:
         opt.is_correct = bool(data['is_correct'])
+        # Радиокнопка не шлёт change при снятии отметки, поэтому для «один из»
+        # сервер сам снимает флаг с остальных вариантов. Иначе верными оставались
+        # оба варианта, и автопроверка засчитывала правильный ответ как неверный.
+        if opt.is_correct and opt.question.answer_type == 'single_choice':
+            (AnswerOption.query
+             .filter(AnswerOption.question_id == opt.question_id, AnswerOption.id != opt.id)
+             .update({'is_correct': False}, synchronize_session=False))
     db.session.commit()
     return jsonify({'id': opt.id, 'text': opt.text, 'is_correct': opt.is_correct})
 
@@ -572,7 +671,10 @@ def settings():
         if action == 'change_credentials':
             new_username = request.form.get('username', '').strip()
             new_password = request.form.get('password', '').strip()
-            if new_username:
+            if new_username and new_username != current_user.username:
+                if User.query.filter_by(username=new_username).first():
+                    flash('Пользователь с таким логином уже существует', 'error')
+                    return redirect(url_for('admin.settings'))
                 current_user.username = new_username
             if new_password:
                 current_user.set_password(new_password)
@@ -594,11 +696,38 @@ def settings():
             judge_id = request.form.get('judge_id')
             judge = User.query.get(judge_id)
             if judge and judge.role == 'judge':
+                # Сохраняем оценки судьи, но отвязываем их от удаляемого пользователя
+                # (иначе внешний ключ checked_by не даёт удалить запись).
+                TeamAnswer.query.filter_by(checked_by=judge.id).update(
+                    {'checked_by': None, 'checked_by_at': None, 'checked_lock_started_at': None},
+                    synchronize_session=False)
                 db.session.delete(judge)
                 db.session.commit()
                 flash('Судья удалён', 'success')
         return redirect(url_for('admin.settings'))
     return render_template('admin/settings.html', judges=judges)
+
+
+# ── Statistics ─────────────────────────────────────────────────────────────────
+
+@admin_bp.route('/quizzes/<quiz_id>/stats')
+@admin_required
+def quiz_stats(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    rows, teams_count = question_stats(quiz)
+    checked_rows = [r for r in rows if r['correct_pct'] is not None]
+    hardest = sorted(checked_rows, key=lambda r: r['correct_pct'])[:3]
+    easiest = sorted(checked_rows, key=lambda r: -r['correct_pct'])[:3]
+    summary = {
+        'teams': teams_count,
+        'questions': len(rows),
+        'answers': sum(r['answered'] for r in rows),
+        'unchecked': sum(r['unchecked'] for r in rows),
+        'avg_pct': round(sum(r['correct_pct'] for r in checked_rows) / len(checked_rows))
+                   if checked_rows else None,
+    }
+    return render_template('admin/stats.html', quiz=quiz, rows=rows, summary=summary,
+                           hardest=hardest, easiest=easiest)
 
 
 # ── Export Excel ───────────────────────────────────────────────────────────────
@@ -607,8 +736,8 @@ def settings():
 @admin_required
 def export_excel(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
-    teams_list = Team.query.filter_by(quiz_id=quiz_id).all()
-    tours_list = quiz.tours
+    teams_list = Team.query.filter_by(quiz_id=quiz_id).order_by(Team.name).all()
+    tours_list = [t for t in quiz.tours if not t.is_slide]
 
     wb = openpyxl.Workbook()
 
@@ -616,13 +745,12 @@ def export_excel(quiz_id):
     ws1 = wb.active
     ws1.title = 'Итоги игры'
     ws1.append(['Место', 'Команда', 'Баллы'])
-    team_scores = []
-    for team in teams_list:
-        total = sum(a.score for a in team.answers if a.score)
-        team_scores.append((team.name, total))
-    team_scores.sort(key=lambda x: -x[1])
-    for i, (name, score) in enumerate(team_scores, 1):
-        ws1.append([i, name, score])
+    team_scores = rank_scores([
+        {'team_name': team.name, 'score': sum(a.score for a in team.answers if a.score)}
+        for team in teams_list
+    ])
+    for r in team_scores:
+        ws1.append([r['place'], r['team_name'], r['score']])
 
     # Sheet 2: By tours
     ws2 = wb.create_sheet('По турам')
@@ -643,17 +771,32 @@ def export_excel(quiz_id):
     all_questions = []
     for tour in tours_list:
         all_questions.extend(tour.questions)
-    q_headers = ['Команда'] + [f'Q{i+1}' for i in range(len(all_questions))]
+    q_headers = ['Команда'] + [
+        f'Т{ti}.В{qi}'
+        for ti, tour in enumerate(tours_list, 1)
+        for qi in range(1, len(tour.questions) + 1)
+    ]
     ws3.append(q_headers)
     for team in teams_list:
         row = [team.name]
         for q in all_questions:
             ans = next((a for a in team.answers if a.question_id == q.id), None)
             if ans:
-                row.append(f"{ans.score} ({'✓' if ans.is_correct else '✗'})")
+                mark = '?' if ans.is_correct is None else ('✓' if ans.is_correct else '✗')
+                row.append(f"{ans.score} ({mark})")
             else:
                 row.append('')
         ws3.append(row)
+
+    # Sheet: Question statistics
+    ws_stats = wb.create_sheet('Статистика вопросов')
+    ws_stats.append(['Вопрос', 'Тур', 'Текст', 'Тип ответа', 'Баллы', 'Ответили',
+                     'Не ответили', 'Проверено', 'Верных', '% верных', 'Средний балл'])
+    for r in question_stats(quiz)[0]:
+        ws_stats.append([r['label'], r['tour_title'], r['text'][:100], r['answer_type'], r['points'],
+                         r['answered'], r['not_answered'], r['checked'], r['correct'],
+                         r['correct_pct'] if r['correct_pct'] is not None else '',
+                         r['avg_score'] if r['avg_score'] is not None else ''])
 
     # Sheet 4: Answer details
     ws4 = wb.create_sheet('Детали ответов')
@@ -699,6 +842,8 @@ def quiz_export_json(quiz_id):
         tour_data = {
             'title': tour.title,
             'order': tour.order,
+            'is_slide': tour.is_slide,
+            'slide_text': tour.slide_text,
             'questions': [],
         }
         for q in tour.questions:
@@ -728,6 +873,14 @@ def quiz_export_json(quiz_id):
                      download_name=f'{safe_title}.json')
 
 
+@admin_bp.route('/quizzes/import-template')
+@admin_required
+def quiz_import_template():
+    path = os.path.join(os.path.dirname(__file__), 'quiz_template.json')
+    return send_file(path, mimetype='application/json', as_attachment=True,
+                     download_name='шаблон-квиза.json')
+
+
 @admin_bp.route('/quizzes/import-json', methods=['POST'])
 @admin_required
 def quiz_import_json():
@@ -741,53 +894,69 @@ def quiz_import_json():
         flash('Не удалось прочитать файл', 'error')
         return redirect(url_for('admin.quizzes'))
 
-    quiz = Quiz(
-        title=data.get('title', 'Импортированный квиз'),
-        description=data.get('description'),
-    )
-    db.session.add(quiz)
-    db.session.flush()
-
-    for tour_data in data.get('tours', []):
-        tour = Tour(
-            quiz_id=quiz.id,
-            title=tour_data.get('title', 'Тур'),
-            order=tour_data.get('order', 0),
+    try:
+        quiz = Quiz(
+            title=data.get('title', 'Импортированный квиз'),
+            description=data.get('description'),
         )
-        db.session.add(tour)
+        db.session.add(quiz)
         db.session.flush()
-        for q_data in tour_data.get('questions', []):
-            q = Question(
-                tour_id=tour.id,
-                order=q_data.get('order', 0),
-                question_type=q_data.get('question_type', 'text'),
-                answer_type=q_data.get('answer_type', 'short_text'),
-                text=q_data.get('text'),
-                image_path=q_data.get('image_path'),
-                audio_path=q_data.get('audio_path'),
-                time_seconds=q_data.get('time_seconds', 60),
-                points=q_data.get('points', 1),
-                auto_check=q_data.get('auto_check', False),
-                correct_answer=q_data.get('correct_answer'),
-            )
-            db.session.add(q)
-            db.session.flush()
-            for o_data in q_data.get('answer_options', []):
-                db.session.add(AnswerOption(
-                    question_id=q.id,
-                    text=o_data.get('text', ''),
-                    is_correct=o_data.get('is_correct', False),
-                    order=o_data.get('order', 0),
-                ))
-            for m_data in q_data.get('matching_items', []):
-                db.session.add(MatchingItem(
-                    question_id=q.id,
-                    left_text=m_data.get('left_text', ''),
-                    right_text=m_data.get('right_text', ''),
-                    order=m_data.get('order', 0),
-                ))
 
-    db.session.commit()
+        for tour_data in data.get('tours', []):
+            tour = Tour(
+                quiz_id=quiz.id,
+                title=tour_data.get('title', 'Тур'),
+                order=tour_data.get('order', 0),
+                is_slide=bool(tour_data.get('is_slide', False)),
+                slide_text=tour_data.get('slide_text'),
+                splash_image=tour_data.get('splash_image'),
+            )
+            db.session.add(tour)
+            db.session.flush()
+            for q_data in tour_data.get('questions', []):
+                answer_type = q_data.get('answer_type', 'short_text')
+                q = Question(
+                    tour_id=tour.id,
+                    order=q_data.get('order', 0),
+                    question_type=q_data.get('question_type', 'text'),
+                    answer_type=answer_type,
+                    text=q_data.get('text'),
+                    image_path=q_data.get('image_path'),
+                    audio_path=q_data.get('audio_path'),
+                    audio_original_name=q_data.get('audio_original_name'),
+                    audio_trim_start=float(q_data.get('audio_trim_start') or 0),
+                    audio_trim_end=q_data.get('audio_trim_end'),
+                    answer_audio_path=q_data.get('answer_audio_path'),
+                    answer_audio_original_name=q_data.get('answer_audio_original_name'),
+                    time_seconds=_int_or_default(q_data.get('time_seconds'), 1, 3600, 60),
+                    points=_int_or_default(q_data.get('points'), 0, 1000, 1),
+                    # Как в конструкторе: варианты проверяются автоматически, остальное — судьёй.
+                    auto_check=q_data.get('auto_check', answer_type in ('single_choice', 'multiple_choice')),
+                    correct_answer=q_data.get('correct_answer'),
+                )
+                db.session.add(q)
+                db.session.flush()
+                for o_data in q_data.get('answer_options', []):
+                    db.session.add(AnswerOption(
+                        question_id=q.id,
+                        text=o_data.get('text', ''),
+                        is_correct=o_data.get('is_correct', False),
+                        order=o_data.get('order', 0),
+                    ))
+                for m_data in q_data.get('matching_items', []):
+                    db.session.add(MatchingItem(
+                        question_id=q.id,
+                        left_text=m_data.get('left_text', ''),
+                        right_text=m_data.get('right_text', ''),
+                        order=m_data.get('order', 0),
+                    ))
+
+        db.session.commit()
+    except Exception as e:
+        # Файл часто правят руками: битая структура не должна давать 500.
+        db.session.rollback()
+        flash(f'Ошибка в структуре файла: {e}', 'error')
+        return redirect(url_for('admin.quizzes'))
     flash(f'Квиз «{quiz.title}» импортирован', 'success')
     return redirect(url_for('admin.quiz_edit', quiz_id=quiz.id))
 
@@ -834,6 +1003,10 @@ def quiz_export_zip(quiz_id):
                 'title': tour.title,
                 'order': tour.order,
                 'splash_image': add_media(tour.splash_image),
+                'is_slide': tour.is_slide,
+                'slide_text': tour.slide_text,
+                'slide_audio': add_media(tour.slide_audio_path),
+                'slide_audio_original_name': tour.slide_audio_original_name,
                 'questions': [],
             }
             for q in tour.questions:
@@ -907,17 +1080,24 @@ def quiz_import_zip():
 
         upload_base = os.path.join(current_app.root_path, 'static', 'uploads', quiz.id)
 
+        tmp_root = os.path.realpath(tmpdir)
+
         def copy_media(zip_rel_path):
-            if not zip_rel_path:
+            if not zip_rel_path or not isinstance(zip_rel_path, str):
                 return None
-            src = os.path.join(tmpdir, *zip_rel_path.split('/'))
-            if not os.path.exists(src):
+            # quiz.json приходит извне: не даём ссылаться на файлы вне архива
+            # (../../.env) и класть в публичный static что-то кроме медиа.
+            src = os.path.realpath(os.path.join(tmpdir, *zip_rel_path.split('/')))
+            if not src.startswith(tmp_root + os.sep) or not os.path.isfile(src):
                 return None
             parts = zip_rel_path.split('/')
             subdir = parts[1] if len(parts) >= 2 and parts[1] in ('images', 'audio') else 'images'
+            filename = secure_filename(os.path.basename(zip_rel_path))
+            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+            if ext not in (_IMAGE_EXTS if subdir == 'images' else _AUDIO_EXTS):
+                return None
             dst_dir = os.path.join(upload_base, subdir)
             os.makedirs(dst_dir, exist_ok=True)
-            filename = os.path.basename(zip_rel_path)
             dst = os.path.join(dst_dir, filename)
             shutil.copy2(src, dst)
             return f'/static/uploads/{quiz.id}/{subdir}/{filename}'
@@ -932,10 +1112,14 @@ def quiz_import_zip():
                 quiz_id=quiz.id,
                 title=tour_data.get('title', 'Тур'),
                 order=tour_data.get('order', 0),
+                is_slide=bool(tour_data.get('is_slide', False)),
+                slide_text=tour_data.get('slide_text'),
+                slide_audio_original_name=tour_data.get('slide_audio_original_name'),
             )
             db.session.add(tour)
             db.session.flush()
             tour.splash_image = copy_media(tour_data.get('splash_image'))
+            tour.slide_audio_path = copy_media(tour_data.get('slide_audio'))
 
             for q_data in tour_data.get('questions', []):
                 q = Question(
@@ -991,7 +1175,8 @@ def quiz_import_zip():
 @admin_bp.route('/api/qr/<quiz_id>')
 def qr_code(quiz_id):
     import qrcode
-    base_url = request.host_url.rstrip('/')
+    from app import public_base_url
+    base_url = public_base_url()
     url = f"{base_url}/play/{quiz_id}"
     img = qrcode.make(url)
     buf = io.BytesIO()
@@ -1001,6 +1186,54 @@ def qr_code(quiz_id):
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────
+
+def _int_in_range(value, lo, hi):
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return None
+    return v if lo <= v <= hi else None
+
+
+def _int_or_default(value, lo, hi, default):
+    v = _int_in_range(value, lo, hi)
+    return default if v is None else v
+
+
+def _copy_title(title):
+    suffix = ' (копия)'
+    return title[:256 - len(suffix)] + suffix
+
+
+# Медиафайлы не копируются: копия ссылается на те же пути (файлы при
+# удалении квизов/туров/вопросов не стираются, так что это безопасно).
+def _clone_tour(src, quiz_id, order, title=None):
+    tour = Tour(quiz_id=quiz_id, order=order, title=title or src.title)
+    for field in ('splash_image', 'is_slide', 'slide_text', 'slide_audio_path',
+                  'slide_audio_original_name'):
+        setattr(tour, field, getattr(src, field))
+    db.session.add(tour)
+    db.session.flush()
+    for q in src.questions:
+        _clone_question(q, tour.id, q.order)
+    return tour
+
+
+def _clone_question(src, tour_id, order):
+    q = Question(tour_id=tour_id, order=order)
+    for field in ('question_type', 'answer_type', 'text', 'image_path', 'audio_path',
+                  'audio_original_name', 'audio_trim_start', 'audio_trim_end',
+                  'answer_audio_path', 'answer_audio_original_name', 'time_seconds',
+                  'points', 'auto_check', 'correct_answer'):
+        setattr(q, field, getattr(src, field))
+    for o in src.answer_options:
+        q.answer_options.append(AnswerOption(text=o.text, is_correct=o.is_correct, order=o.order))
+    for m in src.matching_items:
+        q.matching_items.append(MatchingItem(left_text=m.left_text, right_text=m.right_text, order=m.order))
+    db.session.add(q)
+    db.session.flush()
+    return q
+
 
 def _tour_dict(tour):
     return {

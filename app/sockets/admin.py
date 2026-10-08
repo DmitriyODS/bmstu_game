@@ -8,6 +8,7 @@ from app import socketio
 from app.models import db, Quiz, Tour, Question, Team, TeamAnswer, GameState
 
 from app.sockets.utils import broadcast as _broadcast
+from app.scoring import rank_scores, matching_token
 
 _timer_greenlets = {}  # quiz_id -> greenlet
 _audio_pre_timer_greenlets = {}  # quiz_id -> greenlet (плеер играет, потом стартует таймер)
@@ -32,6 +33,9 @@ def _broadcast_stop_audio(quiz_id):
 
 @socketio.on('connect', namespace='/admin')
 def on_connect():
+    # Без этой проверки любой участник мог бы управлять игрой через сокет.
+    if not current_user.is_authenticated or current_user.role != 'admin':
+        return False
     quiz = Quiz.query.filter_by(is_active=True).first()
     if quiz:
         join_room(quiz.id)
@@ -190,6 +194,28 @@ def _start_timer_internal(quiz_id, question_id, app=None):
         _do(quiz_id, question_id)
 
 
+def resume_running_timer(app):
+    """После перезапуска процесса greenlet таймера теряется, а в БД таймер
+    всё ещё «идёт»: клиенты не получают тиков и звука окончания. Подхватываем
+    отсчёт с оставшегося времени."""
+    with app.app_context():
+        quiz = Quiz.query.filter_by(is_active=True).first()
+        if not quiz:
+            return
+        gs = GameState.query.filter_by(quiz_id=quiz.id).first()
+        if not gs or not gs.timer_started_at or not gs.timer_seconds:
+            return
+        elapsed = int((datetime.utcnow() - gs.timer_started_at).total_seconds())
+        remaining = gs.timer_seconds - elapsed
+        if remaining <= 0:
+            return
+        _cancel_timer(quiz.id)
+        _timer_greenlets[quiz.id] = eventlet.spawn(
+            _run_timer_loop, quiz.id, remaining,
+            quiz.sound_mid_seconds, quiz.sound_mid_path, quiz.sound_end_path,
+        )
+
+
 @socketio.on('pause_timer', namespace='/admin')
 def on_pause_timer():
     quiz = Quiz.query.filter_by(is_active=True).first()
@@ -224,8 +250,9 @@ def on_reset_timer():
         gs.timer_started_at = None
         gs.timer_seconds = None  # полный сброс — следующий старт начнёт заново
         db.session.commit()
+    # Только timer_reset: следом слать timer_stopped нельзя — клиенты трактуют его
+    # как «время вышло» и блокировали ответы даже после повторного старта.
     _broadcast('timer_reset', {}, quiz.id)
-    _broadcast('timer_stopped', {}, quiz.id)
 
 
 @socketio.on('play_audio_then_timer', namespace='/admin')
@@ -310,15 +337,22 @@ def _emit_state(gs):
 
 
 def _build_screen_payload(gs, quiz):
-    timer_active = False
+    # idle — таймер ещё не запускали (или сбросили), running, paused, expired.
+    # Нужен, чтобы переподключившийся клиент видел паузу и «время вышло»,
+    # а не «ожидайте запуска таймера».
+    timer_state = 'idle'
     timer_remaining = None
-    if gs.timer_started_at and gs.timer_seconds:
-        from datetime import datetime
-        elapsed = int((datetime.utcnow() - gs.timer_started_at).total_seconds())
-        remaining = gs.timer_seconds - elapsed
-        if remaining > 0:
-            timer_active = True
-            timer_remaining = remaining
+    if gs.timer_seconds:
+        if gs.timer_started_at:
+            elapsed = int((datetime.utcnow() - gs.timer_started_at).total_seconds())
+            remaining = gs.timer_seconds - elapsed
+            if remaining > 0:
+                timer_state, timer_remaining = 'running', remaining
+            else:
+                timer_state, timer_remaining = 'expired', 0
+        else:
+            timer_state, timer_remaining = 'paused', gs.timer_seconds
+    timer_active = timer_state == 'running'
 
     data = {
         'screen': gs.current_screen,
@@ -326,6 +360,7 @@ def _build_screen_payload(gs, quiz):
         'quiz_title': quiz.title,
         'registration_open': gs.registration_open,
         'timer_active': timer_active,
+        'timer_state': timer_state,
         'timer_remaining': timer_remaining,
     }
 
@@ -334,6 +369,15 @@ def _build_screen_payload(gs, quiz):
         if q:
             reveal = gs.current_screen == 'question_answer'
             data['question'] = _question_payload(q, reveal_answers=reveal)
+            if gs.current_screen == 'question':
+                # Чтобы после переподключения пульт и презентация не теряли,
+                # какие команды уже ответили.
+                rows = (db.session.query(Team.id, Team.name)
+                        .join(TeamAnswer, TeamAnswer.team_id == Team.id)
+                        .filter(TeamAnswer.question_id == q.id)
+                        .order_by(TeamAnswer.submitted_at)
+                        .all())
+                data['answered_teams'] = [{'team_id': tid, 'team_name': name} for tid, name in rows]
 
     if gs.current_tour_id:
         tour = Tour.query.get(gs.current_tour_id)
@@ -382,9 +426,16 @@ def _question_payload(q, reveal_answers=False):
             for o in options_sorted
         ],
         'matching_items': [
-            {'id': m.id, 'left_text': m.left_text, 'right_text': m.right_text, 'order': m.order}
+            {'id': m.id, 'left_text': m.left_text, 'order': m.order,
+             **({'right_text': m.right_text} if reveal_answers else {})}
             for m in matching_sorted
         ],
+        # Правые части — отдельным списком с непрозрачными id в стабильном
+        # «перемешанном» порядке: одинаковом на презентации и у участников.
+        'matching_rights': [] if reveal_answers else sorted(
+            ({'id': matching_token(m.id), 'right_text': m.right_text} for m in matching_sorted),
+            key=lambda r: r['id'],
+        ),
         'correct_answer': q.correct_answer if reveal_answers else None,
         'sound_start_path': q.tour.quiz.sound_start_path if q.tour else None,
         'sound_mid_path': q.tour.quiz.sound_mid_path if q.tour else None,
@@ -395,15 +446,14 @@ def _question_payload(q, reveal_answers=False):
 
 def _calc_scores(quiz, tour_id=None):
     teams = Team.query.filter_by(quiz_id=quiz.id).all()
+    q_ids = None
+    if tour_id:
+        q_ids = {q.id for tour in quiz.tours if tour.id == tour_id for q in tour.questions}
     result = []
     for team in teams:
-        if tour_id:
-            q_ids = {q.id for tour in quiz.tours if tour.id == tour_id for q in tour.questions}
+        if q_ids is not None:
             score = sum(a.score for a in team.answers if a.question_id in q_ids and a.score)
         else:
             score = sum(a.score for a in team.answers if a.score)
         result.append({'team_id': team.id, 'team_name': team.name, 'score': score})
-    result.sort(key=lambda x: -x['score'])
-    for i, r in enumerate(result):
-        r['place'] = i + 1
-    return result
+    return rank_scores(result)

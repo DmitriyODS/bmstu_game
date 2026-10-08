@@ -141,6 +141,10 @@ bmstu_quiz/
 - Судьи видят ВСЕ ответы (включая авто-проверенные) — могут переопределить
 - Режим Tinder: каждому судье выдаётся следующий непроверенный ответ из очереди (pessimistic locking через `checking_by` поле)
 - Режим таблицы: все ответы на вопрос в сетке
+- Ответ принимается только при `current_screen == 'question'` (после «Показать ответ» — 400)
+- Сопоставление: до показа ответа правые части уходят клиентам отдельным списком `matching_rights` с HMAC-токенами (`app/scoring.py: matching_token`), сервер переводит их обратно в id при сохранении
+- Места в итогах — общие при равных баллах (1, 2, 2, 4): `app/scoring.py: rank_scores`
+- Блокировка карточки судьи снимается: явным release (pagehide → sendBeacon, уход со вкладки), протухшим heartbeat (30 с) или потолком 180 с. Обрыв сокета блокировку НЕ снимает — иначе при сбое сети один ответ проверяли двое. Простаивающий судья сам опрашивает очередь каждые 1–4 с
 
 ### Баллы
 - По умолчанию 1 балл за верный ответ, 0 за неверный
@@ -148,9 +152,18 @@ bmstu_quiz/
 - Кол-во баллов за вопрос настраивается в конструкторе
 
 ### Экспорт / импорт квиза
-- **JSON** (`GET /admin/quizzes/<id>/export-json`, `POST /admin/quizzes/import-json`) — только структура без медиафайлов
+- **JSON** (`GET /admin/quizzes/<id>/export-json`, `POST /admin/quizzes/import-json`) — только структура без медиафайлов (включая слайды: `is_slide`, `slide_text`)
 - **ZIP** (`GET /admin/quizzes/<id>/export-zip`, `POST /admin/quizzes/import-zip`) — полный архив: `quiz.json` + `media/images/` + `media/audio/`; внешние URL-картинки в ZIP не включаются
 - Интерфейс: страница квизов, кнопка «Импорт» (модал с табами ZIP / JSON), кнопка «ZIP» на карточке каждого квиза
+
+### Безопасность и инфраструктура
+- CSRF: `app/csrf.py`; токен в `<meta name="csrf-token">`, `base.html` сам добавляет его в fetch (заголовок `X-CSRFToken`) и POST-формы. Для `sendBeacon` — `?csrf_token=`
+- Сокеты `/admin` и `/judge` требуют авторизации
+- `PUBLIC_BASE_URL` — адрес для QR, `TRUST_PROXY=1` — за nginx (ProxyFix)
+- Поля `<input type="file">` автоматически оформляются на русском (`enhanceFileInput` в `base.html`); после сброса `input.value = ''` вызывать `syncFilePickers()`
+- Склонения в шаблонах: `{% import "_macros.html" as m %}` → `m.plural(n, 'тур', 'тура', 'туров')`; в JS — `pointsLabel(n)`
+- Цвета темы в кастомном CSS — `oklch(var(--p))` (DaisyUI 4), не `hsl(...)`
+- Локально: `PORT=5050 .venv/bin/python run_dev.py` (порт 5000 на macOS занят AirPlay) и `npx tailwindcss -i ./app/static/css/input.css -o ./app/static/css/output.css --watch=always`
 
 ## Docker окружение
 
@@ -164,6 +177,16 @@ services:
 - Volumes: `postgres_data`, `uploads_data`
 - `.env` файл для секретов: `SECRET_KEY`, `DATABASE_URL`, `ADMIN_PASSWORD`
 - `docker-compose up --build` — единственная команда для запуска
+
+## Прод
+
+- Сервер `root@37.230.112.9`, домен https://game.bmstu.kodass.ru, вход по SSH только по ключу
+- Деплой: `./deploy.sh` (rsync рабочей папки → `/opt/bmstu_quiz` → `docker compose up --build -d` → проверка здоровья)
+- Секреты — только в `/opt/bmstu_quiz/.env` на сервере (в rsync и образ не попадают, см. `.dockerignore`)
+- nginx (`deploy/nginx.conf`): TLS Let's Encrypt (автопродление), заголовки безопасности, CSP, лимит попыток входа; приложение слушает только `127.0.0.1:5000`
+- Защита: ufw (22 с лимитом, 80, 443), fail2ban (sshd, nginx-botsearch, recidive), unattended-upgrades, sysctl-hardening, контейнер от непривилегированного пользователя
+- Бэкапы: `/usr/local/bin/bmstu-backup` по cron в 04:15 → `/var/backups/bmstu_quiz` (БД 14 дней, медиа — 4 недели)
+- При добавлении внешних ресурсов (CDN, шрифты) — обновить CSP в `deploy/nginx.conf`
 
 ## Что не делаем
 

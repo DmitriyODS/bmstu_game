@@ -3,10 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Бауман.Игра{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Только используемые оси (FILL 0..1 при wght 400, GRAD 0, opsz 24):
+         ~450 КБ вместо ~3,9 МБ. display=block — не показывать названия иконок текстом. -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&display=block" />
     {% block head %}{% endblock %}
 </head>
 <body class="min-h-screen bg-base-200">
@@ -48,29 +53,148 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<script>
+// CSRF: токен автоматически уходит со всеми изменяющими запросами к нашему серверу.
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+(function() {
+    const origFetch = window.fetch.bind(window);
+    window.fetch = function(input, init) {
+        init = init || {};
+        const method = (init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+        const url = new URL(input instanceof Request ? input.url : input, location.href);
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && url.origin === location.origin) {
+            const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+            headers.set('X-CSRFToken', CSRF_TOKEN);
+            init = {...init, headers};
+        }
+        return origFetch(input, init);
+    };
+    function ensureToken(form) {
+        if ((form.method || '').toLowerCase() !== 'post' || form.querySelector('input[name="csrf_token"]')) return;
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'csrf_token';
+        input.value = CSRF_TOKEN;
+        form.appendChild(input);
+    }
+    document.querySelectorAll('form').forEach(ensureToken);
+    document.addEventListener('submit', (e) => ensureToken(e.target), true);
+    // form.submit() из JS не генерирует событие submit.
+    const origSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function() { ensureToken(this); return origSubmit.call(this); };
+})();
+</script>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script src="{{ url_for('static', filename='js/audio.js') }}"></script>
 <script>
-function confirmModal(message) {
+function confirmModal(message, okLabel, danger) {
     return new Promise(resolve => {
         const modal = document.getElementById('confirm-modal');
         document.getElementById('confirm-modal-message').textContent = message;
         const okBtn = document.getElementById('confirm-modal-ok');
+        okBtn.textContent = okLabel || 'Удалить';
+        // Красная кнопка — только для разрушительных действий.
+        okBtn.className = `btn ${danger === false ? 'btn-primary' : 'btn-error'}`;
         const cancelBtn = document.getElementById('confirm-modal-cancel');
         function cleanup() {
             okBtn.removeEventListener('click', onOk);
             cancelBtn.removeEventListener('click', onCancel);
-            modal.close();
+            modal.removeEventListener('close', onCancel);
+            if (modal.open) modal.close();
         }
         function onOk() { cleanup(); resolve(true); }
+        // Esc и клик по фону тоже закрывают диалог — считаем это отменой.
         function onCancel() { cleanup(); resolve(false); }
         okBtn.addEventListener('click', onOk);
         cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('close', onCancel);
         modal.showModal();
+        cancelBtn.focus();
     });
 }
-async function confirmAndSubmit(form, message) {
-    if (await confirmModal(message)) form.submit();
+async function confirmAndSubmit(form, message, okLabel, danger) {
+    if (await confirmModal(message, okLabel, danger)) form.submit();
+}
+function pointsLabel(n) {
+    const m10 = n % 10, m100 = n % 100;
+    const w = (m10 === 1 && m100 !== 11) ? 'балл'
+            : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? 'балла' : 'баллов';
+    return `${n}\u00a0${w}`;
+}
+// ── Выбор файла на русском ─────────────────────────────────────────────
+// Нативный <input type="file"> подписан языком браузера («Choose file /
+// no file selected»). Прячем его и рисуем свою кнопку + имя файла; id,
+// onchange и .files у исходного поля сохраняются, поэтому код страниц не меняется.
+// Поддерживается перетаскивание файла на поле.
+function enhanceFileInput(input) {
+    if (input.dataset.enhanced) return;
+    input.dataset.enhanced = '1';
+    const small = input.classList.contains('file-input-sm');
+    const wrap = document.createElement('div');
+    wrap.style.position = 'relative';
+    wrap.className = 'file-picker flex items-center gap-2 min-w-0 rounded-lg border border-dashed border-base-300 bg-base-100 p-1.5 transition-colors '
+        + (input.classList.contains('w-full') ? 'w-full ' : '') + (input.classList.contains('flex-1') ? 'flex-1 ' : '')
+        + [...input.classList].filter(c => /^(mt|mb|my)-/.test(c)).join(' ');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn btn-outline ${small ? 'btn-xs' : 'btn-sm'} shrink-0 gap-1`;
+    btn.innerHTML = '<span class="material-symbols-outlined icon-sm" aria-hidden="true">upload_file</span>'
+        + (input.multiple ? 'Выбрать файлы' : 'Выбрать файл');
+    const name = document.createElement('span');
+    name.className = 'text-sm text-base-content/60 truncate min-w-0';
+    input.parentNode.insertBefore(wrap, input);
+    // Визуально прячем нативное поле инлайном — не зависим от сборки CSS.
+    input.className = '';
+    Object.assign(input.style, {position: 'absolute', width: '1px', height: '1px', padding: '0',
+        margin: '-1px', overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: '0'});
+    input.tabIndex = -1;
+    wrap.append(btn, name, input);
+    input._syncName = () => {
+        const files = [...(input.files || [])];
+        name.textContent = files.length ? files.map(f => f.name).join(', ')
+                                        : 'Файл не выбран — можно перетащить сюда';
+        name.classList.toggle('text-base-content/60', !files.length);
+        name.classList.toggle('font-medium', !!files.length);
+    };
+    input._syncName();
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', input._syncName);
+    wrap.addEventListener('dragover', (e) => { e.preventDefault(); wrap.classList.add('border-primary', 'bg-primary/5'); });
+    wrap.addEventListener('dragleave', () => wrap.classList.remove('border-primary', 'bg-primary/5'));
+    wrap.addEventListener('drop', (e) => {
+        e.preventDefault();
+        wrap.classList.remove('border-primary', 'bg-primary/5');
+        if (!e.dataTransfer.files.length) return;
+        input.files = e.dataTransfer.files;
+        input.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+}
+// Код страниц сбрасывает поля через input.value = '' — обновляем подписи.
+function syncFilePickers(root) {
+    (root || document).querySelectorAll('input[type="file"]').forEach(i => i._syncName && i._syncName());
+}
+document.querySelectorAll('input[type="file"]').forEach(enhanceFileInput);
+document.addEventListener('reset', (e) => setTimeout(() => syncFilePickers(e.target)), true);
+
+// Плашка «нет соединения»: без неё при обрыве Wi-Fi экран молча «замерзает».
+// После переподключения сервер сам присылает актуальное состояние.
+function watchConnection(socket) {
+    let el = null, shownTimer = null;
+    socket.on('disconnect', () => {
+        clearTimeout(shownTimer);
+        shownTimer = setTimeout(() => {
+            if (el) return;
+            el = document.createElement('div');
+            el.setAttribute('role', 'status');
+            el.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-50 alert alert-warning shadow-lg w-auto py-2 px-4 text-sm';
+            el.innerHTML = '<span class="loading loading-spinner loading-sm"></span><span>Нет соединения с сервером, переподключаемся…</span>';
+            document.body.appendChild(el);
+        }, 1500);
+    });
+    socket.on('connect', () => {
+        clearTimeout(shownTimer);
+        if (el) { el.remove(); el = null; }
+    });
 }
 </script>
 {% block scripts %}{% endblock %}

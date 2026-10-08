@@ -1,0 +1,5 @@
+{# Русские склонения: plural(5, 'тур', 'тура', 'туров') -> «5 туров» #}
+{% macro plural(n, one, few, many) -%}
+{%- set m10 = n % 10 -%}{%- set m100 = n % 100 -%}
+{{ n }} {% if m10 == 1 and m100 != 11 %}{{ one }}{% elif m10 >= 2 and m10 <= 4 and (m100 < 12 or m100 > 14) %}{{ few }}{% else %}{{ many }}{% endif %}
+{%- endmacro %}

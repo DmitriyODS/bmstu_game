@@ -1,0 +1,17 @@
+# В образ не должны попадать секреты, локальные окружения и данные.
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.venv
+venv
+node_modules
+__pycache__
+*.pyc
+.idea
+.vscode
+.DS_Store
+app/static/uploads
+app/static/css/output.css
+*.log

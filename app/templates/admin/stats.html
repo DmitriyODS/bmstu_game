@@ -1,0 +1,132 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Статистика — {{ quiz.title }}{% endblock %}
+
+{% macro pct_class(p) -%}
+{%- if p is none %}progress{% elif p < 30 %}progress progress-error{% elif p < 70 %}progress progress-warning{% else %}progress progress-success{% endif -%}
+{%- endmacro %}
+
+{% block admin_content %}
+<div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+    <div class="min-w-0">
+        <h1 class="text-2xl font-bold">Статистика вопросов</h1>
+        <p class="text-sm text-base-content/60 truncate">{{ quiz.title }}</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.quiz_stats', quiz_id=quiz.id) }}" class="btn btn-ghost btn-sm">
+            <span class="material-symbols-outlined icon-sm">refresh</span>Обновить
+        </a>
+        <a href="{{ url_for('admin.export_excel', quiz_id=quiz.id) }}" class="btn btn-outline btn-sm">
+            <span class="material-symbols-outlined icon-sm">download</span>Excel
+        </a>
+        {% if quiz.is_active %}
+        <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-primary btn-sm">
+            <span class="material-symbols-outlined icon-sm">tune</span>Управление
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{% if not rows %}
+<div class="card bg-base-100 shadow">
+    <div class="card-body items-center text-center py-12 text-base-content/60">
+        <span class="material-symbols-outlined" style="font-size:48px">analytics</span>
+        <p>В квизе пока нет вопросов.</p>
+    </div>
+</div>
+{% else %}
+
+<div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full mb-6">
+    <div class="stat">
+        <div class="stat-title">Команд</div>
+        <div class="stat-value">{{ summary.teams }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Ответов</div>
+        <div class="stat-value">{{ summary.answers }}</div>
+        <div class="stat-desc">на {{ summary.questions }} вопросов</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Средняя доля верных</div>
+        <div class="stat-value">{{ summary.avg_pct ~ '%' if summary.avg_pct is not none else '—' }}</div>
+        <div class="stat-desc">среди проверенных ответов</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Не проверено</div>
+        <div class="stat-value {% if summary.unchecked %}text-warning{% endif %}">{{ summary.unchecked }}</div>
+        {% if summary.unchecked %}
+        <div class="stat-desc"><a href="/judge/" target="_blank" class="link">перейти к проверке</a></div>
+        {% endif %}
+    </div>
+</div>
+
+{% if hardest %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    {% for title, icon, items, tone in [('Самые сложные', 'trending_down', hardest, 'text-error'),
+                                        ('Самые лёгкие', 'trending_up', easiest, 'text-success')] %}
+    <section class="card bg-base-100 shadow">
+        <div class="card-body p-4">
+            <h2 class="font-bold flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined icon-sm {{ tone }}">{{ icon }}</span>{{ title }}
+            </h2>
+            <ul class="flex flex-col gap-2">
+                {% for r in items %}
+                <li class="flex items-center gap-3">
+                    <span class="badge badge-ghost font-mono shrink-0">{{ r.label }}</span>
+                    <span class="flex-1 min-w-0 truncate text-sm" title="{{ r.text }}">{{ r.text or '(без текста)' }}</span>
+                    <span class="font-bold font-mono shrink-0 {{ tone }}">{{ r.correct_pct }}%</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </section>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="overflow-x-auto bg-base-100 rounded-box shadow">
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Вопрос</th>
+                <th class="min-w-48">Текст</th>
+                <th>Тип ответа</th>
+                <th class="text-right">Ответили</th>
+                <th class="min-w-40">Верных</th>
+                <th class="text-right">Средний балл</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td class="font-mono whitespace-nowrap" title="{{ r.tour_title }}">{{ r.label }}</td>
+                <td><span class="line-clamp-2">{{ r.text or '(без текста)' }}</span></td>
+                <td class="whitespace-nowrap text-base-content/70">{{ r.answer_type }}</td>
+                <td class="text-right whitespace-nowrap font-mono">
+                    {{ r.answered }}<span class="text-base-content/40">/{{ summary.teams }}</span>
+                </td>
+                <td>
+                    {% if r.correct_pct is not none %}
+                    <div class="flex items-center gap-2">
+                        <progress class="{{ pct_class(r.correct_pct) }} w-20" value="{{ r.correct_pct }}" max="100"
+                                  aria-label="Доля верных"></progress>
+                        <span class="font-mono text-sm">{{ r.correct_pct }}%</span>
+                    </div>
+                    {% elif r.answered %}
+                    <span class="text-base-content/50 text-sm">не проверено</span>
+                    {% else %}
+                    <span class="text-base-content/40">—</span>
+                    {% endif %}
+                    {% if r.unchecked and r.correct_pct is not none %}
+                    <span class="badge badge-warning badge-xs mt-1">ещё {{ r.unchecked }} не проверено</span>
+                    {% endif %}
+                </td>
+                <td class="text-right font-mono whitespace-nowrap">
+                    {{ r.avg_score if r.avg_score is not none else '—' }}<span class="text-base-content/40"> из {{ r.points }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

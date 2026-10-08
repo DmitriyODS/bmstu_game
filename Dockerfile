@@ -14,7 +14,15 @@ RUN npm install
 COPY . .
 
 # Build Tailwind CSS
-RUN npx tailwindcss -i ./app/static/css/input.css -o ./app/static/css/output.css --minify
+RUN npx tailwindcss -i ./app/static/css/input.css -o ./app/static/css/output.css --minify \
+    && rm -rf node_modules
+
+# Приложение работает не от root. Папка uploads создаётся заранее с нужным
+# владельцем — Docker скопирует права в новый именованный volume.
+RUN useradd --system --uid 10001 --home /app app \
+    && mkdir -p /app/app/static/uploads \
+    && chown -R app:app /app/app/static/uploads
+USER app
 
 EXPOSE 5000
 

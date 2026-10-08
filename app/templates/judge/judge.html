@@ -146,7 +146,15 @@ let currentCard = null;
 let modalAnswer = null;
 let _heartbeatTimer = null;
 let _retryTimer = null;
+// Объявлены до первого setMode(): иначе обращение к let до инициализации падает.
+let _loadingCard = false;
+let _loadAgain = false;
+let _forceReload = false;  // фильтр сменился во время загрузки — карточку надо перевыбрать
+let _errorRetryDelay = 0;
+let lastQueue = null;
+let _judging = false;
 const socket = io('/judge');
+watchConnection(socket);
 
 updateQuestionFilter();
 setMode(mode);
@@ -186,7 +194,8 @@ function releaseCurrentCardBeacon() {
     // Для unload — sendBeacon доставит запрос даже после закрытия вкладки.
     if (!currentCard || !navigator.sendBeacon) return;
     try {
-        navigator.sendBeacon(`/judge/release/${currentCard.id}`, new Blob([], {type: 'text/plain'}));
+        navigator.sendBeacon(`/judge/release/${currentCard.id}?csrf_token=${encodeURIComponent(CSRF_TOKEN)}`,
+                             new Blob([], {type: 'text/plain'}));
     } catch (_) {}
 }
 
@@ -200,7 +209,7 @@ function getFilters() {
 
 function onFilterChange() {
     updateQuestionFilter();
-    if (mode === 'tinder') { currentCard = null; loadNextCard(); }
+    if (mode === 'tinder') { currentCard = null; if (_loadingCard) _forceReload = true; loadNextCard(); }
     else loadTable();
 }
 
@@ -258,9 +267,9 @@ function scheduleRetry() {
         if (mode === 'tinder' && !currentCard) loadNextCard();
     }, delay);
 }
-function startHeartbeat(answerId) {
+function startHeartbeat(answerId, immediate) {
     stopHeartbeat();
-    _heartbeatTimer = setInterval(async () => {
+    const beat = async () => {
         try {
             const res = await fetch(`/judge/heartbeat/${answerId}`, {method: 'POST', keepalive: true});
             const data = await res.json().catch(() => ({}));
@@ -273,7 +282,9 @@ function startHeartbeat(answerId) {
                 if (mode === 'tinder') loadNextCard();
             }
         } catch (_) {}
-    }, 15000);
+    };
+    _heartbeatTimer = setInterval(beat, 15000);
+    if (immediate) beat();
 }
 
 function showToast(text, kind) {
@@ -293,13 +304,45 @@ function showToast(text, kind) {
     setTimeout(() => { if (t.parentNode) t.remove(); }, 5000);
 }
 
+// Только один запрос карточки за раз: события (новые ответы, переподключение,
+// возврат на вкладку) часто приходят пачкой.
+
 async function loadNextCard() {
+    if (_loadingCard) { _loadAgain = true; return; }
+    _loadingCard = true;
+    try {
+        await _loadNextCard();
+    } finally {
+        _loadingCard = false;
+        if (_loadAgain) {
+            const force = _forceReload;
+            _loadAgain = false;
+            _forceReload = false;
+            if (mode === 'tinder' && (force || !currentCard)) loadNextCard();
+        }
+    }
+}
+
+async function _loadNextCard() {
     stopHeartbeat();
     stopRetry();
     const f = getFilters();
     const params = new URLSearchParams(f);
-    const res = await fetch(`/judge/next-card?${params}`);
-    const data = await res.json();
+    let data;
+    try {
+        const res = await fetch(`/judge/next-card?${params}`);
+        // Истёкшая сессия отдаёт HTML страницы входа вместо JSON.
+        if (res.redirected || !res.ok) throw new Error('auth');
+        data = await res.json();
+    } catch (_) {
+        currentCard = null;
+        renderLoadError();
+        scheduleErrorRetry();
+        return;
+    }
+    _errorRetryDelay = 0;
+    lastQueue = data.queue || null;
+    renderQueueInfo();
     currentCard = data.answer;
     renderCard(currentCard);
     if (currentCard) {
@@ -339,15 +382,54 @@ function renderCorrectContent(answer) {
     return `<p class="font-medium text-success mt-1 break-words whitespace-pre-wrap">${escHtml(answer.correct_display || '—')}</p>`;
 }
 
+// Сбой сети не должен оставлять судью на экране ошибки: повторяем сами
+// с нарастающей паузой (2, 4, 8 … 15 с), кнопка «Повторить» — для нетерпеливых.
+function scheduleErrorRetry() {
+    stopRetry();
+    _errorRetryDelay = Math.min(15000, _errorRetryDelay ? _errorRetryDelay * 2 : 2000);
+    _retryTimer = setTimeout(() => {
+        _retryTimer = null;
+        if (mode === 'tinder' && !currentCard) loadNextCard();
+    }, _errorRetryDelay);
+}
+
+function renderQueueInfo() {
+    const el = document.getElementById('queue-info');
+    if (mode !== 'tinder' || !lastQueue) return;
+    const parts = [`В очереди: ${lastQueue.waiting}`];
+    if (lastQueue.with_others) parts.push(`у других судей: ${lastQueue.with_others}`);
+    el.textContent = parts.join(' · ');
+}
+
+function renderLoadError() {
+    document.getElementById('card-container').innerHTML = `
+        <div class="card w-full max-w-md bg-base-100 shadow-xl" role="alert">
+            <div class="card-body text-center py-12">
+                <span class="material-symbols-outlined text-error mb-3 block" style="font-size:56px">cloud_off</span>
+                <p class="text-lg font-bold">Не удалось загрузить карточку</p>
+                <p class="text-base-content/60 mt-1 text-sm">Проверьте соединение — повторим автоматически. Если сессия истекла, войдите заново.</p>
+                <div class="flex gap-2 justify-center mt-4">
+                    <button onclick="loadNextCard()" class="btn btn-primary btn-sm">
+                        <span class="material-symbols-outlined icon-sm">refresh</span>Повторить
+                    </button>
+                    <a href="/login?next=/judge/" class="btn btn-ghost btn-sm">Войти</a>
+                </div>
+            </div>
+        </div>`;
+}
+
 function renderCard(answer) {
     const container = document.getElementById('card-container');
     if (!answer) {
+        const othersBusy = lastQueue ? lastQueue.with_others : 0;
         container.innerHTML = `
             <div class="card w-full max-w-md bg-base-100 shadow-xl">
                 <div class="card-body text-center py-16">
                     <span class="material-symbols-outlined text-success mb-3 block fill-1" style="font-size:64px">check_circle</span>
-                    <p class="text-xl font-bold">Всё проверено!</p>
-                    <p class="text-base-content/60 mt-2">Нет ответов для проверки</p>
+                    <p class="text-xl font-bold">${othersBusy ? 'Свободных ответов нет' : 'Всё проверено!'}</p>
+                    <p class="text-base-content/60 mt-2">${othersBusy
+                        ? `Ещё ${othersBusy} проверяют другие судьи. Если кто-то отключится, ответ сам появится здесь.`
+                        : 'Новые ответы появятся автоматически'}</p>
                     <button onclick="loadNextCard()" class="btn btn-outline btn-sm mt-4">
                         <span class="material-symbols-outlined icon-sm">refresh</span>
                         Обновить
@@ -363,7 +445,7 @@ function renderCard(answer) {
             <div class="card-body p-5">
                 <div class="flex items-center justify-between gap-2 mb-2">
                     <div class="badge badge-primary badge-lg font-semibold">${escHtml(answer.team_name)}</div>
-                    <div class="text-xs text-base-content/50">макс. ${answer.question_points} балл${answer.question_points === 1 ? '' : 'ов'}</div>
+                    <div class="text-xs text-base-content/50">макс. ${pointsLabel(answer.question_points)}</div>
                 </div>
                 <p class="text-base font-medium mb-4 leading-snug break-words">${escHtml(answer.question_text || '(без текста)')}</p>
 
@@ -384,34 +466,68 @@ function renderCard(answer) {
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
-                    <button onclick="judgeCard(false)" class="btn btn-error">
+                    <button onclick="judgeCard(false)" class="btn btn-error judge-btn">
                         <span class="material-symbols-outlined icon-sm">cancel</span>
                         Неверно
+                        <kbd class="kbd kbd-sm hidden md:inline-flex bg-transparent border-current" aria-hidden="true">←</kbd>
                     </button>
-                    <button onclick="judgeCard(true)" class="btn btn-success">
+                    <button onclick="judgeCard(true)" class="btn btn-success judge-btn">
                         <span class="material-symbols-outlined icon-sm">check_circle</span>
                         Верно
+                        <kbd class="kbd kbd-sm hidden md:inline-flex bg-transparent border-current" aria-hidden="true">→</kbd>
                     </button>
                 </div>
             </div>
         </div>`;
 }
 
+
 async function judgeCard(isCorrect) {
-    if (!currentCard) return;
+    if (!currentCard || _judging) return;
+    _judging = true;
+    document.querySelectorAll('.judge-btn').forEach(b => b.disabled = true);
     const scoreEl = document.getElementById('card-score');
     const raw = scoreEl ? scoreEl.value : '';
     const score = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
-    const res = await fetch(`/judge/check/${currentCard.id}`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({is_correct: isCorrect, score: isCorrect ? score : 0})
-    });
-    if (res.status === 409) {
-        showToast('Эту карточку уже взял другой судья', 'warning');
+    try {
+        const res = await fetch(`/judge/check/${currentCard.id}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({is_correct: isCorrect, score: isCorrect ? score : 0,
+                                  submitted_at: currentCard.submitted_at})
+        });
+        if (res.status === 409) {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.error === 'answer_changed'
+                ? 'Команда изменила ответ — он вернулся в очередь'
+                : 'Эту карточку уже взял другой судья', 'warning');
+        } else if (!res.ok || res.redirected) {
+            showToast('Оценка не сохранена — попробуйте ещё раз', 'error');
+            document.querySelectorAll('.judge-btn').forEach(b => b.disabled = false);
+            return;
+        }
+        loadNextCard();
+    } catch (_) {
+        showToast('Нет связи с сервером — оценка не сохранена', 'error');
+        document.querySelectorAll('.judge-btn').forEach(b => b.disabled = false);
+    } finally {
+        _judging = false;
     }
-    loadNextCard();
 }
+
+// Горячие клавиши режима карточек: → / Enter — верно, ← — неверно.
+document.addEventListener('keydown', (e) => {
+    if (mode !== 'tinder' || !currentCard || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (document.querySelector('dialog[open]')) return;
+    const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName);
+    if (e.key === 'Enter' && (!inField || e.target.id === 'card-score')) {
+        e.preventDefault(); judgeCard(true);
+    } else if (!inField && e.key === 'ArrowRight') {
+        e.preventDefault(); judgeCard(true);
+    } else if (!inField && e.key === 'ArrowLeft') {
+        e.preventDefault(); judgeCard(false);
+    }
+});
 
 async function loadTable() {
     const f = getFilters();
@@ -476,14 +592,28 @@ async function modalCheck(isCorrect) {
     const raw = document.getElementById('modal-score').value;
     const score = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
     // force=true — переоценка из таблицы должна перезаписывать чужой результат.
-    await fetch(`/judge/check/${modalAnswer.id}`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({is_correct: isCorrect, score: isCorrect ? score : 0, force: true})
-    });
+    try {
+        const res = await fetch(`/judge/check/${modalAnswer.id}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({is_correct: isCorrect, score: isCorrect ? score : 0, force: true})
+        });
+        if (!res.ok || res.redirected) throw new Error();
+    } catch (_) {
+        showToast('Оценка не сохранена — попробуйте ещё раз', 'error');
+        return;
+    }
     document.getElementById('answer-modal').close();
     loadTable();
 }
+
+// После переподключения сокета: свою карточку сразу сверяем с сервером
+// (heartbeat скажет, если её успели отдать), без карточки — ищем новую.
+socket.on('connect', () => {
+    if (mode !== 'tinder') return;
+    if (currentCard) startHeartbeat(currentCard.id, true);
+    else loadNextCard();
+});
 
 socket.on('answer_submitted', () => {
     if (mode === 'tinder' && !currentCard) loadNextCard();

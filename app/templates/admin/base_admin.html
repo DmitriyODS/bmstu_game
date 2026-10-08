@@ -62,6 +62,9 @@
                         <li><a href="/judge/" target="_blank">
                             <span class="material-symbols-outlined icon-sm">balance</span>Проверка ответов
                         </a></li>
+                        <li><a href="{{ url_for('admin.quiz_stats', quiz_id=active_quiz.id) }}" class="{% if request.endpoint == 'admin.quiz_stats' %}active{% endif %}">
+                            <span class="material-symbols-outlined icon-sm">analytics</span>Статистика
+                        </a></li>
                         <li><a href="{{ url_for('admin.export_excel', quiz_id=active_quiz.id) }}">
                             <span class="material-symbols-outlined icon-sm">download</span>Экспорт
                         </a></li>

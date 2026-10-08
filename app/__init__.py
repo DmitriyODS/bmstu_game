@@ -12,6 +12,15 @@ def create_app():
     app = Flask(__name__)
 
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+    if app.config['SECRET_KEY'] in ('dev-secret-key', 'change-me-to-random-secret'):
+        app.logger.warning('SECRET_KEY не задан: сессии админа и судей можно подделать. '
+                           'Укажите случайный SECRET_KEY в .env')
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    # COOKIE_SECURE=1 на проде за HTTPS: cookie не уходят по незашифрованному HTTP.
+    secure_cookies = os.environ.get('COOKIE_SECURE') == '1'
+    app.config['SESSION_COOKIE_SECURE'] = secure_cookies
+    app.config['REMEMBER_COOKIE_SECURE'] = secure_cookies
+    app.config['REMEMBER_COOKIE_HTTPONLY'] = True
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
         'DATABASE_URL', 'postgresql://quiz:quiz@db:5432/quiz'
     )
@@ -20,13 +29,26 @@ def create_app():
         os.environ.get('MAX_CONTENT_LENGTH', 52428800)
     )
 
+    # За nginx/реверс-прокси: доверяем X-Forwarded-* (схема, хост), иначе
+    # QR-код и редиректы строятся на внутренний адрес контейнера.
+    if os.environ.get('TRUST_PROXY') == '1':
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
     from app.models import db
     db.init_app(app)
 
     from app.auth import init_login
     init_login(app)
 
-    socketio.init_app(app, cors_allowed_origins='*', async_mode='eventlet')
+    from app.csrf import init_csrf
+    init_csrf(app)
+
+    # На проде — только свой домен (SOCKETIO_CORS_ORIGINS=https://...), чтобы чужой
+    # сайт не мог открыть сокет от имени залогиненного админа/судьи.
+    cors = os.environ.get('SOCKETIO_CORS_ORIGINS', '*')
+    socketio.init_app(app, async_mode='eventlet',
+                      cors_allowed_origins=cors if cors == '*' else cors.split(','))
 
     # Blueprints
     from app.auth_routes import auth_bp
@@ -67,6 +89,9 @@ def create_app():
     # того, дёргает ли кто-нибудь /judge/next-card.
     from app.judge.locks import start_sweeper
     start_sweeper(app)
+
+    from app.sockets.admin import resume_running_timer
+    resume_running_timer(app)
 
     return app
 
@@ -118,3 +143,10 @@ def _init_db(app):
         admin.set_password(os.environ.get('ADMIN_PASSWORD', 'admin'))
         db.session.add(admin)
         db.session.commit()
+
+
+def public_base_url():
+    """Адрес, по которому участники открывают игру (для QR). PUBLIC_BASE_URL
+    нужен, когда ведущий открывает админку по localhost, а телефоны — по IP/домену."""
+    from flask import request
+    return (os.environ.get('PUBLIC_BASE_URL') or request.host_url).rstrip('/')

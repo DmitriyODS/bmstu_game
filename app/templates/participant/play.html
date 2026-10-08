@@ -16,6 +16,25 @@
 {% block content %}
 <div class="min-h-screen flex flex-col items-center justify-center p-4" id="app">
 
+    {% if not team %}
+    <!-- Не зарегистрирован, а регистрация уже не на экране: даём зарегистрироваться
+         опоздавшим, иначе их ответы молча отклонялись бы. -->
+    <div id="late-registration" class="hidden w-full max-w-lg mb-4">
+        <div class="alert alert-warning flex-col items-stretch sm:flex-row sm:items-center">
+            <span class="flex items-center gap-2">
+                <span class="material-symbols-outlined icon-sm">person_off</span>
+                <span class="text-sm">Вы не зарегистрированы — ответы не засчитываются.</span>
+            </span>
+            <form method="POST" action="/play/register" class="flex gap-2 w-full sm:w-auto">
+                <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+                <input type="text" name="name" class="input input-bordered input-sm flex-1 min-w-0" required
+                       maxlength="256" placeholder="Название команды" aria-label="Название команды">
+                <button class="btn btn-sm btn-primary">Войти в игру</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- SPLASH -->
     <div id="screen-splash" class="text-center max-w-sm w-full">
         <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-16 w-auto mx-auto mb-4">
@@ -98,10 +117,13 @@
     <div id="screen-question" class="hidden w-full max-w-lg">
         <div class="flex justify-between items-center mb-3 sticky top-0 z-20 bg-base-200/95 backdrop-blur py-2 -mx-2 px-2 rounded-lg">
             <div class="text-sm text-base-content/70 font-semibold" id="q-meta"></div>
-            <div class="text-3xl font-bold font-mono text-primary tabular-nums" id="timer">--</div>
+            <div class="flex items-center gap-2">
+                <span id="timer-paused" class="badge badge-warning badge-sm hidden">пауза</span>
+                <div class="text-3xl font-bold font-mono text-primary tabular-nums" id="timer" aria-label="Осталось секунд">--</div>
+            </div>
         </div>
 
-        <div class="card bg-base-100 shadow mb-4">
+        <div class="card bg-base-100 shadow mb-4" id="q-card">
             <div class="card-body p-4">
                 <div id="q-image-area"></div>
                 <div id="q-audio-area"></div>
@@ -118,10 +140,17 @@
 
         <div id="answer-area" class="mb-4 hidden"></div>
 
-        <div id="answer-submitted" class="hidden mb-2">
+        <div id="answer-submitted" class="hidden mb-2" role="status" aria-live="polite">
             <div class="alert alert-success">
                 <span class="material-symbols-outlined icon-sm">check_circle</span>
                 <span class="text-sm">Ответ принят. Можно изменить, пока идёт таймер.</span>
+            </div>
+        </div>
+
+        <div id="answer-error" class="hidden mb-2" role="alert">
+            <div class="alert alert-error">
+                <span class="material-symbols-outlined icon-sm">error</span>
+                <span class="text-sm" id="answer-error-text"></span>
             </div>
         </div>
 
@@ -186,14 +215,16 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
 <script>
-const QUIZ_ID = '{{ quiz.id }}';
-const TEAM_ID = '{{ team.id if team else "" }}';
-const TEAM_NAME = '{{ team.name if team else "" }}';
+const QUIZ_ID = {{ quiz.id|tojson }};
+const TEAM_ID = {{ (team.id if team else '')|tojson }};
+// Последний принятый сервером ответ: восстанавливается при перерисовке вопроса.
+let lastAnswer = {{ current_answer|tojson }};
 let currentQuestion = null;
 let timerExpired = false;
 let timerStarted = false;
 
 const socket = io('/participant');
+watchConnection(socket);
 
 function escHtml(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -215,6 +246,8 @@ function showScreen(name) {
     document.querySelectorAll('[id^="screen-"]').forEach(el => el.classList.add('hidden'));
     const el = document.getElementById(`screen-${name}`);
     if (el) el.classList.remove('hidden');
+    const late = document.getElementById('late-registration');
+    if (late) late.classList.toggle('hidden', ['splash', 'registration'].includes(name));
 }
 
 socket.on('screen_changed', (data) => {
@@ -230,11 +263,11 @@ socket.on('screen_changed', (data) => {
 
     if (data.screen === 'question' && data.question) {
         loadQuestion(data.question);
-        if (data.timer_active) {
+        if (['running', 'paused', 'expired'].includes(data.timer_state)) {
             showAnswerArea();
-            if (data.timer_remaining) {
-                document.getElementById('timer').textContent = data.timer_remaining;
-            }
+            setTimerText(data.timer_remaining);
+            setPaused(data.timer_state === 'paused');
+            if (data.timer_state === 'expired') markExpired();
         }
     }
 
@@ -251,48 +284,49 @@ socket.on('screen_changed', (data) => {
     }
 });
 
-socket.on('timer_started', (data) => {
-    showAnswerArea();
+function setTimerText(remaining) {
     const el = document.getElementById('timer');
-    if (el) {
-        el.textContent = data.seconds;
-        el.className = 'text-3xl font-bold font-mono text-primary';
-    }
+    if (!el || remaining == null) return;
+    el.textContent = remaining;
+    el.classList.toggle('text-error', remaining <= 10);
+    el.classList.toggle('text-primary', remaining > 10);
+}
+function setPaused(on) {
+    document.getElementById('timer-paused').classList.toggle('hidden', !on);
+}
+function markExpired() {
+    timerExpired = true;
+    setPaused(false);
+    document.getElementById('waiting-timer').classList.add('hidden');
+    document.getElementById('timer-expired').classList.remove('hidden');
+    document.getElementById('answer-area').classList.add('opacity-50', 'pointer-events-none');
+}
+
+socket.on('timer_started', (data) => {
+    timerExpired = false;
+    document.getElementById('timer-expired').classList.add('hidden');
+    document.getElementById('answer-area').classList.remove('opacity-50', 'pointer-events-none');
+    showAnswerArea();
+    setPaused(false);
+    setTimerText(data.seconds);
 });
 socket.on('timer_paused', (data) => {
-    const el = document.getElementById('timer');
-    if (el) el.textContent = data.remaining;
+    setTimerText(data.remaining);
+    setPaused(true);
 });
 socket.on('timer_tick', (data) => {
-    const el = document.getElementById('timer');
-    if (el) {
-        el.textContent = data.remaining;
-        el.className = `text-3xl font-bold font-mono ${data.remaining <= 10 ? 'text-error' : 'text-primary'}`;
-    }
-    if (data.remaining === 0) {
-        timerExpired = true;
-        document.getElementById('waiting-timer').classList.add('hidden');
-        document.getElementById('timer-expired').classList.remove('hidden');
-        document.getElementById('answer-area').classList.add('opacity-50', 'pointer-events-none');
-    }
+    setTimerText(data.remaining);
+    if (data.remaining === 0) markExpired();
 });
 
-socket.on('timer_stopped', () => {
-    timerExpired = true;
-    document.getElementById('waiting-timer')?.classList.add('hidden');
-    document.getElementById('timer-expired')?.classList.remove('hidden');
-    document.getElementById('answer-area')?.classList.add('opacity-50', 'pointer-events-none');
-});
+socket.on('timer_stopped', markExpired);
 
 socket.on('timer_reset', () => {
     // Полный сброс — ждём заново старта
     timerStarted = false;
     timerExpired = false;
-    const t = document.getElementById('timer');
-    if (t && currentQuestion) {
-        t.textContent = currentQuestion.time_seconds;
-        t.className = 'text-3xl font-bold font-mono text-primary';
-    }
+    if (currentQuestion) setTimerText(currentQuestion.time_seconds);
+    setPaused(false);
     document.getElementById('waiting-timer')?.classList.remove('hidden');
     document.getElementById('answer-area')?.classList.add('hidden');
     document.getElementById('answer-area')?.classList.remove('opacity-50', 'pointer-events-none');
@@ -317,12 +351,13 @@ function loadQuestion(q) {
     timerExpired = false;
     timerStarted = false;
     document.getElementById('answer-submitted').classList.add('hidden');
+    hideAnswerError();
     document.getElementById('timer-expired').classList.add('hidden');
     document.getElementById('waiting-timer').classList.remove('hidden');
     document.getElementById('answer-area').classList.add('hidden');
     document.getElementById('answer-area').classList.remove('opacity-50', 'pointer-events-none');
     document.getElementById('timer').textContent = q.time_seconds;
-    document.getElementById('q-meta').textContent = `${q.points} балл(ов)`;
+    document.getElementById('q-meta').textContent = pointsLabel(q.points);
 
     const textEl = document.getElementById('q-text');
     if (q.question_type === 'formatted_text') {
@@ -347,59 +382,92 @@ function loadQuestion(q) {
 
     const audArea = document.getElementById('q-audio-area');
     audArea.innerHTML = '';
+    // Пустая белая карточка без текста и картинки только сбивает с толку.
+    const hasText = q.question_type !== 'image_only' && (q.text || '').trim();
+    document.getElementById('q-card').classList.toggle('hidden', !hasText && !q.image_path);
 
     renderAnswerArea(q);
+    if (lastAnswer && lastAnswer.question_id === q.id) restoreAnswer(q, lastAnswer);
+}
+
+// Восстанавливаем уже отправленный ответ после перезагрузки страницы.
+function restoreAnswer(q, prev) {
+    const area = document.getElementById('answer-area');
+    if (['single_choice', 'multiple_choice'].includes(q.answer_type)) {
+        const chosen = new Set(prev.selected_options || []);
+        area.querySelectorAll('[data-opt-id]').forEach(btn => {
+            setChoiceState(btn, chosen.has(btn.dataset.optId));
+        });
+    } else if (q.answer_type === 'matching') {
+        (prev.matching_pairs || []).forEach(p => {
+            const sel = area.querySelector(`.matching-select[data-left-id="${CSS.escape(p.left_id)}"]`);
+            if (sel) sel.value = p.right_id;
+        });
+    } else {
+        const el = document.getElementById('text-answer');
+        if (el && prev.answer_text) el.value = prev.answer_text;
+    }
+    document.getElementById('answer-submitted').classList.remove('hidden');
+}
+
+function setChoiceState(btn, on) {
+    btn.classList.toggle('btn-primary', on);
+    btn.classList.toggle('btn-outline', !on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
+function selectedOptionIds(area) {
+    return [...area.querySelectorAll('[data-opt-id][aria-pressed="true"]')].map(b => b.dataset.optId);
 }
 
 function renderAnswerArea(q) {
     const area = document.getElementById('answer-area');
     area.innerHTML = '';
 
-    if (q.answer_type === 'single_choice') {
-        const btns = [];
-        q.answer_options.forEach(opt => {
+    if (q.answer_type === 'single_choice' || q.answer_type === 'multiple_choice') {
+        const multi = q.answer_type === 'multiple_choice';
+        if (multi) {
+            const hint = document.createElement('p');
+            hint.className = 'text-sm text-base-content/60 mb-2';
+            hint.textContent = 'Можно выбрать несколько вариантов';
+            area.appendChild(hint);
+        }
+        q.answer_options.forEach((opt, i) => {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'btn btn-outline w-full mb-2 text-left justify-start whitespace-normal h-auto py-3';
-            btn.textContent = opt.text;
+            btn.className = 'btn btn-outline w-full mb-2 text-left justify-start whitespace-normal h-auto py-3 gap-3';
+            btn.dataset.optId = opt.id;
+            btn.setAttribute('aria-pressed', 'false');
+            const letter = document.createElement('span');
+            letter.className = 'font-mono opacity-60 shrink-0';
+            letter.textContent = String.fromCharCode(0x0410 + i);
+            const label = document.createElement('span');
+            label.textContent = opt.text;
+            btn.append(letter, label);
             btn.onclick = () => {
-                btns.forEach(b => { b.classList.remove('btn-primary'); b.classList.add('btn-outline'); });
-                btn.classList.add('btn-primary'); btn.classList.remove('btn-outline');
-                submitAnswer({selected_options: [opt.id]});
-            };
-            btns.push(btn);
-            area.appendChild(btn);
-        });
-    } else if (q.answer_type === 'multiple_choice') {
-        const selected = new Set();
-        q.answer_options.forEach(opt => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'btn btn-outline w-full mb-2 text-left justify-start whitespace-normal h-auto py-3';
-            btn.textContent = opt.text;
-            btn.onclick = () => {
-                if (selected.has(opt.id)) {
-                    selected.delete(opt.id);
-                    btn.classList.remove('btn-primary'); btn.classList.add('btn-outline');
+                if (!canAnswer()) return;
+                if (multi) {
+                    setChoiceState(btn, btn.getAttribute('aria-pressed') !== 'true');
                 } else {
-                    selected.add(opt.id);
-                    btn.classList.add('btn-primary'); btn.classList.remove('btn-outline');
+                    area.querySelectorAll('[data-opt-id]').forEach(b => setChoiceState(b, b === btn));
                 }
-                submitAnswer({selected_options: [...selected]});
+                submitAnswer({selected_options: selectedOptionIds(area)});
             };
             area.appendChild(btn);
         });
     } else if (q.answer_type === 'short_text') {
         area.innerHTML = `
-            <div class="flex gap-2">
-                <input type="text" id="text-answer" class="input input-bordered flex-1" placeholder="Ваш ответ..." maxlength="255">
-                <button type="button" onclick="submitText()" class="btn btn-primary">
+            <form class="flex gap-2" onsubmit="event.preventDefault(); submitText();">
+                <input type="text" id="text-answer" class="input input-bordered flex-1 min-w-0" placeholder="Ваш ответ..."
+                       maxlength="255" autocomplete="off" aria-label="Ваш ответ" enterkeyhint="send">
+                <button type="submit" class="btn btn-primary" aria-label="Отправить ответ">
                     <span class="material-symbols-outlined icon-sm">send</span>
                 </button>
-            </div>`;
+            </form>`;
     } else if (q.answer_type === 'long_text') {
         area.innerHTML = `
-            <textarea id="text-answer" class="textarea textarea-bordered w-full mb-2" rows="4" placeholder="Ваш ответ..."></textarea>
+            <textarea id="text-answer" class="textarea textarea-bordered w-full mb-2" rows="4" maxlength="2000"
+                      placeholder="Ваш ответ..." aria-label="Ваш ответ"></textarea>
             <button type="button" onclick="submitText()" class="btn btn-primary w-full">
                 <span class="material-symbols-outlined icon-sm">send</span>
                 Отправить
@@ -411,36 +479,40 @@ function renderAnswerArea(q) {
 
 function renderMatching(q, area) {
     const items = q.matching_items || [];
-    // Перемешиваем правые элементы для случайного порядка вариантов
-    const rights = [...items].sort(() => Math.random() - 0.5);
+    // Правые части приходят с сервера в том же порядке и под теми же буквами,
+    // что и на экране презентации.
+    const rights = q.matching_rights || [];
 
     const list = document.createElement('div');
     list.className = 'flex flex-col gap-3';
 
-    items.forEach(item => {
+    items.forEach((item, idx) => {
         const row = document.createElement('div');
         row.className = 'flex items-stretch gap-2';
 
-        const left = document.createElement('div');
+        const left = document.createElement('label');
         left.className = 'flex-1 min-w-0 p-2 bg-base-200 rounded-lg border border-base-300 text-sm font-medium leading-snug flex items-center break-words';
-        left.textContent = item.left_text;
+        left.textContent = `${idx + 1}. ${item.left_text}`;
+        left.htmlFor = `match-${idx}`;
 
         const arrow = document.createElement('span');
         arrow.className = 'text-base-content/40 shrink-0 self-center material-symbols-outlined';
         arrow.style.fontSize = '20px';
+        arrow.setAttribute('aria-hidden', 'true');
         arrow.textContent = 'arrow_right_alt';
 
         const select = document.createElement('select');
+        select.id = `match-${idx}`;
         select.className = 'select select-bordered select-sm flex-1 min-w-0 matching-select';
         select.dataset.leftId = item.id;
         const empty = document.createElement('option');
         empty.value = '';
         empty.textContent = '— выбрать —';
         select.appendChild(empty);
-        rights.forEach(r => {
+        rights.forEach((r, i) => {
             const opt = document.createElement('option');
             opt.value = r.id;
-            opt.textContent = r.right_text;
+            opt.textContent = `${String.fromCharCode(0x0410 + i)}. ${r.right_text}`;
             select.appendChild(opt);
         });
         select.onchange = submitMatching;
@@ -452,13 +524,6 @@ function renderMatching(q, area) {
     });
 
     area.appendChild(list);
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-primary w-full mt-3';
-    btn.innerHTML = '<span class="material-symbols-outlined icon-sm">send</span> Отправить';
-    btn.onclick = submitMatching;
-    area.appendChild(btn);
 }
 
 function submitMatching() {
@@ -475,15 +540,62 @@ function submitText() {
     submitAnswer({answer_text: el.value.trim()});
 }
 
+function canAnswer() {
+    return timerStarted && !timerExpired && !!currentQuestion;
+}
+
+const SUBMIT_ERRORS = {
+    not_registered: 'Вы не зарегистрированы — ответ не засчитан.',
+    time_is_up: 'Время вышло — ответ не принят.',
+    question_not_active: 'Вопрос уже закрыт — ответ не принят.',
+};
+
+function showAnswerError(text) {
+    document.getElementById('answer-error-text').textContent = text;
+    document.getElementById('answer-error').classList.remove('hidden');
+    document.getElementById('answer-submitted').classList.add('hidden');
+}
+function hideAnswerError() {
+    document.getElementById('answer-error').classList.add('hidden');
+}
+
+// Отправки идут строго по очереди и только последняя версия ответа:
+// иначе при быстрых кликах более старый запрос мог записаться последним.
+let submitInFlight = false;
+let queuedAnswer = null;
+
 async function submitAnswer(answerData) {
-    if (!timerStarted || timerExpired || !currentQuestion) return;
-    const res = await fetch('/play/submit', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({question_id: currentQuestion.id, ...answerData})
-    });
-    if (res.ok) {
-        document.getElementById('answer-submitted').classList.remove('hidden');
+    if (!canAnswer()) return;
+    queuedAnswer = {question_id: currentQuestion.id, ...answerData};
+    if (submitInFlight) return;
+    submitInFlight = true;
+    try {
+        while (queuedAnswer) {
+            const payload = queuedAnswer;
+            queuedAnswer = null;
+            let res, data = {};
+            try {
+                res = await fetch('/play/submit', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                data = await res.json().catch(() => ({}));
+            } catch (_) {
+                showAnswerError('Нет связи с сервером. Ответ не отправлен — попробуйте ещё раз.');
+                continue;
+            }
+            if (currentQuestion && payload.question_id !== currentQuestion.id) continue;
+            if (res.ok) {
+                lastAnswer = payload;
+                hideAnswerError();
+                document.getElementById('answer-submitted').classList.remove('hidden');
+            } else {
+                showAnswerError(SUBMIT_ERRORS[data.error] || 'Не удалось отправить ответ. Попробуйте ещё раз.');
+            }
+        }
+    } finally {
+        submitInFlight = false;
     }
 }
 

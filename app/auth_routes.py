@@ -17,7 +17,9 @@ def login():
         if user and user.check_password(password):
             login_user(user)
             next_page = request.args.get('next')
-            if next_page:
+            # Только относительные пути внутри приложения — без открытого редиректа.
+            if next_page and next_page.startswith('/') and not next_page.startswith('//') \
+                    and '\\' not in next_page:
                 return redirect(next_page)
             if user.role == 'admin':
                 return redirect(url_for('admin.dashboard'))

@@ -2,151 +2,161 @@
 {% block title %}Конструктор: {{ quiz.title }}{% endblock %}
 
 {% block admin_content %}
-<div class="flex flex-wrap justify-between items-center gap-3 mb-4">
-    <div>
-        <h1 class="text-xl sm:text-2xl font-bold">{{ quiz.title }}</h1>
-        <div class="text-sm text-base-content/60">Конструктор квиза</div>
+<header class="flex flex-wrap items-end justify-between gap-3 mb-5">
+    <div class="min-w-0">
+        <div class="breadcrumbs text-sm py-0 text-base-content/60">
+            <ul>
+                <li><a href="{{ url_for('admin.quizzes') }}">Квизы</a></li>
+                <li>Конструктор</li>
+            </ul>
+        </div>
+        <h1 class="text-2xl font-bold truncate">{{ quiz.title }}</h1>
+        <p class="text-sm text-base-content/60" id="quiz-summary"></p>
     </div>
-    <div class="flex gap-2">
+    <div class="flex flex-wrap items-center gap-2">
+        <button onclick="openQuizSettings()" class="btn btn-ghost btn-sm" id="btn-quiz-settings">
+            <span class="material-symbols-outlined icon-sm" aria-hidden="true">tune</span>
+            Оформление и звуки
+        </button>
         {% if not quiz.is_active %}
         <form method="POST" action="{{ url_for('admin.quiz_activate', quiz_id=quiz.id) }}">
-            <button class="btn btn-success btn-sm">
-                <span class="material-symbols-outlined icon-sm">play_arrow</span>
-                Активировать
+            <button type="button" class="btn btn-success btn-sm"
+                    onclick='confirmAndSubmit(this.closest("form"), "Запустить квиз? Если сейчас идёт другая игра, она будет остановлена.", "Запустить", false)'>
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">play_arrow</span>
+                Запустить игру
             </button>
         </form>
         {% else %}
         <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-primary btn-sm">
-            <span class="material-symbols-outlined icon-sm">tune</span>
-            Управление
+            <span class="material-symbols-outlined icon-sm" aria-hidden="true">sports_esports</span>
+            Пульт ведущего
         </a>
         {% endif %}
-        <button onclick="showPanel('quiz-settings')" class="btn btn-ghost btn-sm">
-            <span class="material-symbols-outlined icon-sm">settings</span>
-            Настройки
-        </button>
-        <a href="{{ url_for('admin.quizzes') }}" class="btn btn-ghost btn-sm">
-            <span class="material-symbols-outlined icon-sm">arrow_back</span>
-            Назад
-        </a>
     </div>
-</div>
+    {# Те же действия, что в меню «⋯» на странице квизов #}
+    <nav aria-label="Действия с квизом" class="w-full flex flex-wrap items-center gap-1 border-t border-base-200 pt-2">
+        <a href="{{ url_for('admin.teams', quiz_id=quiz.id) }}" class="btn btn-ghost btn-sm">
+            <span class="material-symbols-outlined icon-sm" aria-hidden="true">groups</span>Команды
+        </a>
+        <a href="{{ url_for('admin.quiz_stats', quiz_id=quiz.id) }}" class="btn btn-ghost btn-sm">
+            <span class="material-symbols-outlined icon-sm" aria-hidden="true">analytics</span>Статистика
+        </a>
+        <button type="button" class="btn btn-ghost btn-sm" title="Копия вопросов и настроек — без команд и ответов"
+                onclick='confirmAndSubmit(document.getElementById("quiz-duplicate-form"), {{ ("Создать копию квиза «" ~ quiz.title ~ "»? Скопируются туры, вопросы и оформление; команды и ответы — нет.")|tojson }}, "Дублировать", false)'>
+            <span class="material-symbols-outlined icon-sm" aria-hidden="true">content_copy</span>Дублировать
+        </button>
+        <details class="dropdown quiz-menu">
+            <summary class="btn btn-ghost btn-sm">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">download</span>Скачать
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">expand_more</span>
+            </summary>
+            <ul class="dropdown-content menu menu-sm bg-base-100 rounded-box shadow-lg border border-base-200 z-30 w-60 p-1 mt-1">
+                <li><a href="{{ url_for('admin.export_excel', quiz_id=quiz.id) }}">
+                    <span class="material-symbols-outlined icon-sm" aria-hidden="true">table_view</span>
+                    <span>Результаты <span class="text-base-content/50">· Excel</span></span></a></li>
+                <li><a href="{{ url_for('admin.quiz_export_zip', quiz_id=quiz.id) }}">
+                    <span class="material-symbols-outlined icon-sm" aria-hidden="true">folder_zip</span>
+                    <span>Квиз с медиа <span class="text-base-content/50">· ZIP</span></span></a></li>
+                <li><a href="{{ url_for('admin.quiz_export_json', quiz_id=quiz.id) }}">
+                    <span class="material-symbols-outlined icon-sm" aria-hidden="true">data_object</span>
+                    <span>Только структура <span class="text-base-content/50">· JSON</span></span></a></li>
+            </ul>
+        </details>
+        <button type="button" class="btn btn-ghost btn-sm text-error sm:ml-auto"
+                onclick='confirmAndSubmit(document.getElementById("quiz-delete-form"), {{ ("Удалить квиз «" ~ quiz.title ~ "» вместе с командами и ответами? Это действие нельзя отменить.")|tojson }})'>
+            <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>Удалить квиз
+        </button>
+        <form method="POST" action="{{ url_for('admin.quiz_duplicate', quiz_id=quiz.id) }}" id="quiz-duplicate-form" class="hidden"></form>
+        <form method="POST" action="{{ url_for('admin.quiz_delete', quiz_id=quiz.id) }}" id="quiz-delete-form" class="hidden"></form>
+    </nav>
+</header>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-    <!-- Левая панель: список туров и вопросов -->
-    <div class="lg:col-span-1 flex flex-col gap-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-130px)] lg:overflow-hidden">
-        <div id="tours-list" class="flex flex-col gap-2 lg:overflow-y-auto lg:flex-1">
-            {% for tour in quiz.tours %}
-            {% if tour.is_slide %}
-            <div class="card bg-base-100 shadow-sm tour-card border-l-2 border-secondary" data-tour-id="{{ tour.id }}" draggable="true">
-                <div class="card-body p-3">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
-                        <span class="material-symbols-outlined text-secondary shrink-0" style="font-size:14px">slideshow</span>
-                        <span class="flex-1 font-semibold text-sm tour-name-{{ tour.id }}">{{ tour.title }}</span>
-                        <div class="flex flex-col shrink-0" style="gap:1px">
-                            <button onclick="event.stopPropagation(); moveTour('{{ tour.id }}', -1)" class="btn btn-xs btn-ghost p-0" style="min-height:auto;height:16px;width:20px" title="Переместить вверх">
-                                <span class="material-symbols-outlined" style="font-size:14px">keyboard_arrow_up</span>
-                            </button>
-                            <button onclick="event.stopPropagation(); moveTour('{{ tour.id }}', 1)" class="btn btn-xs btn-ghost p-0" style="min-height:auto;height:16px;width:20px" title="Переместить вниз">
-                                <span class="material-symbols-outlined" style="font-size:14px">keyboard_arrow_down</span>
-                            </button>
-                        </div>
-                        <button onclick="selectSlide('{{ tour.id }}')" class="btn btn-xs btn-ghost" title="Редактировать слайд">
-                            <span class="material-symbols-outlined icon-sm">settings</span>
-                        </button>
-                        <button onclick="deleteTour('{{ tour.id }}')" class="btn btn-xs btn-ghost text-error" title="Удалить слайд">
-                            <span class="material-symbols-outlined icon-sm">delete</span>
-                        </button>
-                    </div>
-                    <div class="text-xs text-secondary/70 mt-1 pl-5">Слайд</div>
-                </div>
-            </div>
-            {% else %}
-            <div class="card bg-base-100 shadow-sm tour-card" data-tour-id="{{ tour.id }}" draggable="true">
-                <div class="card-body p-3">
-                    <!-- Tour header -->
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
-                        <span class="flex-1 font-semibold text-sm tour-name-{{ tour.id }}">{{ tour.title }}</span>
-                        <div class="flex flex-col shrink-0" style="gap:1px">
-                            <button onclick="event.stopPropagation(); moveTour('{{ tour.id }}', -1)" class="btn btn-xs btn-ghost p-0" style="min-height:auto;height:16px;width:20px" title="Переместить вверх">
-                                <span class="material-symbols-outlined" style="font-size:14px">keyboard_arrow_up</span>
-                            </button>
-                            <button onclick="event.stopPropagation(); moveTour('{{ tour.id }}', 1)" class="btn btn-xs btn-ghost p-0" style="min-height:auto;height:16px;width:20px" title="Переместить вниз">
-                                <span class="material-symbols-outlined" style="font-size:14px">keyboard_arrow_down</span>
-                            </button>
-                        </div>
-                        <button onclick="addQuestion('{{ tour.id }}')" class="btn btn-xs btn-primary" title="Добавить вопрос">
-                            <span class="material-symbols-outlined icon-sm">add</span>
-                        </button>
-                        <button onclick="selectTour('{{ tour.id }}')" class="btn btn-xs btn-ghost" title="Настройки тура">
-                            <span class="material-symbols-outlined icon-sm">settings</span>
-                        </button>
-                        <button onclick="toggleTourCollapse('{{ tour.id }}')" class="btn btn-xs btn-ghost" title="Свернуть/развернуть">
-                            <span class="material-symbols-outlined icon-sm tour-collapse-icon-{{ tour.id }}">expand_less</span>
-                        </button>
-                        <button onclick="deleteTour('{{ tour.id }}')" class="btn btn-xs btn-ghost text-error" title="Удалить тур">
-                            <span class="material-symbols-outlined icon-sm">delete</span>
-                        </button>
-                    </div>
-                    <!-- Questions list -->
-                    <ul class="flex flex-col gap-1 mt-1 questions-list" id="questions-{{ tour.id }}">
-                        {% for q in tour.questions %}
-                        <li class="question-item flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer group"
-                            data-q-id="{{ q.id }}" onclick="selectQuestion('{{ q.id }}')" draggable="true">
-                            <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:14px">drag_indicator</span>
-                            <span class="material-symbols-outlined text-base-content/50 shrink-0" style="font-size:14px">{{ {'text':'text_fields','text_image':'image','image_only':'image','audio':'music_note','formatted_text':'format_color_text'}.get(q.question_type,'text_fields') }}</span>
-                            <span class="flex-1 text-xs truncate q-label-{{ q.id }}">{{ (q.text or '(без текста)')[:40] }}</span>
-                            <button onclick="event.stopPropagation(); deleteQuestion('{{ q.id }}')"
-                                    class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error shrink-0">
-                                <span class="material-symbols-outlined" style="font-size:12px">close</span>
-                            </button>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            {% endif %}
-            {% endfor %}
+<div class="grid grid-cols-1 lg:grid-cols-[minmax(18rem,24rem)_1fr] gap-4 items-start">
+    <!-- Левая панель: структура квиза -->
+    <nav aria-label="Структура квиза"
+         class="card bg-base-100 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] flex flex-col min-h-0">
+        <div class="flex items-center justify-between gap-2 px-4 pt-3 pb-2 border-b border-base-200">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-base-content/50">Структура</h2>
+            <span class="text-xs text-base-content/40 hidden lg:inline">Перетащите, чтобы изменить порядок</span>
         </div>
-        <div class="flex gap-2">
-            <button onclick="addTour()" class="btn btn-outline btn-sm flex-1">
-                <span class="material-symbols-outlined icon-sm">add</span>
+        <div id="tours-list" class="flex flex-col gap-2 p-2 lg:overflow-y-auto min-h-0 flex-1"></div>
+        <div id="tours-empty" class="hidden px-4 py-8 text-center text-sm text-base-content/60">
+            В квизе пока нет туров.<br>Начните с первого тура.
+        </div>
+        <div class="grid grid-cols-2 gap-2 p-2 border-t border-base-200">
+            <button onclick="addTour()" class="btn btn-sm btn-outline btn-primary">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">add</span>
                 Тур
             </button>
-            <button onclick="addSlide()" class="btn btn-outline btn-sm flex-1 text-secondary border-secondary hover:bg-secondary hover:text-secondary-content">
-                <span class="material-symbols-outlined icon-sm">slideshow</span>
+            <button onclick="addSlide()" class="btn btn-sm btn-outline btn-secondary">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">add</span>
                 Слайд
             </button>
         </div>
-    </div>
+    </nav>
+
+    <ul id="tour-menu" role="menu" aria-label="Действия"
+        class="hidden fixed z-50 menu menu-sm bg-base-100 rounded-box shadow-lg border border-base-200 w-56 p-1"></ul>
 
     <!-- Правая панель: редактор -->
-    <div class="lg:col-span-2">
-        <div class="card bg-base-100 shadow">
+    <div class="min-w-0">
+        <div class="card bg-base-100 shadow-sm">
             <div class="card-body p-4 sm:p-6">
 
                 <!-- Placeholder -->
-                <div id="editor-placeholder" class="text-center text-base-content/40 py-16">
-                    <span class="material-symbols-outlined icon-2xl mb-3 block">touch_app</span>
-                    <p>Выберите тур или вопрос</p>
+                <div id="editor-placeholder" class="py-10 sm:py-14 text-center max-w-md mx-auto">
+                    <span class="material-symbols-outlined text-primary/40 mb-3 block" style="font-size:56px" aria-hidden="true">edit_note</span>
+                    <h2 class="text-lg font-bold mb-1" id="placeholder-title">Выберите, что редактировать</h2>
+                    <p class="text-sm text-base-content/60 mb-5" id="placeholder-text">
+                        Нажмите на тур, вопрос или слайд в структуре слева.
+                    </p>
+                    <ol class="steps steps-vertical sm:steps-horizontal text-xs mb-5 w-full" aria-label="Как собрать квиз">
+                        <li class="step step-primary">Туры</li>
+                        <li class="step step-primary">Вопросы</li>
+                        <li class="step">Оформление</li>
+                        <li class="step">Запуск</li>
+                    </ol>
+                    <div class="flex flex-wrap justify-center gap-2">
+                        <button onclick="addTour()" class="btn btn-primary btn-sm">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">add</span>Добавить тур
+                        </button>
+                        <button onclick="openQuizSettings()" class="btn btn-ghost btn-sm">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">tune</span>Оформление и звуки
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Quiz settings -->
                 <div id="quiz-settings" class="hidden">
-                    <h2 class="font-bold text-lg mb-4 flex items-center gap-2">
-                        <span class="material-symbols-outlined icon-md text-primary">settings</span>
-                        Настройки квиза
-                    </h2>
-                    <div class="form-control mb-4">
-                        <label class="label"><span class="label-text font-medium">Картинка заставки</span></label>
-                        <p class="text-xs text-base-content/50 mb-2">Отображается на начальном экране презентации вместо логотипа</p>
-                        <input type="file" id="quiz-splash-input" accept="image/*" class="file-input file-input-bordered w-full">
+                    <div class="mb-5">
+                        <div class="text-xs font-bold uppercase tracking-wider text-primary">Квиз</div>
+                        <h2 class="text-xl font-bold">Оформление и звуки</h2>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="mb-6 flex flex-col gap-3">
+                        <div class="form-control">
+                            <label class="label pt-0" for="quiz-title-input"><span class="label-text font-medium">Название квиза</span></label>
+                            <input type="text" name="title" id="quiz-title-input" value="{{ quiz.title }}" required maxlength="256"
+                                   class="input input-bordered">
+                        </div>
+                        <div class="form-control">
+                            <label class="label pt-0" for="quiz-desc-input">
+                                <span class="label-text font-medium">Описание</span>
+                                <span class="label-text-alt text-base-content/50">видят участники на заставке</span>
+                            </label>
+                            <textarea name="description" id="quiz-desc-input" rows="2" class="textarea textarea-bordered">{{ quiz.description or '' }}</textarea>
+                        </div>
+                        <div><button class="btn btn-primary btn-sm">Сохранить</button></div>
+                    </form>
+
+                    <div class="mb-4">
+                        <h3 class="label-text font-medium mb-1">Картинка заставки</h3>
+                        <p class="text-xs text-base-content/60 mb-2">Показывается на начальном экране презентации вместо логотипа. JPG, PNG, WebP, GIF — загружается сразу после выбора.</p>
+                        <input type="file" id="quiz-splash-input" accept="image/*" class="file-input w-full">
                         <div id="quiz-splash-preview" class="mt-3">
                             {% if quiz.splash_image %}
-                            <img src="{{ quiz.splash_image }}" class="max-h-48 rounded">
-                            <button onclick="removeQuizSplash()" class="btn btn-xs btn-ghost text-error mt-2 block">Удалить</button>
+                            <img src="{{ quiz.splash_image }}" class="max-h-48 rounded" alt="Текущая заставка">
+                            <button onclick="removeQuizSplash()" class="btn btn-xs btn-ghost text-error mt-2 block">Убрать заставку</button>
                             {% endif %}
                         </div>
                     </div>
@@ -199,33 +209,57 @@
 
                 <!-- Tour editor -->
                 <div id="tour-editor" class="hidden">
-                    <h2 class="font-bold text-lg mb-4 flex items-center gap-2">
-                        <span class="material-symbols-outlined icon-md text-primary">folder</span>
-                        <span id="tour-editor-title">Настройки тура</span>
-                    </h2>
-
-                    <div class="form-control mb-4">
-                        <label class="label"><span class="label-text font-medium">Название тура</span></label>
-                        <div class="flex gap-2">
-                            <input type="text" id="tour-title-input" class="input input-bordered flex-1">
-                            <button onclick="saveTourTitle()" class="btn btn-primary">
-                                <span class="material-symbols-outlined icon-sm">save</span>
-                                Сохранить
+                    <div class="flex items-start justify-between gap-3 mb-5">
+                        <div class="min-w-0">
+                            <div class="text-xs font-bold uppercase tracking-wider text-primary" id="tour-editor-eyebrow">Тур</div>
+                            <h2 class="text-xl font-bold truncate" id="tour-editor-title">Настройки тура</h2>
+                        </div>
+                        <div class="flex gap-1 shrink-0">
+                            <button onclick="duplicateTour(currentTourId)" class="btn btn-ghost btn-sm" title="Создать копию тура со всеми вопросами">
+                                <span class="material-symbols-outlined icon-sm" aria-hidden="true">content_copy</span>
+                                <span class="hidden sm:inline">Дублировать</span>
+                            </button>
+                            <button onclick="deleteTour(currentTourId)" class="btn btn-ghost btn-sm text-error">
+                                <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>
+                                <span class="hidden sm:inline">Удалить тур</span>
                             </button>
                         </div>
                     </div>
 
-                    <div class="form-control mb-4">
-                        <label class="label"><span class="label-text font-medium">Заставка тура</span></label>
-                        <input type="file" id="tour-splash-input" accept="image/*" class="file-input file-input-bordered w-full">
-                        <div id="tour-splash-preview" class="mt-2"></div>
+                    <div class="form-control mb-6">
+                        <label class="label pt-0" for="tour-title-input"><span class="label-text font-medium">Название тура</span></label>
+                        <form class="flex gap-2" onsubmit="event.preventDefault(); saveTourTitle();">
+                            <input type="text" id="tour-title-input" class="input input-bordered flex-1 min-w-0" required maxlength="256"
+                                   oninput="document.getElementById('tour-title-status').textContent = ''">
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                        </form>
+                        <p class="text-sm text-success mt-1 min-h-5" id="tour-title-status" role="status"></p>
                     </div>
 
-                    <div class="mt-4">
-                        <button onclick="addQuestion(currentTourId)" class="btn btn-outline btn-sm">
-                            <span class="material-symbols-outlined icon-sm">add</span>
-                            Добавить вопрос в этот тур
-                        </button>
+                    <div class="mb-6">
+                        <h3 class="label-text font-medium mb-1">Заставка тура</h3>
+                        <p class="text-xs text-base-content/60 mb-2">Показывается на экране перед началом тура. Без картинки на экране будет название тура.</p>
+                        <div class="grid sm:grid-cols-[14rem_1fr] gap-3 items-start">
+                            <div id="tour-splash-preview"
+                                 class="aspect-video rounded-lg bg-base-200 border border-base-300 overflow-hidden flex items-center justify-center text-base-content/40 text-sm"></div>
+                            <div class="flex flex-col gap-2 min-w-0">
+                                <input type="file" id="tour-splash-input" accept="image/*" class="file-input w-full" aria-describedby="tour-splash-help">
+                                <p class="text-xs text-base-content/50" id="tour-splash-help">JPG, PNG, WebP, GIF. Загружается сразу после выбора.</p>
+                                <button type="button" onclick="removeTourSplash()" id="btn-remove-tour-splash" class="btn btn-ghost btn-xs text-error self-start hidden">
+                                    <span class="material-symbols-outlined icon-sm" aria-hidden="true">hide_image</span>Убрать заставку
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <h3 class="label-text font-medium">Вопросы тура <span class="text-base-content/50" id="tour-editor-count"></span></h3>
+                            <button onclick="addQuestion(currentTourId)" class="btn btn-primary btn-sm">
+                                <span class="material-symbols-outlined icon-sm" aria-hidden="true">add</span>Добавить вопрос
+                            </button>
+                        </div>
+                        <ol id="tour-editor-questions" class="flex flex-col gap-1.5"></ol>
                     </div>
                 </div>
 
@@ -298,14 +332,26 @@
 
                 <!-- Question editor -->
                 <div id="question-editor" class="hidden">
-                    <h2 class="font-bold text-lg mb-4 flex items-center gap-2">
-                        <span class="material-symbols-outlined icon-md text-secondary">help</span>
-                        Вопрос
-                    </h2>
+                    <div class="flex items-start justify-between gap-3 mb-5">
+                        <div class="min-w-0">
+                            <div class="text-xs font-bold uppercase tracking-wider text-primary" id="q-editor-eyebrow">Вопрос</div>
+                            <h2 class="text-xl font-bold">Редактирование вопроса</h2>
+                        </div>
+                        <div class="flex gap-1 shrink-0">
+                            <button onclick="duplicateQuestion(currentQuestionId)" class="btn btn-ghost btn-sm" title="Создать копию вопроса сразу под ним">
+                                <span class="material-symbols-outlined icon-sm" aria-hidden="true">content_copy</span>
+                                <span class="hidden sm:inline">Дублировать</span>
+                            </button>
+                            <button onclick="deleteQuestion(currentQuestionId)" class="btn btn-ghost btn-sm text-error">
+                                <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>
+                                <span class="hidden sm:inline">Удалить вопрос</span>
+                            </button>
+                        </div>
+                    </div>
 
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                         <div class="form-control col-span-2">
-                            <label class="label"><span class="label-text">Тип вопроса</span></label>
+                            <label class="label" for="q-type"><span class="label-text">Тип вопроса</span></label>
                             <select id="q-type" class="select select-bordered select-sm" onchange="onQTypeChange()">
                                 <option value="text">Текст</option>
                                 <option value="formatted_text">Форматированный текст</option>
@@ -315,7 +361,7 @@
                             </select>
                         </div>
                         <div class="form-control col-span-2">
-                            <label class="label"><span class="label-text">Тип ответа</span></label>
+                            <label class="label" for="q-answer-type"><span class="label-text">Тип ответа</span></label>
                             <select id="q-answer-type" class="select select-bordered select-sm" onchange="onAnswerTypeChange()">
                                 <option value="single_choice">Один вариант</option>
                                 <option value="multiple_choice">Несколько вариантов</option>
@@ -325,17 +371,17 @@
                             </select>
                         </div>
                         <div class="form-control">
-                            <label class="label"><span class="label-text">Время (сек)</span></label>
-                            <input type="number" id="q-time" class="input input-bordered input-sm" value="60" min="5" max="600">
+                            <label class="label" for="q-time"><span class="label-text">Время (сек)</span></label>
+                            <input type="number" id="q-time" class="input input-bordered input-sm" value="60" min="1" max="3600" required>
                         </div>
                         <div class="form-control">
-                            <label class="label"><span class="label-text">Баллы</span></label>
-                            <input type="number" id="q-points" class="input input-bordered input-sm" value="1" min="0">
+                            <label class="label" for="q-points"><span class="label-text">Баллы</span></label>
+                            <input type="number" id="q-points" class="input input-bordered input-sm" value="1" min="0" max="1000" required>
                         </div>
                     </div>
 
                     <div class="form-control mb-4" id="q-text-block">
-                        <label class="label"><span class="label-text">Текст вопроса</span></label>
+                        <label class="label" for="q-text"><span class="label-text">Текст вопроса</span></label>
                         <textarea id="q-text" class="textarea textarea-bordered" rows="3"></textarea>
                     </div>
 
@@ -472,11 +518,16 @@
                         </div>
                     </div>
 
-                    <div class="flex gap-2 pt-2 border-t border-base-200">
-                        <button onclick="saveQuestion()" class="btn btn-primary btn-sm">
+                    <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-base-200 sticky bottom-0 bg-base-100 py-2">
+                        <button onclick="saveQuestion()" id="btn-save-question" class="btn btn-primary btn-sm">
                             <span class="material-symbols-outlined icon-sm">save</span>
                             Сохранить вопрос
+                            <kbd id="save-kbd" class="kbd kbd-xs hidden md:inline-flex bg-transparent border-current" aria-hidden="true">Ctrl+S</kbd>
                         </button>
+                        <span id="q-dirty-hint" class="hidden text-sm text-warning items-center gap-1" role="status">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">edit</span>Есть несохранённые изменения
+                        </span>
+                        <span id="q-save-status" class="text-sm text-success" role="status"></span>
                     </div>
                 </div>
 
@@ -506,75 +557,273 @@ let currentQuestionId = null;
 // ── Tour ────────────────────────────────────────────────────────
 
 async function addTour() {
+    if (!await confirmDiscard()) return;
     const res = await fetch(`/admin/quizzes/${QUIZ_ID}/tours`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({})
     });
     const tour = await res.json();
-    const card = createTourCard(tour);
-    document.getElementById('tours-list').appendChild(card);
+    document.getElementById('tours-list').appendChild(createTourCard(tour));
+    refreshTour(tour.id);
+    updateSummary();
     selectTour(tour.id);
 }
 
+// ── Структура: отрисовка ────────────────────────────────────────
+const TOURS = {{ tours_data|tojson }};
+const QMODEL = {};  // id вопроса -> {text, question_type, answer_type, time_seconds, points, tour_id}
+const Q_ICONS = {text: 'text_fields', text_image: 'image', image_only: 'image', audio: 'music_note',
+                 formatted_text: 'format_color_text'};
+const A_LABELS = {single_choice: 'Один вариант', multiple_choice: 'Несколько вариантов',
+                  short_text: 'Короткий текст', long_text: 'Длинный текст', matching: 'Сопоставление'};
+
+function pluralRu(n, one, few, many) {
+    const m10 = n % 10, m100 = n % 100;
+    const w = (m10 === 1 && m100 !== 11) ? one
+            : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? few : many;
+    return `${n} ${w}`;
+}
+
+// Короткая подпись вопроса без markdown-разметки.
+function questionTitle(q) {
+    return (q.text || '').replace(/---col---/g, ' ').replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function questionItemHtml(q) {
+    const title = questionTitle(q);
+    return `
+        <span class="q-num w-5 shrink-0 text-right text-xs font-mono text-base-content/40"></span>
+        <span class="material-symbols-outlined shrink-0 text-base-content/50" style="font-size:16px" aria-hidden="true">${Q_ICONS[q.question_type] || 'text_fields'}</span>
+        <span class="flex-1 min-w-0">
+            <span class="block text-sm leading-tight truncate q-label-${q.id} ${title ? '' : 'italic text-base-content/50'}">${escHtml(title || 'Без текста')}</span>
+            <span class="block text-xs text-base-content/50 truncate">${A_LABELS[q.answer_type] || ''} · ${q.time_seconds} с · ${pointsLabel(q.points)}</span>
+        </span>
+        <button type="button" onclick="event.stopPropagation(); duplicateQuestion('${q.id}')"
+                class="btn btn-ghost btn-xs btn-square shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                aria-label="Дублировать вопрос" title="Дублировать вопрос">
+            <span class="material-symbols-outlined" style="font-size:16px" aria-hidden="true">content_copy</span>
+        </button>
+        <button type="button" onclick="event.stopPropagation(); deleteQuestion('${q.id}')"
+                class="btn btn-ghost btn-xs btn-square text-error shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                aria-label="Удалить вопрос" title="Удалить вопрос">
+            <span class="material-symbols-outlined" style="font-size:16px" aria-hidden="true">delete</span>
+        </button>`;
+}
+
+function createQuestionItem(q) {
+    QMODEL[q.id] = q;
+    const li = document.createElement('li');
+    li.className = 'question-item group flex items-center gap-2 px-1 py-1.5 rounded-lg hover:bg-base-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary';
+    li.dataset.qId = q.id;
+    li.draggable = true;
+    li.tabIndex = 0;
+    li.setAttribute('role', 'button');
+    li.innerHTML = questionItemHtml(q);
+    li.onclick = () => selectQuestion(q.id);
+    li.onkeydown = (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === li) { e.preventDefault(); selectQuestion(q.id); }
+    };
+    return li;
+}
+
+// Второстепенные действия — в меню «⋯» справа; основные (открыть, добавить вопрос) — на виду.
+// Меню одно на страницу и позиционируется fixed, чтобы его не обрезал скролл списка.
+function tourMenuHtml(tour) {
+    return `
+        <button type="button" class="btn btn-ghost btn-xs btn-square shrink-0" title="Ещё действия"
+                aria-label="Ещё действия" aria-haspopup="menu" aria-expanded="false"
+                onclick="event.stopPropagation(); openTourMenu(this, '${tour.id}')">
+            <span class="material-symbols-outlined icon-sm" aria-hidden="true">more_vert</span>
+        </button>`;
+}
+
+let _menuAnchor = null;
+
+function openTourMenu(anchor, tourId) {
+    const menu = document.getElementById('tour-menu');
+    if (_menuAnchor === anchor && !menu.classList.contains('hidden')) { closeTourMenu(); return; }
+    closeTourMenu();
+    const isSlide = !document.getElementById(`questions-${tourId}`);
+    const items = [
+        ['edit', isSlide ? 'Редактировать слайд' : 'Настройки тура', () => isSlide ? selectSlide(tourId) : selectTour(tourId)],
+        ['arrow_upward', 'Переместить выше', () => moveTour(tourId, -1)],
+        ['arrow_downward', 'Переместить ниже', () => moveTour(tourId, 1)],
+        ['content_copy', isSlide ? 'Дублировать слайд' : 'Дублировать тур', () => duplicateTour(tourId)],
+        ['delete', isSlide ? 'Удалить слайд' : 'Удалить тур', () => deleteTour(tourId), 'text-error'],
+    ];
+    menu.innerHTML = '';
+    items.forEach(([icon, label, action, cls]) => {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'none');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('role', 'menuitem');
+        btn.className = cls || '';
+        btn.innerHTML = `<span class="material-symbols-outlined icon-sm" aria-hidden="true">${icon}</span>${label}`;
+        btn.onclick = () => { closeTourMenu(); action(); };
+        li.appendChild(btn);
+        menu.appendChild(li);
+    });
+    menu.classList.remove('hidden');
+    const r = anchor.getBoundingClientRect();
+    const mh = menu.offsetHeight, mw = menu.offsetWidth;
+    const top = (r.bottom + mh + 8 > window.innerHeight) ? r.top - mh - 4 : r.bottom + 4;
+    menu.style.top = `${Math.max(8, top)}px`;
+    menu.style.left = `${Math.max(8, Math.min(r.right - mw, window.innerWidth - mw - 8))}px`;
+    anchor.setAttribute('aria-expanded', 'true');
+    _menuAnchor = anchor;
+    menu.querySelector('button').focus();
+}
+
+function closeTourMenu(returnFocus) {
+    const menu = document.getElementById('tour-menu');
+    if (menu.classList.contains('hidden')) return;
+    menu.classList.add('hidden');
+    if (_menuAnchor) {
+        _menuAnchor.setAttribute('aria-expanded', 'false');
+        if (returnFocus) _menuAnchor.focus();
+    }
+    _menuAnchor = null;
+}
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#tour-menu')) closeTourMenu();
+    document.querySelectorAll('details.quiz-menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; });
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('details.quiz-menu[open]').forEach(d => { d.open = false; d.querySelector('summary').focus(); });
+});
+document.addEventListener('keydown', (e) => {
+    const menu = document.getElementById('tour-menu');
+    if (menu.classList.contains('hidden')) return;
+    const btns = [...menu.querySelectorAll('button')];
+    const idx = btns.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); closeTourMenu(true); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); btns[(idx + 1) % btns.length].focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); btns[(idx - 1 + btns.length) % btns.length].focus(); }
+    else if (e.key === 'Tab') closeTourMenu();
+});
+window.addEventListener('resize', () => closeTourMenu());
+document.getElementById('tours-list').addEventListener('scroll', () => closeTourMenu());
+
 function createTourCard(tour) {
-    const div = document.createElement('div');
-    div.dataset.tourId = tour.id;
-    div.draggable = true;
-    const moveBtns = (id) => `
-        <div class="flex flex-col shrink-0" style="gap:1px">
-            <button onclick="event.stopPropagation(); moveTour('${id}', -1)" class="btn btn-xs btn-ghost p-0" style="min-height:auto;height:16px;width:20px" title="Переместить вверх">
-                <span class="material-symbols-outlined" style="font-size:14px">keyboard_arrow_up</span>
+    const card = document.createElement('section');
+    card.dataset.tourId = tour.id;
+    card.draggable = true;
+    const handle = `<span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px"
+                          title="Перетащите, чтобы изменить порядок" aria-hidden="true">drag_indicator</span>`;
+    if (tour.is_slide) {
+        card.className = 'tour-card rounded-xl border border-secondary/30 bg-secondary/5 transition-shadow';
+        card.innerHTML = `
+            <div class="flex items-center gap-1.5 p-2">
+                ${handle}
+                <button type="button" onclick="selectSlide('${tour.id}')"
+                        class="flex-1 min-w-0 flex items-center gap-2 text-left rounded-lg px-1 py-0.5 hover:bg-secondary/10">
+                    <span class="material-symbols-outlined text-secondary shrink-0" style="font-size:20px" aria-hidden="true">slideshow</span>
+                    <span class="min-w-0">
+                        <span class="block font-semibold text-sm truncate tour-name-${tour.id}">${escHtml(tour.title)}</span>
+                        <span class="block text-xs text-secondary">Слайд</span>
+                    </span>
+                </button>
+                ${tourMenuHtml(tour)}
+            </div>`;
+        return card;
+    }
+    card.className = 'tour-card rounded-xl border border-base-300 bg-base-100 transition-shadow';
+    card.innerHTML = `
+        <div class="flex items-center gap-1 p-2">
+            ${handle}
+            <button type="button" id="tour-toggle-${tour.id}" onclick="toggleTourCollapse('${tour.id}')"
+                    class="btn btn-ghost btn-xs btn-square shrink-0" aria-expanded="true" aria-controls="tour-body-${tour.id}"
+                    title="Свернуть или развернуть">
+                <span class="material-symbols-outlined icon-sm tour-collapse-icon-${tour.id}" aria-hidden="true">expand_more</span>
             </button>
-            <button onclick="event.stopPropagation(); moveTour('${id}', 1)" class="btn btn-xs btn-ghost p-0" style="min-height:auto;height:16px;width:20px" title="Переместить вниз">
-                <span class="material-symbols-outlined" style="font-size:14px">keyboard_arrow_down</span>
+            <button type="button" onclick="selectTour('${tour.id}')"
+                    class="flex-1 min-w-0 text-left rounded-lg px-1 py-0.5 hover:bg-base-200">
+                <span class="block font-semibold text-sm truncate tour-name-${tour.id}">${escHtml(tour.title)}</span>
+                <span class="block text-xs text-base-content/50 tour-count-${tour.id}"></span>
+            </button>
+            ${tourMenuHtml(tour)}
+        </div>
+        <div id="tour-body-${tour.id}" class="px-2 pb-2">
+            <ol class="questions-list flex flex-col" id="questions-${tour.id}"></ol>
+            <button type="button" onclick="addQuestion('${tour.id}')"
+                    class="btn btn-ghost btn-sm w-full justify-start text-primary font-medium mt-0.5">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">add</span>Добавить вопрос
             </button>
         </div>`;
-    if (tour.is_slide) {
-        div.className = 'card bg-base-100 shadow-sm tour-card border-l-2 border-secondary';
-        div.innerHTML = `
-            <div class="card-body p-3">
-                <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
-                    <span class="material-symbols-outlined text-secondary shrink-0" style="font-size:14px">slideshow</span>
-                    <span class="flex-1 font-semibold text-sm tour-name-${tour.id}">${escHtml(tour.title)}</span>
-                    ${moveBtns(tour.id)}
-                    <button onclick="selectSlide('${tour.id}')" class="btn btn-xs btn-ghost" title="Редактировать слайд">
-                        <span class="material-symbols-outlined icon-sm">settings</span>
-                    </button>
-                    <button onclick="deleteTour('${tour.id}')" class="btn btn-xs btn-ghost text-error" title="Удалить слайд">
-                        <span class="material-symbols-outlined icon-sm">delete</span>
-                    </button>
-                </div>
-                <div class="text-xs text-secondary/70 mt-1 pl-5">Слайд</div>
-            </div>`;
-    } else {
-        div.className = 'card bg-base-100 shadow-sm tour-card';
-        div.innerHTML = `
-            <div class="card-body p-3">
-                <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:18px">drag_indicator</span>
-                    <span class="flex-1 font-semibold text-sm tour-name-${tour.id}">${escHtml(tour.title)}</span>
-                    ${moveBtns(tour.id)}
-                    <button onclick="addQuestion('${tour.id}')" class="btn btn-xs btn-primary" title="Добавить вопрос">
-                        <span class="material-symbols-outlined icon-sm">add</span>
-                    </button>
-                    <button onclick="selectTour('${tour.id}')" class="btn btn-xs btn-ghost" title="Настройки тура">
-                        <span class="material-symbols-outlined icon-sm">settings</span>
-                    </button>
-                    <button onclick="toggleTourCollapse('${tour.id}')" class="btn btn-xs btn-ghost" title="Свернуть/развернуть">
-                        <span class="material-symbols-outlined icon-sm tour-collapse-icon-${tour.id}">expand_less</span>
-                    </button>
-                    <button onclick="deleteTour('${tour.id}')" class="btn btn-xs btn-ghost text-error" title="Удалить тур">
-                        <span class="material-symbols-outlined icon-sm">delete</span>
-                    </button>
-                </div>
-                <ul class="flex flex-col gap-1 mt-1 questions-list" id="questions-${tour.id}"></ul>
-            </div>`;
+    const ol = card.querySelector('ol');
+    (tour.questions || []).forEach(q => ol.appendChild(createQuestionItem({...q, tour_id: tour.id})));
+    return card;
+}
+
+// Номера вопросов и счётчик тура; если открыт редактор этого тура — его список тоже.
+function refreshTour(tourId) {
+    const ol = document.getElementById(`questions-${tourId}`);
+    if (!ol) return;
+    const items = [...ol.querySelectorAll('.question-item')];
+    items.forEach((li, i) => { li.querySelector('.q-num').textContent = i + 1; });
+    document.querySelectorAll(`.tour-count-${tourId}`).forEach(el => {
+        el.textContent = items.length ? pluralRu(items.length, 'вопрос', 'вопроса', 'вопросов') : 'Нет вопросов';
+    });
+    if (currentTourId === tourId && !document.getElementById('tour-editor').classList.contains('hidden')) {
+        renderTourEditorQuestions(tourId);
     }
-    return div;
+}
+
+function regularTourCards() {
+    return [...document.querySelectorAll('#tours-list > .tour-card')]
+        .filter(c => document.getElementById(`questions-${c.dataset.tourId}`));
+}
+
+function updateSummary() {
+    const cards = [...document.querySelectorAll('#tours-list > .tour-card')];
+    const tours = regularTourCards().length;
+    const slides = cards.length - tours;
+    const questions = document.querySelectorAll('#tours-list .question-item').length;
+    const parts = [pluralRu(tours, 'тур', 'тура', 'туров'), pluralRu(questions, 'вопрос', 'вопроса', 'вопросов')];
+    if (slides) parts.push(pluralRu(slides, 'слайд', 'слайда', 'слайдов'));
+    document.getElementById('quiz-summary').textContent = parts.join(' · ');
+    document.getElementById('tours-empty').classList.toggle('hidden', cards.length > 0);
+}
+
+function renderTourEditorQuestions(tourId) {
+    const list = document.getElementById('tour-editor-questions');
+    const items = [...document.querySelectorAll(`#questions-${tourId} .question-item`)];
+    document.getElementById('tour-editor-count').textContent = items.length ? `(${items.length})` : '';
+    if (!items.length) {
+        list.innerHTML = `<li class="rounded-lg border border-dashed border-base-300 p-4 text-sm text-center text-base-content/60">
+            В туре пока нет вопросов</li>`;
+        return;
+    }
+    list.innerHTML = '';
+    items.forEach((li, i) => {
+        const q = QMODEL[li.dataset.qId];
+        const title = questionTitle(q);
+        const row = document.createElement('li');
+        row.innerHTML = `
+            <button type="button" class="w-full flex items-center gap-3 text-left rounded-lg border border-base-200 px-3 py-2 hover:border-primary/40 hover:bg-base-200/60">
+                <span class="font-mono text-sm text-base-content/40 w-5 text-right">${i + 1}</span>
+                <span class="material-symbols-outlined text-base-content/50" style="font-size:18px" aria-hidden="true">${Q_ICONS[q.question_type] || 'text_fields'}</span>
+                <span class="flex-1 min-w-0 truncate ${title ? '' : 'italic text-base-content/50'}">${escHtml(title || 'Без текста')}</span>
+                <span class="text-xs text-base-content/50 shrink-0 hidden sm:inline">${A_LABELS[q.answer_type] || ''} · ${pointsLabel(q.points)}</span>
+            </button>`;
+        row.querySelector('button').onclick = () => selectQuestion(q.id);
+        list.appendChild(row);
+    });
+}
+
+function setTourSplashPreview(path) {
+    const box = document.getElementById('tour-splash-preview');
+    box.innerHTML = path
+        ? `<img src="${escHtml(path)}" alt="Заставка тура" class="w-full h-full object-cover">`
+        : `<span class="flex flex-col items-center gap-1"><span class="material-symbols-outlined" aria-hidden="true">image</span>Нет заставки</span>`;
+    document.getElementById('btn-remove-tour-splash').classList.toggle('hidden', !path);
 }
 
 async function selectTour(tourId) {
+    if (!await confirmDiscard()) return;
     currentTourId = tourId;
     currentQuestionId = null;
     highlightActive(null, tourId);
@@ -583,32 +832,76 @@ async function selectTour(tourId) {
     const tour = await res.json();
 
     showPanel('tour-editor');
+    const num = regularTourCards().findIndex(c => c.dataset.tourId === tourId) + 1;
+    document.getElementById('tour-editor-eyebrow').textContent = num ? `Тур ${num}` : 'Тур';
     document.getElementById('tour-editor-title').textContent = tour.title;
     document.getElementById('tour-title-input').value = tour.title;
+    document.getElementById('tour-title-status').textContent = '';
     document.getElementById('tour-splash-input').value = '';
-    document.querySelectorAll('#tour-editor input[type="file"]').forEach(el => el.value = '');
-    document.getElementById('tour-splash-preview').innerHTML =
-        tour.splash_image ? `<img src="${tour.splash_image}" class="max-h-32 rounded mt-1">` : '';
+    syncFilePickers(document.getElementById('tour-editor'));
+    setTourSplashPreview(tour.splash_image);
+    renderTourEditorQuestions(tourId);
 }
 
 async function saveTourTitle() {
     if (!currentTourId) return;
-    const title = document.getElementById('tour-title-input').value.trim();
-    if (!title) return;
-    await fetch(`/admin/tours/${currentTourId}`, {
-        method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({title})
-    });
+    const input = document.getElementById('tour-title-input');
+    const status = document.getElementById('tour-title-status');
+    const title = input.value.trim();
+    if (!title) { input.reportValidity(); return; }
+    try {
+        const res = await fetch(`/admin/tours/${currentTourId}`, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title})
+        });
+        if (!res.ok) throw new Error();
+    } catch (_) {
+        status.className = 'text-sm text-error mt-1 min-h-5';
+        status.textContent = 'Не удалось сохранить — попробуйте ещё раз';
+        return;
+    }
     document.querySelectorAll(`.tour-name-${currentTourId}`).forEach(el => el.textContent = title);
     document.getElementById('tour-editor-title').textContent = title;
-    showToast('Тур сохранён');
+    status.className = 'text-sm text-success mt-1 min-h-5';
+    status.textContent = 'Сохранено';
 }
 
 async function deleteTour(tourId) {
-    if (!await confirmModal('Удалить тур со всеми вопросами?')) return;
+    const isSlide = !document.getElementById(`questions-${tourId}`);
+    const msg = isSlide ? 'Удалить слайд?' : 'Удалить тур со всеми вопросами и ответами команд на них?';
+    if (!await confirmModal(msg)) return;
     await fetch(`/admin/tours/${tourId}`, {method: 'DELETE'});
-    document.querySelector(`[data-tour-id="${tourId}"]`).remove();
-    if (currentTourId === tourId) { currentTourId = null; showPanel('placeholder'); }
+    document.querySelectorAll(`#questions-${tourId} .question-item`).forEach(li => delete QMODEL[li.dataset.qId]);
+    document.querySelector(`#tours-list [data-tour-id="${tourId}"]`).remove();
+    if (currentTourId === tourId) { currentTourId = null; currentQuestionId = null; setQuestionDirty(false); showPanel('placeholder'); }
+    updateSummary();
+}
+
+// Несохранённые правки вопроса сохраняем, иначе копия получилась бы со старой версией.
+async function saveBeforeDuplicate() {
+    if (!questionDirty) return true;
+    await saveQuestion();
+    return !questionDirty;
+}
+
+async function duplicateTour(tourId) {
+    if (!tourId || !await saveBeforeDuplicate()) return;
+    let tour;
+    try {
+        const res = await fetch(`/admin/tours/${tourId}/duplicate`, {method: 'POST'});
+        if (!res.ok || res.redirected) throw new Error();
+        tour = await res.json();
+    } catch (_) {
+        showToast('Не удалось создать копию', 'error');
+        return;
+    }
+    const src = document.querySelector(`#tours-list > [data-tour-id="${tourId}"]`);
+    const card = createTourCard(tour);
+    src.after(card);
+    refreshTour(tour.id);
+    updateSummary();
+    if (tour.is_slide) selectSlide(tour.id); else selectTour(tour.id);
+    card.scrollIntoView({block: 'nearest'});
 }
 
 async function uploadTourSplash() {
@@ -617,13 +910,33 @@ async function uploadTourSplash() {
     const fd = new FormData();
     fd.append('file', input.files[0]);
     const res = await fetch(`/admin/tours/${currentTourId}/upload-splash`, {method: 'POST', body: fd});
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    input.value = '';
+    syncFilePickers(document.getElementById('tour-editor'));
     if (data.path) {
-        document.getElementById('tour-splash-preview').innerHTML = `<img src="${data.path}" class="max-h-32 rounded mt-1">`;
+        setTourSplashPreview(data.path);
         showToast('Заставка сохранена');
     } else {
-        showToast('Ошибка загрузки файла', 'error');
+        showToast(res.status === 413 ? 'Файл слишком большой' : 'Не удалось загрузить картинку', 'error');
     }
+}
+
+async function removeTourSplash() {
+    if (!currentTourId) return;
+    await fetch(`/admin/tours/${currentTourId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({splash_image: null})
+    });
+    setTourSplashPreview(null);
+}
+
+function openQuizSettings() {
+    confirmDiscard().then(ok => {
+        if (!ok) return;
+        currentQuestionId = null;
+        highlightActive(null, null);
+        showPanel('quiz-settings');
+    });
 }
 
 async function setImageUrl() {
@@ -671,6 +984,7 @@ async function saveQuizMidSecs() {
 
 async function addQuestion(tourId) {
     if (!tourId) return;
+    if (!await confirmDiscard()) return;
     currentTourId = tourId;
     const res = await fetch(`/admin/tours/${tourId}/questions`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -678,36 +992,76 @@ async function addQuestion(tourId) {
     });
     const q = await res.json();
     appendQuestionToList(tourId, q);
+    setTourCollapsed(tourId, false);
     selectQuestion(q.id);
 }
 
 function appendQuestionToList(tourId, q) {
-    const ul = document.getElementById(`questions-${tourId}`);
-    if (!ul) return;
-    const li = document.createElement('li');
-    li.className = 'question-item flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer group';
-    li.dataset.qId = q.id;
-    li.draggable = true;
-    li.onclick = () => selectQuestion(q.id);
-    const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note',formatted_text:'format_color_text'};
-    li.innerHTML = `
-        <span class="material-symbols-outlined text-base-content/30 cursor-grab shrink-0" style="font-size:14px">drag_indicator</span>
-        <span class="material-symbols-outlined text-base-content/50 shrink-0" style="font-size:14px">${iconMap[q.question_type]||'text_fields'}</span>
-        <span class="flex-1 text-xs truncate q-label-${q.id}">${escHtml((q.text||'(без текста)').substring(0,40))}</span>
-        <button onclick="event.stopPropagation(); deleteQuestion('${q.id}')"
-                class="btn btn-xs btn-ghost btn-square opacity-0 group-hover:opacity-100 text-error shrink-0">
-            <span class="material-symbols-outlined" style="font-size:12px">close</span>
-        </button>`;
-    ul.appendChild(li);
+    const ol = document.getElementById(`questions-${tourId}`);
+    if (!ol) return;
+    ol.appendChild(createQuestionItem({...q, tour_id: tourId}));
+    refreshTour(tourId);
+    updateSummary();
 }
 
+// ── Несохранённые изменения вопроса ─────────────────────────────
+// Вопрос сохраняется кнопкой, поэтому без предупреждения правки молча
+// терялись при переходе к другому вопросу или закрытии вкладки.
+let questionDirty = false;
+
+function setQuestionDirty(v) {
+    questionDirty = v;
+    const hint = document.getElementById('q-dirty-hint');
+    hint.classList.toggle('hidden', !v);
+    hint.classList.toggle('flex', v);
+    if (v) document.getElementById('q-save-status').textContent = '';
+}
+
+async function confirmDiscard() {
+    if (!questionDirty) return true;
+    const ok = await confirmModal('Изменения вопроса не сохранены. Перейти без сохранения?', 'Не сохранять');
+    if (ok) setQuestionDirty(false);
+    return ok;
+}
+
+document.getElementById('question-editor').addEventListener('input', (e) => {
+    // Варианты и пары сопоставления сохраняются сами (по blur) — их не считаем.
+    if (e.target.closest('#options-list, #matching-list')) return;
+    setQuestionDirty(true);
+});
+document.getElementById('question-editor').addEventListener('change', (e) => {
+    if (e.target.closest('#options-list, #matching-list')) return;
+    setQuestionDirty(true);
+});
+
+if (/Mac|iPhone|iPad/.test(navigator.platform)) document.getElementById('save-kbd').textContent = '⌘S';
+
+window.addEventListener('beforeunload', (e) => {
+    if (questionDirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
+document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's'
+            && !document.getElementById('question-editor').classList.contains('hidden')) {
+        e.preventDefault();
+        saveQuestion();
+    }
+});
+
 async function selectQuestion(qId) {
+    if (qId !== currentQuestionId && !await confirmDiscard()) return;
     currentQuestionId = qId;
     highlightActive(qId, null);
 
     const res = await fetch(`/admin/questions/${qId}`);
     const q = await res.json();
     currentTourId = q.tour_id;
+    QMODEL[q.id] = {...(QMODEL[q.id] || {}), ...q};
+    const tourNum = regularTourCards().findIndex(c => c.dataset.tourId === q.tour_id) + 1;
+    const qNum = [...document.querySelectorAll(`#questions-${q.tour_id} .question-item`)]
+        .findIndex(li => li.dataset.qId === q.id) + 1;
+    document.getElementById('q-editor-eyebrow').textContent = `Тур ${tourNum} · Вопрос ${qNum}`;
+    document.getElementById('q-save-status').textContent = '';
 
     showPanel('question-editor');
     document.getElementById('q-type').value = q.question_type;
@@ -759,6 +1113,7 @@ async function selectQuestion(qId) {
     onQTypeChange();
     onAnswerTypeChange();
     await loadOptions(q);
+    setQuestionDirty(false);
 }
 
 function onQTypeChange() {
@@ -878,27 +1233,51 @@ async function saveQuestion() {
     const trimEndEl = document.getElementById('q-trim-end');
     const trimEnd = trimSection.classList.contains('hidden') ? null : (parseFloat(trimEndEl.value) || null);
 
+    const timeEl = document.getElementById('q-time');
+    const pointsEl = document.getElementById('q-points');
+    for (const el of [timeEl, pointsEl]) {
+        if (!el.checkValidity()) {
+            el.reportValidity();
+            return;
+        }
+    }
+
     const body = {
         question_type: qType,
         answer_type: document.getElementById('q-answer-type').value,
         text: textVal,
-        time_seconds: parseInt(document.getElementById('q-time').value),
-        points: parseInt(document.getElementById('q-points').value),
+        time_seconds: parseInt(timeEl.value),
+        points: parseInt(pointsEl.value),
         correct_answer: document.getElementById('q-correct').value,
         auto_check: ['single_choice','multiple_choice'].includes(document.getElementById('q-answer-type').value),
         audio_trim_start: trimStart,
         audio_trim_end: trimEnd,
     };
-    await fetch(`/admin/questions/${currentQuestionId}`, {
-        method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body)
-    });
-    const label = document.querySelector(`.q-label-${currentQuestionId}`);
-    if (label) {
-        const iconMap = {text:'text_fields',text_image:'image',image_only:'image',audio:'music_note',formatted_text:'format_color_text'};
-        const icon = iconMap[body.question_type] || 'text_fields';
-        label.closest('li').querySelector('.material-symbols-outlined:nth-child(2)').textContent = icon;
-        label.textContent = (body.text || '(без текста)').substring(0, 40);
+    const saveBtn = document.getElementById('btn-save-question');
+    saveBtn.disabled = true;
+    try {
+        const res = await fetch(`/admin/questions/${currentQuestionId}`, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        if (!res.ok || res.redirected) {
+            const data = await res.json().catch(() => ({}));
+            showToast(escHtml(data.error || 'Не удалось сохранить вопрос'), 'error');
+            return;
+        }
+    } catch (_) {
+        showToast('Нет связи с сервером — вопрос не сохранён', 'error');
+        return;
+    } finally {
+        saveBtn.disabled = false;
+    }
+    const li = document.querySelector(`#tours-list [data-q-id="${currentQuestionId}"]`);
+    if (li) {
+        const q = {...QMODEL[currentQuestionId], ...body};
+        QMODEL[currentQuestionId] = q;
+        li.innerHTML = questionItemHtml(q);
+        refreshTour(q.tour_id);
+        highlightActive(currentQuestionId, null);
     }
     const imgInput = document.getElementById('q-image-input');
     if (imgInput.files[0]) await uploadQuestionFile(imgInput.files[0], 'image');
@@ -906,14 +1285,41 @@ async function saveQuestion() {
     if (audInput.files[0]) await uploadQuestionFile(audInput.files[0], 'audio');
     const ansAudInput = document.getElementById('q-answer-audio-input');
     if (ansAudInput.files[0]) await uploadQuestionFile(ansAudInput.files[0], 'answer_audio');
-    showToast('Вопрос сохранён');
+    setQuestionDirty(false);
+    syncFilePickers(document.getElementById('question-editor'));
+    // Статус рядом с кнопкой, а не всплывающий тост (Primer: saving patterns).
+    document.getElementById('q-save-status').textContent =
+        `Сохранено в ${new Date().toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})}`;
 }
 
 async function deleteQuestion(qId) {
     if (!await confirmModal('Удалить вопрос?')) return;
     await fetch(`/admin/questions/${qId}`, {method: 'DELETE'});
-    document.querySelector(`[data-q-id="${qId}"]`).remove();
-    if (currentQuestionId === qId) { currentQuestionId = null; showPanel('placeholder'); }
+    const li = document.querySelector(`#tours-list [data-q-id="${qId}"]`);
+    const tourId = li ? li.closest('.tour-card').dataset.tourId : null;
+    if (li) li.remove();
+    delete QMODEL[qId];
+    if (currentQuestionId === qId) { currentQuestionId = null; setQuestionDirty(false); showPanel('placeholder'); }
+    if (tourId) refreshTour(tourId);
+    updateSummary();
+}
+
+async function duplicateQuestion(qId) {
+    if (!qId || !await saveBeforeDuplicate()) return;
+    let q;
+    try {
+        const res = await fetch(`/admin/questions/${qId}/duplicate`, {method: 'POST'});
+        if (!res.ok || res.redirected) throw new Error();
+        q = await res.json();
+    } catch (_) {
+        showToast('Не удалось создать копию', 'error');
+        return;
+    }
+    document.querySelector(`#tours-list [data-q-id="${qId}"]`).after(createQuestionItem(q));
+    refreshTour(q.tour_id);
+    updateSummary();
+    setTourCollapsed(q.tour_id, false);
+    selectQuestion(q.id);
 }
 
 async function uploadQuestionFile(file, type) {
@@ -921,7 +1327,12 @@ async function uploadQuestionFile(file, type) {
     fd.append('file', file);
     fd.append('type', type);
     const res = await fetch(`/admin/questions/${currentQuestionId}/upload`, {method: 'POST', body: fd});
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const msg = res.status === 413 ? 'Файл слишком большой' : (data.error || 'Не удалось загрузить файл');
+        showToast(escHtml(msg), 'error');
+        return;
+    }
     if (type === 'image' && data.path)
         document.getElementById('q-image-preview').innerHTML = `<img src="${data.path}" class="max-h-32 w-full object-contain rounded">`;
     if (type === 'audio' && data.path) {
@@ -960,17 +1371,19 @@ async function removeAnswerAudio() {
 // ── Slide ────────────────────────────────────────────────────────
 
 async function addSlide() {
+    if (!await confirmDiscard()) return;
     const res = await fetch(`/admin/quizzes/${QUIZ_ID}/tours`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({is_slide: true})
     });
     const tour = await res.json();
-    const card = createTourCard(tour);
-    document.getElementById('tours-list').appendChild(card);
+    document.getElementById('tours-list').appendChild(createTourCard(tour));
+    updateSummary();
     selectSlide(tour.id);
 }
 
 async function selectSlide(tourId) {
+    if (!await confirmDiscard()) return;
     currentTourId = tourId;
     currentQuestionId = null;
     highlightActive(null, tourId);
@@ -1119,6 +1532,11 @@ function showPanel(panel) {
     document.getElementById('tour-editor').classList.toggle('hidden', panel !== 'tour-editor');
     document.getElementById('slide-editor').classList.toggle('hidden', panel !== 'slide-editor');
     document.getElementById('question-editor').classList.toggle('hidden', panel !== 'question-editor');
+    syncFilePickers();
+    // На узком экране редактор стоит под списком — показываем его сразу.
+    if (panel !== 'placeholder' && window.matchMedia('(max-width: 1023px)').matches) {
+        document.getElementById(panel).scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
 }
 
 async function uploadQuizSplash() {
@@ -1146,10 +1564,20 @@ async function removeQuizSplash() {
 }
 
 function highlightActive(qId, tourId) {
-    document.querySelectorAll('.question-item').forEach(el => el.classList.remove('bg-primary/10'));
+    document.querySelectorAll('.question-item').forEach(el => {
+        el.classList.remove('bg-primary/10', 'text-primary');
+        el.removeAttribute('aria-current');
+    });
     document.querySelectorAll('.tour-card').forEach(el => el.classList.remove('ring-2', 'ring-primary'));
-    if (qId) document.querySelector(`[data-q-id="${qId}"]`)?.classList.add('bg-primary/10');
-    if (tourId) document.querySelector(`[data-tour-id="${tourId}"]`)?.classList.add('ring-2', 'ring-primary');
+    if (qId) {
+        const li = document.querySelector(`#tours-list [data-q-id="${qId}"]`);
+        if (li) {
+            li.classList.add('bg-primary/10', 'text-primary');
+            li.setAttribute('aria-current', 'true');
+            li.scrollIntoView({block: 'nearest'});
+        }
+    }
+    if (tourId) document.querySelector(`#tours-list [data-tour-id="${tourId}"]`)?.classList.add('ring-2', 'ring-primary');
 }
 
 function showToast(msg, type = 'success') {
@@ -1166,27 +1594,30 @@ function escHtml(str) {
 
 // ── Tour collapse ────────────────────────────────────────────────
 
-function toggleTourCollapse(tourId) {
-    const ul = document.getElementById(`questions-${tourId}`);
-    if (!ul) return;
-    const collapsed = ul.classList.toggle('hidden');
+function setTourCollapsed(tourId, collapsed) {
+    const body = document.getElementById(`tour-body-${tourId}`);
+    if (!body) return;
+    body.classList.toggle('hidden', collapsed);
     document.querySelectorAll(`.tour-collapse-icon-${tourId}`).forEach(ic => {
-        ic.textContent = collapsed ? 'expand_more' : 'expand_less';
+        ic.textContent = collapsed ? 'chevron_right' : 'expand_more';
     });
-    const states = JSON.parse(localStorage.getItem('tourCollapsed') || '{}');
+    document.getElementById(`tour-toggle-${tourId}`)?.setAttribute('aria-expanded', String(!collapsed));
+    let states = {};
+    try { states = JSON.parse(localStorage.getItem('tourCollapsed') || '{}'); } catch (_) {}
     states[tourId] = collapsed;
-    localStorage.setItem('tourCollapsed', JSON.stringify(states));
+    try { localStorage.setItem('tourCollapsed', JSON.stringify(states)); } catch (_) {}
+}
+
+function toggleTourCollapse(tourId) {
+    const body = document.getElementById(`tour-body-${tourId}`);
+    if (body) setTourCollapsed(tourId, !body.classList.contains('hidden'));
 }
 
 function restoreTourCollapseStates() {
-    const states = JSON.parse(localStorage.getItem('tourCollapsed') || '{}');
+    let states = {};
+    try { states = JSON.parse(localStorage.getItem('tourCollapsed') || '{}'); } catch (_) {}
     for (const [tourId, collapsed] of Object.entries(states)) {
-        if (!collapsed) continue;
-        const ul = document.getElementById(`questions-${tourId}`);
-        if (ul) ul.classList.add('hidden');
-        document.querySelectorAll(`.tour-collapse-icon-${tourId}`).forEach(ic => {
-            ic.textContent = 'expand_more';
-        });
+        if (collapsed) setTourCollapsed(tourId, true);
     }
 }
 
@@ -1372,7 +1803,7 @@ function initDnD() {
         if (!_dndSrc) return;
         if (_dndType === 'question') {
             const item = e.target.closest('.question-item');
-            if (item && item !== _dndSrc && item.closest('ul') === _dndSrc.closest('ul')) {
+            if (item && item !== _dndSrc && item.closest('.questions-list') === _dndSrc.closest('.questions-list')) {
                 e.preventDefault(); e.stopPropagation();
                 _dndClearOver();
                 item.setAttribute('data-dnd-over', '1');
@@ -1398,7 +1829,7 @@ function initDnD() {
             e.stopPropagation();
             const item = e.target.closest('.question-item');
             if (!item || item === _dndSrc) return;
-            const ul = _dndSrc.closest('ul');
+            const ul = _dndSrc.closest('.questions-list');
             if (!ul || !ul.contains(item)) return;
             const srcIdx = [...ul.children].indexOf(_dndSrc);
             const dstIdx = [...ul.children].indexOf(item);
@@ -1409,6 +1840,7 @@ function initDnD() {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(orderData)
                 });
+                refreshTour(ul.closest('.tour-card').dataset.tourId);
                 showToast('Порядок вопросов сохранён');
             }
         } else if (_dndType === 'tour') {
@@ -1433,6 +1865,10 @@ function initDnD() {
 // ── Init ─────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+    const list = document.getElementById('tours-list');
+    TOURS.forEach(t => list.appendChild(createTourCard(t)));
+    TOURS.forEach(t => refreshTour(t.id));
+    updateSummary();
     document.getElementById('tour-splash-input').addEventListener('change', uploadTourSplash);
     document.getElementById('quiz-splash-input').addEventListener('change', uploadQuizSplash);
     initDnD();

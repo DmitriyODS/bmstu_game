@@ -613,8 +613,8 @@ body { overflow: hidden; background: #f8fafc; }
                 <div style="background:#fff;border:1.5px solid #e2e8f0;padding:1.25rem;border-radius:1.5rem;display:inline-block;box-shadow:0 4px 16px rgba(0,0,0,0.08);">
                     <img src="/api/qr/{{ quiz.id }}" style="width:500px;height:500px;" alt="QR">
                 </div>
-                <p style="margin-top:1rem;font-size:1.4rem;color:#64748b;font-family:monospace;">
-                    /play/{{ quiz.id }}
+                <p style="margin-top:1rem;font-size:2rem;font-weight:700;color:#334155;font-family:monospace;">
+                    {{ join_url }}
                 </p>
             </div>
             <div>
@@ -871,7 +871,8 @@ socket.on('screen_changed', (data) => {
     if (data.screen === 'question' && data.question) {
         loadQuestion(data.question);
         resetAnswersPanel();
-        if (data.timer_active && data.timer_remaining != null) updateTimer(data.timer_remaining);
+        (data.answered_teams || []).forEach(addAnsweredChip);
+        if (data.timer_state !== 'idle' && data.timer_remaining != null) updateTimer(data.timer_remaining);
         else updateTimer(data.question.time_seconds);
     }
     if (data.screen === 'question_answer' && data.question) showAnswer(data.question);
@@ -951,7 +952,9 @@ socket.on('play_question_audio', (data) => {
 socket.on('stop_screen_audio', () => AudioManager.stopCategory('background'));
 socket.on('scores_updated', () => {});
 
-socket.on('answer_submitted', (data) => {
+socket.on('answer_submitted', addAnsweredChip);
+
+function addAnsweredChip(data) {
     const chips = document.getElementById('answers-chips');
     if (chips.querySelector(`[data-team-id="${CSS.escape(String(data.team_id))}"]`)) return;
     const chip = document.createElement('div');
@@ -964,7 +967,7 @@ socket.on('answer_submitted', (data) => {
     chip.appendChild(document.createTextNode(data.team_name));
     chips.appendChild(chip);
     document.getElementById('answers-panel-count').textContent = chips.children.length;
-});
+}
 
 socket.on('quiz_ended', () => location.reload());
 socket.on('quiz_activated', () => location.reload());
@@ -977,10 +980,6 @@ function updateTimer(remaining) {
     el.classList.toggle('danger', remaining <= 10);
 }
 
-// Сохраняем последний перемешанный порядок правых столбцов matching,
-// чтобы экран ответов воспроизводил тот же порядок, что и экран вопроса.
-let _lastMatchingShuffleId = null;
-let _lastShuffledRights = [];
 let _currentTimeSeconds = null;
 
 function buildOptionTile(letter, text, opts) {
@@ -1051,7 +1050,7 @@ function loadQuestion(q) {
         requestAnimationFrame(() => fitTextToBox(textPresEl, {min: minPx, max: maxPx}));
     }
     document.getElementById('q-meta-pres').textContent =
-        `${q.points}\u2009балл${q.points === 1 ? '' : '(ов)'} · ${q.time_seconds}\u2009с`;
+        `${pointsLabel(q.points)} · ${q.time_seconds}\u2009с`;
 
     _currentTimeSeconds = q.time_seconds;
     const timerEl = document.getElementById('timer-pres');
@@ -1085,10 +1084,8 @@ function loadQuestion(q) {
         });
     } else if (q.answer_type === 'matching' && q.matching_items && q.matching_items.length) {
         optsEl.classList.add('matching-mode');
-        if (_lastMatchingShuffleId !== q.id) {
-            _lastMatchingShuffleId = q.id;
-            _lastShuffledRights = [...q.matching_items].sort(() => Math.random() - 0.5);
-        }
+        // Порядок правых частей задаёт сервер — он совпадает с порядком у участников.
+        const rights = q.matching_rights || [];
         q.matching_items.forEach((item, i) => {
             const row = document.createElement('div');
             row.className = 'match-row';
@@ -1097,8 +1094,8 @@ function loadQuestion(q) {
             arrow.className = 'match-arrow material-symbols-outlined';
             arrow.textContent = 'arrow_right_alt';
             row.appendChild(arrow);
-            const right = _lastShuffledRights[i] || item;
-            row.appendChild(buildOptionTile(String.fromCharCode(0x0410 + i), right.right_text));
+            const right = rights[i];
+            row.appendChild(buildOptionTile(String.fromCharCode(0x0410 + i), right ? right.right_text : ''));
             optsEl.appendChild(row);
         });
     }

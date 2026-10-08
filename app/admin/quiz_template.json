@@ -1,0 +1,172 @@
+{
+  "_help": {
+    "Как пользоваться": "Отредактируйте этот файл и загрузите его через «Импорт» → «JSON». Поля, начинающиеся с «_», служат подсказками и при импорте игнорируются — их можно удалить. Необязательные поля можно не указывать.",
+    "Квиз": "title — название (обязательно), description — описание, tours — список туров и слайдов в порядке показа.",
+    "Тур": "title — название, order — порядковый номер, questions — список вопросов. splash_image — заставка тура (путь или https-ссылка).",
+    "Слайд": "Тур с is_slide: true. Вопросов у слайда нет, показывается slide_text (markdown) и splash_image.",
+    "question_type (как вопрос выглядит на экране)": {
+      "text": "только текст",
+      "formatted_text": "markdown-текст; колонки разделяются строкой ---col---",
+      "text_image": "текст + картинка (image_path)",
+      "image_only": "только картинка на весь экран (image_path), текст скрыт",
+      "audio": "текст + аудиотрек (audio_path); обрезка — audio_trim_start / audio_trim_end в секундах"
+    },
+    "answer_type (как команды отвечают)": {
+      "short_text": "короткий текстовый ответ, проверяет судья",
+      "long_text": "развёрнутый текстовый ответ, проверяет судья",
+      "single_choice": "один вариант из answer_options; проверяется автоматически",
+      "multiple_choice": "несколько вариантов из answer_options; проверяется автоматически",
+      "matching": "сопоставление пар из matching_items; проверяет судья"
+    },
+    "Общие поля вопроса": "text — текст вопроса, time_seconds — время на ответ (1–3600, по умолчанию 60), points — баллы (0–1000, по умолчанию 1), correct_answer — правильный ответ, который увидят судьи и экран ответа (поддерживает markdown).",
+    "Медиафайлы": "JSON не содержит самих файлов. В image_path можно указать https-ссылку на картинку; аудио проще загрузить в конструкторе после импорта. Чтобы перенести квиз вместе с файлами, используйте экспорт/импорт ZIP."
+  },
+  "title": "Шаблон квиза",
+  "description": "Пример со всеми типами вопросов и ответов",
+  "tours": [
+    {
+      "_comment": "Слайд: приветствие перед игрой. Текст поддерживает markdown.",
+      "title": "Добро пожаловать",
+      "order": 0,
+      "is_slide": true,
+      "slide_text": "# Добро пожаловать!\n\nПравила:\n- **3 тура** по несколько вопросов\n- на ответ даётся ограниченное время\n- побеждает команда с наибольшим числом баллов",
+      "questions": []
+    },
+    {
+      "title": "Тур 1. Разминка",
+      "order": 1,
+      "questions": [
+        {
+          "_comment": "Простой текстовый вопрос с коротким ответом",
+          "order": 0,
+          "question_type": "text",
+          "answer_type": "short_text",
+          "text": "В каком году основан МГТУ им. Н. Э. Баумана?",
+          "time_seconds": 30,
+          "points": 1,
+          "correct_answer": "1830"
+        },
+        {
+          "_comment": "Выбор одного варианта: верный отмечен is_correct: true. Проверяется автоматически.",
+          "order": 1,
+          "question_type": "text",
+          "answer_type": "single_choice",
+          "text": "Какая планета ближе всего к Солнцу?",
+          "time_seconds": 20,
+          "points": 1,
+          "answer_options": [
+            {"text": "Венера", "is_correct": false, "order": 0},
+            {"text": "Меркурий", "is_correct": true, "order": 1},
+            {"text": "Марс", "is_correct": false, "order": 2},
+            {"text": "Земля", "is_correct": false, "order": 3}
+          ]
+        },
+        {
+          "_comment": "Выбор нескольких вариантов: верных может быть сколько угодно",
+          "order": 2,
+          "question_type": "text",
+          "answer_type": "multiple_choice",
+          "text": "Какие из этих элементов — благородные газы?",
+          "time_seconds": 40,
+          "points": 2,
+          "answer_options": [
+            {"text": "Гелий", "is_correct": true, "order": 0},
+            {"text": "Азот", "is_correct": false, "order": 1},
+            {"text": "Неон", "is_correct": true, "order": 2},
+            {"text": "Аргон", "is_correct": true, "order": 3}
+          ]
+        },
+        {
+          "_comment": "Развёрнутый ответ: команда пишет текст, судья выставляет баллы вручную",
+          "order": 3,
+          "question_type": "text",
+          "answer_type": "long_text",
+          "text": "Объясните, почему небо голубое.",
+          "time_seconds": 120,
+          "points": 3,
+          "correct_answer": "Из-за **рэлеевского рассеяния**: коротковолновый (синий) свет рассеивается в атмосфере сильнее длинноволнового."
+        }
+      ]
+    },
+    {
+      "title": "Тур 2. Картинки и форматирование",
+      "order": 2,
+      "questions": [
+        {
+          "_comment": "Текст + картинка. image_path — путь на сервере или https-ссылка.",
+          "order": 0,
+          "question_type": "text_image",
+          "answer_type": "short_text",
+          "text": "Чей это логотип?",
+          "image_path": "/static/img/logo.svg",
+          "time_seconds": 30,
+          "points": 1,
+          "correct_answer": "Бауман.Игра"
+        },
+        {
+          "_comment": "Только картинка: на презентации — во весь экран на чёрном фоне, текст скрыт",
+          "order": 1,
+          "question_type": "image_only",
+          "answer_type": "short_text",
+          "text": "",
+          "image_path": "/static/img/logo.svg",
+          "time_seconds": 30,
+          "points": 1,
+          "correct_answer": "Логотип игры"
+        },
+        {
+          "_comment": "Форматированный текст (markdown). Строка ---col--- делит текст на колонки (2 или 3).",
+          "order": 2,
+          "question_type": "formatted_text",
+          "answer_type": "short_text",
+          "text": "### Что объединяет эти понятия?\n\n---col---\n\n- **Ом**\n- **Вольт**\n\n---col---\n\n- *Ампер*\n- *Ватт*",
+          "time_seconds": 45,
+          "points": 1,
+          "correct_answer": "Это единицы измерения, названные в честь учёных"
+        },
+        {
+          "_comment": "Сопоставление: команды соединяют left_text с right_text. Правые части перемешиваются автоматически.",
+          "order": 3,
+          "question_type": "text",
+          "answer_type": "matching",
+          "text": "Сопоставьте учёного и открытие",
+          "time_seconds": 60,
+          "points": 3,
+          "matching_items": [
+            {"left_text": "Ньютон", "right_text": "Закон всемирного тяготения", "order": 0},
+            {"left_text": "Менделеев", "right_text": "Периодический закон", "order": 1},
+            {"left_text": "Попов", "right_text": "Радиоприёмник", "order": 2}
+          ]
+        }
+      ]
+    },
+    {
+      "_comment": "Слайд-перерыв между турами",
+      "title": "Перерыв",
+      "order": 3,
+      "is_slide": true,
+      "slide_text": "## Перерыв 5 минут\n\nСледующий тур — музыкальный!",
+      "questions": []
+    },
+    {
+      "title": "Тур 3. Музыкальный",
+      "order": 4,
+      "questions": [
+        {
+          "_comment": "Аудиовопрос: сначала играет трек, потом идёт отсчёт. Файл загрузите в конструкторе после импорта (или укажите audio_path). audio_trim_start / audio_trim_end — фрагмент трека в секундах (null — до конца). answer_audio_path — трек, который играет при показе ответа (необязательно).",
+          "order": 0,
+          "question_type": "audio",
+          "answer_type": "short_text",
+          "text": "Назовите композитора",
+          "audio_path": null,
+          "audio_trim_start": 0,
+          "audio_trim_end": 30,
+          "answer_audio_path": null,
+          "time_seconds": 30,
+          "points": 2,
+          "correct_answer": "П. И. Чайковский"
+        }
+      ]
+    }
+  ]
+}

@@ -1,11 +1,12 @@
 {% extends "admin/base_admin.html" %}
+{% import "_macros.html" as m %}
 {% block title %}Квизы — Бауман.Игра{% endblock %}
 
 {% block admin_content %}
 <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl sm:text-3xl font-bold">Квизы</h1>
     <div class="flex gap-2 flex-wrap">
-        <button class="btn btn-outline btn-sm sm:btn-md"
+        <button class="btn btn-ghost btn-sm sm:btn-md"
                 onclick="document.getElementById('import-modal').showModal()">
             <span class="material-symbols-outlined icon-sm">upload</span>
             <span class="hidden sm:inline">Импорт</span>
@@ -36,6 +37,14 @@
         </div>
         <div id="import-tab-json" class="hidden">
             <p class="text-sm text-base-content/60 mb-3">Только структура квиза без медиафайлов</p>
+            <div class="alert mb-4 py-3 text-sm">
+                <span class="material-symbols-outlined icon-sm text-primary" aria-hidden="true">description</span>
+                <span>Готовый пример со всеми типами вопросов, ответов и слайдами — заполните его и загрузите.</span>
+                <a href="{{ url_for('admin.quiz_import_template') }}" class="btn btn-sm btn-outline" download>
+                    <span class="material-symbols-outlined icon-sm" aria-hidden="true">download</span>
+                    Скачать шаблон JSON
+                </a>
+            </div>
             <form method="POST" action="{{ url_for('admin.quiz_import_json') }}" enctype="multipart/form-data">
                 <input type="file" name="file" accept=".json" class="file-input file-input-bordered w-full mb-4" required>
                 <div class="modal-action mt-0">
@@ -57,73 +66,104 @@ function switchImportTab(tab) {
 </script>
 
 {% if quizzes %}
-<div class="grid gap-4">
+<div class="grid gap-3">
     {% for quiz in quizzes %}
-    <div class="card bg-base-100 shadow">
-        <div class="card-body p-4">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h2 class="card-title text-base sm:text-lg">{{ quiz.title }}</h2>
-                    <div class="flex flex-wrap gap-2 mt-1">
-                        <span class="badge {% if quiz.status == 'active' %}badge-success{% elif quiz.status == 'finished' %}badge-neutral{% else %}badge-ghost{% endif %}">
-                            {{ {'draft': 'Черновик', 'active': 'Активен', 'finished': 'Завершён'}.get(quiz.status, quiz.status) }}
-                        </span>
-                        {% if quiz.is_active %}
-                        <span class="badge badge-warning">
-                            <span class="material-symbols-outlined" style="font-size:12px">play_arrow</span>
-                            Запущен
-                        </span>
-                        {% endif %}
-                        <span class="badge badge-ghost">{{ quiz.tours|length }} туров</span>
-                        <span class="text-sm text-base-content/50">{{ quiz.created_at.strftime('%d.%m.%Y') }}</span>
-                    </div>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
-                        <span class="material-symbols-outlined icon-sm">edit</span>
-                        <span class="hidden sm:inline">Редактировать</span>
-                    </a>
-                    {% if not quiz.is_active %}
-                    <form method="POST" action="{{ url_for('admin.quiz_activate', quiz_id=quiz.id) }}" class="inline">
-                        <button class="btn btn-sm btn-success">
-                            <span class="material-symbols-outlined icon-sm">play_arrow</span>
-                            <span class="hidden sm:inline">Активировать</span>
-                        </button>
-                    </form>
+    {% set regular = quiz.tours|rejectattr('is_slide')|list %}
+    {% set n_questions = regular|map(attribute='questions')|map('length')|sum %}
+    <article class="rounded-2xl bg-base-100 shadow-sm hover:shadow-md transition-shadow {% if quiz.is_active %}ring-2 ring-success/40{% endif %}">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-3 p-4 sm:p-5">
+            <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="flex-1 min-w-0 group text-left">
+                <h2 class="font-bold text-lg leading-tight truncate group-hover:text-primary">{{ quiz.title }}</h2>
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-sm text-base-content/60">
+                    {% if quiz.is_active %}
+                    <span class="badge badge-success gap-1 font-semibold">
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse" aria-hidden="true"></span>Идёт игра
+                    </span>
+                    {% elif quiz.status == 'finished' %}
+                    <span class="badge badge-neutral">Завершён</span>
                     {% else %}
-                    <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-sm btn-primary">
-                        <span class="material-symbols-outlined icon-sm">tune</span>
-                        <span class="hidden sm:inline">Управление</span>
-                    </a>
+                    <span class="badge badge-ghost">Черновик</span>
                     {% endif %}
-                    <a href="{{ url_for('admin.teams', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
-                        <span class="material-symbols-outlined icon-sm">groups</span>
-                        <span class="hidden sm:inline">Команды</span>
-                    </a>
-                    <a href="{{ url_for('admin.export_excel', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
-                        <span class="material-symbols-outlined icon-sm">download</span>
-                        <span class="hidden sm:inline">Excel</span>
-                    </a>
-                    <a href="{{ url_for('admin.quiz_export_zip', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
-                        <span class="material-symbols-outlined icon-sm">folder_zip</span>
-                        <span class="hidden sm:inline">ZIP</span>
-                    </a>
-                    <a href="{{ url_for('admin.quiz_export_json', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline">
-                        <span class="material-symbols-outlined icon-sm">data_object</span>
-                        <span class="hidden sm:inline">JSON</span>
-                    </a>
-                    <form method="POST" action="{{ url_for('admin.quiz_delete', quiz_id=quiz.id) }}">
-                        <button type="button" class="btn btn-sm btn-error btn-outline"
-                                onclick="confirmAndSubmit(this.closest('form'), 'Удалить квиз «{{ quiz.title }}»?')">
-                            <span class="material-symbols-outlined icon-sm">delete</span>
-                        </button>
-                    </form>
+                    <span>{{ m.plural(regular|length, 'тур', 'тура', 'туров') }}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{{ m.plural(n_questions, 'вопрос', 'вопроса', 'вопросов') }}</span>
+                    {% if quiz.teams %}
+                    <span aria-hidden="true">·</span>
+                    <span>{{ m.plural(quiz.teams|length, 'команда', 'команды', 'команд') }}</span>
+                    {% endif %}
+                    <span aria-hidden="true">·</span>
+                    <time datetime="{{ quiz.created_at.isoformat() }}">{{ quiz.created_at.strftime('%d.%m.%Y') }}</time>
                 </div>
+            </a>
+
+            <div class="flex items-center gap-2 shrink-0">
+                <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-sm btn-ghost">
+                    <span class="material-symbols-outlined icon-sm" aria-hidden="true">edit</span>
+                    <span class="hidden sm:inline">Редактировать</span>
+                </a>
+                {% if quiz.is_active %}
+                <a href="{{ url_for('admin.quiz_control', quiz_id=quiz.id) }}" class="btn btn-sm btn-primary">
+                    <span class="material-symbols-outlined icon-sm" aria-hidden="true">sports_esports</span>
+                    Пульт
+                </a>
+                {% else %}
+                <form method="POST" action="{{ url_for('admin.quiz_activate', quiz_id=quiz.id) }}">
+                    <button type="button" class="btn btn-sm btn-success"
+                            onclick='confirmAndSubmit(this.closest("form"), {{ ("Запустить «" ~ quiz.title ~ "»? Если сейчас идёт другая игра, она будет остановлена.")|tojson }}, "Запустить", false)'>
+                        <span class="material-symbols-outlined icon-sm" aria-hidden="true">play_arrow</span>
+                        Запустить
+                    </button>
+                </form>
+                {% endif %}
+
+                {# Второстепенные действия — в меню «⋯» (NN/g: прятать только редкие действия) #}
+                <details class="dropdown dropdown-end quiz-menu">
+                    <summary class="btn btn-sm btn-ghost btn-square" aria-label="Ещё действия: {{ quiz.title }}" title="Ещё действия">
+                        <span class="material-symbols-outlined icon-sm" aria-hidden="true">more_vert</span>
+                    </summary>
+                    <ul class="dropdown-content menu menu-sm bg-base-100 rounded-box shadow-lg border border-base-200 z-30 w-60 p-1 mt-1">
+                        <li><a href="{{ url_for('admin.teams', quiz_id=quiz.id) }}">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">groups</span>Команды</a></li>
+                        <li><a href="{{ url_for('admin.quiz_stats', quiz_id=quiz.id) }}">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">analytics</span>Статистика</a></li>
+                        <li><button type="button" title="Копия вопросов и настроек — без команд и ответов"
+                                    onclick='confirmAndSubmit(document.getElementById("duplicate-{{ quiz.id }}"), {{ ("Создать копию квиза «" ~ quiz.title ~ "»? Скопируются туры, вопросы и оформление; команды и ответы — нет.")|tojson }}, "Дублировать", false)'>
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">content_copy</span>Дублировать квиз</button></li>
+                        <li class="menu-title pt-2 pb-1 text-xs">Скачать</li>
+                        <li><a href="{{ url_for('admin.export_excel', quiz_id=quiz.id) }}">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">table_view</span>
+                            <span>Результаты <span class="text-base-content/50">· Excel</span></span></a></li>
+                        <li><a href="{{ url_for('admin.quiz_export_zip', quiz_id=quiz.id) }}">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">folder_zip</span>
+                            <span>Квиз с медиа <span class="text-base-content/50">· ZIP</span></span></a></li>
+                        <li><a href="{{ url_for('admin.quiz_export_json', quiz_id=quiz.id) }}">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">data_object</span>
+                            <span>Только структура <span class="text-base-content/50">· JSON</span></span></a></li>
+                        <li class="border-t border-base-200 mt-1 pt-1">
+                            <button type="button" class="text-error"
+                                    onclick='confirmAndSubmit(document.getElementById("delete-{{ quiz.id }}"), {{ ("Удалить квиз «" ~ quiz.title ~ "» вместе с командами и ответами? Это действие нельзя отменить.")|tojson }})'>
+                                <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>Удалить квиз
+                            </button>
+                        </li>
+                    </ul>
+                </details>
+                <form method="POST" action="{{ url_for('admin.quiz_delete', quiz_id=quiz.id) }}" id="delete-{{ quiz.id }}" class="hidden"></form>
+                <form method="POST" action="{{ url_for('admin.quiz_duplicate', quiz_id=quiz.id) }}" id="duplicate-{{ quiz.id }}" class="hidden"></form>
             </div>
         </div>
-    </div>
+    </article>
     {% endfor %}
 </div>
+<script>
+// Меню на <details>: закрываем при клике мимо, Esc и открытии соседнего.
+document.addEventListener('click', (e) => {
+    document.querySelectorAll('details.quiz-menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; });
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('details.quiz-menu[open]').forEach(d => { d.open = false; d.querySelector('summary').focus(); });
+});
+</script>
 {% else %}
 <div class="hero min-h-64">
     <div class="hero-content text-center">

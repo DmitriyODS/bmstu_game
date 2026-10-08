@@ -11,14 +11,19 @@ def screen():
         return render_template('presentation/no_quiz.html')
     gs = GameState.query.filter_by(quiz_id=quiz.id).first()
     teams = Team.query.filter_by(quiz_id=quiz.id).order_by(Team.registered_at).all()
-    return render_template('presentation/screen.html', quiz=quiz, gs=gs, teams=teams)
+    from app import public_base_url
+    # Короткий адрес для ручного ввода: /play сам перенаправит на активный квиз.
+    join_url = public_base_url().split('://', 1)[-1] + '/play'
+    return render_template('presentation/screen.html', quiz=quiz, gs=gs, teams=teams,
+                           join_url=join_url)
 
 
 @presentation_bp.route('/api/qr/<quiz_id>')
 def qr_code(quiz_id):
     import qrcode
     from flask import request
-    base_url = request.host_url.rstrip('/')
+    from app import public_base_url
+    base_url = public_base_url()
     url = f"{base_url}/play/{quiz_id}"
     img = qrcode.make(url)
     buf = io.BytesIO()

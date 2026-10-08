@@ -2,7 +2,9 @@ services:
   web:
     build: .
     ports:
-      - "5000:5000"
+      # Только localhost: наружу приложение отдаёт nginx (TLS, заголовки, лимиты).
+      # Docker публикует порты в обход ufw, поэтому 0.0.0.0 здесь недопустим.
+      - "127.0.0.1:5000:5000"
     env_file: .env
     volumes:
       - uploads_data:/app/app/static/uploads

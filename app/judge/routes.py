@@ -8,6 +8,7 @@ from app.judge.locks import (
     MAX_LOCK_LIFETIME_SECONDS,
 )
 from app.auth import judge_required
+from app.scoring import rank_scores
 from app.models import db, Quiz, Tour, Question, Team, TeamAnswer, GameState, AnswerOption, MatchingItem
 
 
@@ -85,7 +86,7 @@ def next_card():
     answer = q.first()
     if not answer:
         db.session.commit()
-        return jsonify({'answer': None})
+        return jsonify({'answer': None, 'queue': _queue_counts(quiz, tour_id, question_id)})
 
     now = datetime.utcnow()
     answer.checked_by = current_user.id
@@ -103,7 +104,26 @@ def next_card():
               .filter(TeamAnswer.id == answer.id)
               .first())
 
-    return jsonify({'answer': _answer_dict(answer, answer.team, answer.question)})
+    return jsonify({'answer': _answer_dict(answer, answer.team, answer.question),
+                    'queue': _queue_counts(quiz, tour_id, question_id)})
+
+
+def _queue_counts(quiz, tour_id=None, question_id=None):
+    """Сколько непроверенных ответов ждут в очереди и сколько сейчас у других
+    судей — чтобы было видно, что ни один ответ не потерялся."""
+    q = (db.session.query(TeamAnswer.checked_by)
+         .join(Question, Question.id == TeamAnswer.question_id)
+         .join(Tour, Tour.id == Question.tour_id)
+         .filter(Tour.quiz_id == quiz.id, TeamAnswer.is_correct.is_(None)))
+    if tour_id:
+        q = q.filter(Tour.id == tour_id)
+    if question_id:
+        q = q.filter(TeamAnswer.question_id == question_id)
+    holders = [row[0] for row in q.all()]
+    return {
+        'waiting': sum(1 for h in holders if h is None),
+        'with_others': sum(1 for h in holders if h and h != current_user.id),
+    }
 
 
 @judge_bp.route('/check/<answer_id>', methods=['POST'])
@@ -120,6 +140,11 @@ def check_answer(answer_id):
     # её оценить — позволяем сохранить результат, чтобы ответ не «потерялся»).
     # Принудительная переоценка из режима таблицы — отдельный кейс ниже.
     force = bool(data.get('force'))
+    # Команда могла переотправить ответ, пока карточка была открыта у судьи:
+    # тогда судья оценил бы версию, которую не видел.
+    seen_version = data.get('submitted_at')
+    if not force and seen_version and seen_version != str(answer.submitted_at):
+        return jsonify({'ok': False, 'error': 'answer_changed'}), 409
     if not force:
         already_judged_by_other = (
             answer.is_correct is not None
@@ -267,23 +292,17 @@ def results():
                 team_scores[ans.team_id] = team_scores.get(ans.team_id, 0) + ans.score
                 total_scores[ans.team_id] = total_scores.get(ans.team_id, 0) + ans.score
 
-        rows = sorted(
+        rows = rank_scores(
             [{'team_id': tid, 'team_name': team_map.get(tid, '?'), 'score': sc}
-             for tid, sc in team_scores.items()],
-            key=lambda x: -x['score']
+             for tid, sc in team_scores.items()]
         )
-        for i, r in enumerate(rows):
-            r['place'] = i + 1
 
         tours_result.append({'tour_num': tour_num, 'tour_title': tour.title, 'scores': rows})
 
-    total_rows = sorted(
+    total_rows = rank_scores(
         [{'team_id': tid, 'team_name': team_map.get(tid, '?'), 'score': sc}
-         for tid, sc in total_scores.items()],
-        key=lambda x: -x['score']
+         for tid, sc in total_scores.items()]
     )
-    for i, r in enumerate(total_rows):
-        r['place'] = i + 1
 
     return jsonify({'tours': tours_result, 'total': total_rows})
 
@@ -369,8 +388,6 @@ def _emit_scores(socketio, quiz):
             .all())
     scores = [{'team_id': tid, 'team_name': name, 'score': int(score or 0)}
               for tid, name, score in rows]
-    scores.sort(key=lambda x: -x['score'])
-    for i, s in enumerate(scores):
-        s['place'] = i + 1
+    rank_scores(scores)
     from app.sockets.utils import broadcast
     broadcast('scores_updated', {'scores': scores}, quiz.id)

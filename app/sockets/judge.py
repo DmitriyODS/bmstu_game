@@ -2,11 +2,13 @@ from flask_login import current_user
 from flask_socketio import join_room
 
 from app import socketio
-from app.models import Quiz, TeamAnswer, db
+from app.models import Quiz
 
 
 @socketio.on('connect', namespace='/judge')
 def on_connect():
+    if not current_user.is_authenticated or current_user.role not in ('admin', 'judge'):
+        return False
     quiz = Quiz.query.filter_by(is_active=True).first()
     if quiz:
         join_room(quiz.id)
@@ -15,14 +17,9 @@ def on_connect():
 
 @socketio.on('disconnect', namespace='/judge')
 def on_disconnect():
-    """Закрыли вкладку / упало соединение — отдаём незавершённую карточку обратно в пул."""
-    if not current_user.is_authenticated:
-        return
-    TeamAnswer.query.filter(
-        TeamAnswer.checked_by == current_user.id,
-        TeamAnswer.is_correct.is_(None),
-    ).update({'checked_by': None,
-              'checked_by_at': None,
-              'checked_lock_started_at': None},
-             synchronize_session=False)
-    db.session.commit()
+    # Карточку при обрыве сокета НЕ освобождаем: короткий сбой сети (смена
+    # Wi-Fi, сон вкладки) разрывает сокет, а судья продолжает смотреть на
+    # карточку — её тут же забирал другой судья, и один ответ проверяли дважды.
+    # Закрытие вкладки ловят pagehide/visibilitychange (явный release), а
+    # пропавшего судью — протухший heartbeat (см. app/judge/locks.py).
+    pass
