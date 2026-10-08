@@ -2,8 +2,8 @@
 {% block title %}Проверка ответов — {{ quiz.title }}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen p-3 sm:p-4">
-    <div class="navbar bg-base-100 rounded-box shadow mb-4">
+<div id="judge-page" class="min-h-screen p-3 sm:p-4">
+    <div class="navbar bg-base-100 rounded-box shadow mb-4 shrink-0">
         <div class="flex-1 min-w-0">
             <span class="material-symbols-outlined icon-md text-primary mr-2">balance</span>
             <span class="text-lg font-bold hidden sm:inline">Проверка ответов</span>
@@ -32,7 +32,7 @@
     </div>
 
     <!-- Filters -->
-    <div class="flex flex-wrap gap-2 sm:gap-3 mb-4 items-center">
+    <div class="flex flex-wrap gap-2 sm:gap-3 mb-4 items-center shrink-0">
         <select id="filter-tour" class="select select-bordered select-sm" onchange="onFilterChange()">
             <option value="">Все туры</option>
             {% for td in tours_data %}
@@ -62,9 +62,9 @@
     </div>
 
     <!-- TABLE MODE -->
-    <div id="mode-table" class="hidden">
-        <div class="overflow-x-auto bg-base-100 rounded-box shadow">
-            <table class="table table-zebra w-full" id="answers-table">
+    <div id="mode-table" class="hidden flex-1 min-h-0">
+        <div class="h-full overflow-auto bg-base-100 rounded-box shadow">
+            <table class="table table-zebra table-pin-rows w-full" id="answers-table">
                 <thead>
                     <tr>
                         <th>Команда</th>
@@ -169,6 +169,10 @@ function setMode(m) {
     localStorage.setItem('judge_mode', m);
     document.getElementById('mode-tinder').classList.toggle('hidden', m !== 'tinder');
     document.getElementById('mode-table').classList.toggle('hidden', m !== 'table');
+    // В таблице страница занимает ровно экран: шапка и фильтры стоят, скроллится только таблица
+    const page = document.getElementById('judge-page');
+    page.classList.toggle('min-h-screen', m !== 'table');
+    ['h-dvh', 'flex', 'flex-col'].forEach(c => page.classList.toggle(c, m === 'table'));
     document.getElementById('btn-tinder').className = `btn btn-sm join-item ${m === 'tinder' ? 'btn-primary' : 'btn-outline'}`;
     document.getElementById('btn-table').className = `btn btn-sm join-item ${m === 'table' ? 'btn-primary' : 'btn-outline'}`;
     if (m === 'tinder') {
