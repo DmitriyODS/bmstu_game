@@ -3,7 +3,7 @@
 {% block content %}
 <div class="drawer lg:drawer-open">
     <input id="drawer-toggle" type="checkbox" class="drawer-toggle">
-    <div class="drawer-content flex flex-col min-h-screen">
+    <div class="drawer-content flex flex-col min-h-screen {% block shell_class %}{% endblock %}">
         <!-- Navbar (mobile only) -->
         <div class="navbar bg-base-100 shadow lg:hidden sticky top-0 z-30">
             <label for="drawer-toggle" class="btn btn-ghost drawer-button">
@@ -15,7 +15,7 @@
             </div>
         </div>
         <!-- Main content -->
-        <main class="flex-1 p-4 sm:p-6">
+        <main class="flex-1 p-4 sm:p-6 {% block main_class %}{% endblock %}">
             {% if storage_full %}
             <div class="alert alert-error mb-4" role="alert">
                 <span class="material-symbols-outlined icon-sm" aria-hidden="true">hard_drive</span>
@@ -30,40 +30,32 @@
     </div>
     <div class="drawer-side z-40">
         <label for="drawer-toggle" class="drawer-overlay"></label>
-        <ul class="menu p-4 w-64 min-h-full bg-base-100 text-base-content gap-1 shadow-xl" data-tour="nav">
+        <ul id="admin-nav" class="group/nav menu p-4 w-64 lg:data-[collapsed]:w-20 min-h-full bg-base-100 text-base-content gap-1 shadow-xl flex-nowrap overflow-x-hidden [&>li]:w-full [&>li]:min-w-0 [&>li]:overflow-hidden [&>li]:flex-nowrap [&>li>*]:w-full [&>li>*]:max-w-full [&>li>*]:overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[width]" data-tour="nav">
             <!-- Logo -->
             <li class="mb-3">
-                <div class="flex items-center gap-3 px-2 py-1 pointer-events-none">
-                    <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-8 w-auto">
-                    <span class="text-lg font-bold">Бауман.Игра</span>
+                <div class="relative flex items-center gap-3 px-0 py-1 pointer-events-none">
+                    <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Логотип" class="h-8 w-12 shrink-0 object-contain">
+                    <span class="text-lg font-bold nav-label absolute left-[52px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Бауман.Игра</span>
                 </div>
             </li>
             <div class="divider my-1"></div>
             <li>
-                <a href="{{ url_for('admin.dashboard') }}" class="flex items-center gap-3 {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
-                    <span class="material-symbols-outlined icon-sm">dashboard</span>
-                    Дашборд
-                </a>
+                <a href="{{ url_for('admin.dashboard') }}" class="relative flex items-center gap-3 px-0 min-h-10 {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center">dashboard</span><span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Дашборд</span>                </a>
             </li>
             <li>
-                <a href="{{ url_for('admin.quizzes') }}" data-tour="nav-quizzes" class="flex items-center gap-3 {% if 'quiz' in request.endpoint %}active{% endif %}">
-                    <span class="material-symbols-outlined icon-sm">quiz</span>
-                    Квизы
-                </a>
+                <a href="{{ url_for('admin.quizzes') }}" data-tour="nav-quizzes" class="relative flex items-center gap-3 px-0 min-h-10 {% if 'quiz' in request.endpoint %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center">quiz</span><span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Квизы</span>                </a>
             </li>
             <li>
-                <a href="{{ url_for('admin.files') }}" data-tour="nav-files" class="flex items-center gap-3 {% if request.endpoint == 'admin.files' %}active{% endif %}">
-                    <span class="material-symbols-outlined icon-sm">perm_media</span>
-                    Файлы квизов
-                </a>
+                <a href="{{ url_for('admin.files') }}" data-tour="nav-files" class="relative flex items-center gap-3 px-0 min-h-10 {% if request.endpoint == 'admin.files' %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center">perm_media</span><span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Файлы квизов</span>                </a>
             </li>
             {% if active_quiz %}
             <li data-tour="nav-active">
-                <details open>
-                    <summary class="flex items-center gap-3">
-                        <span class="material-symbols-outlined icon-sm">sports_esports</span>
-                        Активный квиз
-                    </summary>
+                <details open class="[&>ul]:max-h-96 [&>ul]:overflow-hidden [&>ul]:transition-all [&>ul]:duration-300 lg:group-data-[collapsed]/nav:[&>ul]:max-h-0 lg:group-data-[collapsed]/nav:[&>ul]:opacity-0">
+                    <summary class="relative flex items-center gap-3 px-0 min-h-10 lg:group-data-[collapsed]/nav:after:hidden">
+                        <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center">sports_esports</span><span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Активный квиз</span>                    </summary>
                     <ul>
                         <li><a href="{{ url_for('admin.quiz_control', quiz_id=active_quiz.id) }}">
                             <span class="material-symbols-outlined icon-sm">tune</span>Управление
@@ -89,36 +81,62 @@
             {% endif %}
             <div class="divider my-1"></div>
             <li>
-                <a href="{{ url_for('admin.settings') }}" data-tour="nav-settings" class="flex items-center gap-3 {% if request.endpoint == 'admin.settings' %}active{% endif %}">
-                    <span class="material-symbols-outlined icon-sm">settings</span>
-                    Настройки
-                </a>
+                <a href="{{ url_for('admin.settings') }}" data-tour="nav-settings" class="relative flex items-center gap-3 px-0 min-h-10 {% if request.endpoint == 'admin.settings' %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center">settings</span><span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Настройки</span>                </a>
             </li>
             <li>
-                <a href="/screen" target="_blank" class="flex items-center gap-3">
-                    <span class="material-symbols-outlined icon-sm">desktop_windows</span>
-                    Презентация
-                </a>
+                <a href="/screen" target="_blank" class="relative flex items-center gap-3 px-0 min-h-10">
+                    <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center">desktop_windows</span><span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Презентация</span>                </a>
             </li>
             <li>
-                <a href="{{ url_for('admin.help') }}" data-tour="nav-help" class="flex items-center gap-3 {% if request.endpoint == 'admin.help' %}active{% endif %}">
-                    <span class="material-symbols-outlined icon-sm">help</span>
-                    Справка
-                </a>
+                <a href="{{ url_for('admin.help') }}" data-tour="nav-help" class="relative flex items-center gap-3 px-0 min-h-10 {% if request.endpoint == 'admin.help' %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center">help</span><span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Справка</span>                </a>
             </li>
             <li>
-                <button type="button" onclick="QuizTour.start('admin')" data-tour="nav-tour" class="flex items-center gap-3">
-                    <span class="material-symbols-outlined icon-sm">explore</span>
-                    Ознакомительный тур
+                <button type="button" onclick="QuizTour.start('admin')" data-tour="nav-tour" class="relative flex items-center gap-3 px-0 min-h-10">
+                    <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center">explore</span><span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Ознакомительный тур</span>                </button>
+            </li>
+            <li>
+                <a href="{{ url_for('auth.logout') }}" class="relative flex items-center gap-3 px-0 min-h-10 text-error">
+                    <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center">logout</span><span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Выйти</span>                </a>
+            </li>
+            <li class="mt-auto hidden lg:block">
+                <button type="button" id="nav-collapse-btn" class="relative flex items-center gap-3 px-0 min-h-10 text-base-content/60" aria-label="Свернуть меню" aria-expanded="true">
+                    <span class="material-symbols-outlined icon-sm w-12 shrink-0 text-center transition-transform duration-300 lg:group-data-[collapsed]/nav:rotate-180">keyboard_double_arrow_left</span>
+                    <span class="nav-label absolute left-[45px] top-1/2 -translate-y-1/2 whitespace-nowrap transition-opacity duration-200 delay-100 ease-out lg:group-data-[collapsed]/nav:opacity-0 lg:group-data-[collapsed]/nav:duration-100 lg:group-data-[collapsed]/nav:delay-0">Свернуть меню</span>
                 </button>
             </li>
-            <li>
-                <a href="{{ url_for('auth.logout') }}" class="flex items-center gap-3 text-error">
-                    <span class="material-symbols-outlined icon-sm">logout</span>
-                    Выйти
-                </a>
-            </li>
         </ul>
+        <script>
+        (function () {
+            const nav = document.getElementById('admin-nav');
+            const btn = document.getElementById('nav-collapse-btn');
+            const label = btn.querySelector('.nav-label');
+            nav.querySelectorAll('a, summary, button').forEach((el) => {
+                const t = el.querySelector('.nav-label');
+                if (t && el !== btn) el.title = t.textContent.trim();
+            });
+            function setCollapsed(on, save) {
+                if (on) nav.setAttribute('data-collapsed', ''); else nav.removeAttribute('data-collapsed');
+                btn.setAttribute('aria-expanded', on ? 'false' : 'true');
+                btn.setAttribute('aria-label', on ? 'Развернуть меню' : 'Свернуть меню');
+                label.textContent = 'Свернуть меню';
+                btn.title = on ? 'Развернуть меню' : '';
+                if (save) { try { localStorage.setItem('navCollapsed', on ? '1' : '0'); } catch (e) {} }
+            }
+            let stored = null;
+            try { stored = localStorage.getItem('navCollapsed'); } catch (e) {}
+            setCollapsed(stored === '1', false);
+            btn.addEventListener('click', () => setCollapsed(!nav.hasAttribute('data-collapsed'), true));
+            nav.querySelectorAll('summary').forEach((sm) => sm.addEventListener('click', (e) => {
+                if (nav.hasAttribute('data-collapsed') && window.matchMedia('(min-width: 1024px)').matches) {
+                    e.preventDefault();
+                    setCollapsed(false, true);
+                }
+            }));
+        })();
+        </script>
+    
     </div>
 </div>
 
@@ -165,9 +183,9 @@
         {url: U.builder, sel: '[data-tour="b-add"]', when: !!U.builder, title: 'Туры и слайды',
          text: '<b>Тур</b> — группа вопросов с общими итогами. <b>Слайд</b> — произвольный экран между турами: правила, перерыв, спонсоры (текст, картинка, фоновая музыка).'},
         {url: U.builder, sel: '[data-tour="b-editor"]', when: !!U.builder, title: 'Редактор',
-         text: 'Справа редактируется то, что выбрано слева. У вопроса задаются тип (текст, картинка, аудио…), тип ответа (варианты, текст, сопоставление), время и баллы. Сохранение — кнопкой или ' + kbd('Ctrl') + '+' + kbd('S') + '.'},
+         text: 'Справа редактируется то, что выбрано слева. У вопроса задаются тип (текст, картинка, аудио…), тип ответа (варианты, текст, сопоставление), время и баллы. Рядом с полем загрузки картинки или звука — кнопка <b>«Выбрать из хранилища»</b>: так можно взять уже загруженный файл. Сохранение — кнопкой или ' + kbd('Ctrl') + '+' + kbd('S') + '.'},
         {url: U.builder, sel: '#btn-quiz-settings', when: !!U.builder, title: 'Оформление и звуки',
-         text: 'Название и описание квиза, картинка заставки и звуки таймера: старт вопроса, предупреждение за несколько секунд до конца и сигнал окончания.'},
+         text: 'Название и описание квиза, картинка заставки, <b>фон слайдов</b> (цвет или картинка с прозрачностью и размытием — для проектора и телефонов) и звуки таймера: старт вопроса, предупреждение за несколько секунд до конца и сигнал окончания.'},
         {url: U.builder, sel: '[data-tour="b-actions"]', when: !!U.builder, title: 'Действия с квизом',
          text: 'Команды, статистика, копия квиза, выгрузка результатов и самого квиза, удаление — то же, что в меню <b>⋮</b> на странице квизов.'},
         {url: U.builder, sel: '[data-tour="b-launch"]', when: !!U.builder, title: 'Запуск игры',
@@ -187,7 +205,7 @@
          text: '<b>Презентация</b> — экран для проектора, откройте его в отдельном окне. <b>Судьи</b> — проверка ответов. В меню <b>⋮</b> — конструктор, статистика, команды и «Завершить игру».'},
 
         {url: U.files, sel: '[data-tour="nav-files"]', title: 'Файлы квизов',
-         text: 'Все картинки и звуки в одном месте: папки по квизам, свои папки, контроль занятого места. Один файл можно использовать в нескольких квизах.'},
+         text: 'Все картинки и звуки в одном месте: папки по квизам, свои папки, перенос файлов и контроль занятого места. Картинки автоматически сжимаются в WebP. Используемый файл удалить нельзя, а лишние находятся фильтром «Только неиспользуемые». Один файл можно подключить в нескольких квизах.'},
         {url: U.settings, sel: '[data-tour="s-creds"]', title: 'Настройки: вход',
          text: 'Здесь меняются логин и пароль администратора. Сделайте это сразу после установки.'},
         {url: U.settings, sel: '[data-tour="s-judges"]', title: 'Судьи',
