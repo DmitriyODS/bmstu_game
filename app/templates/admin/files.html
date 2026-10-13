@@ -3,18 +3,20 @@
 {% block title %}Файлы квизов — Бауман.Игра{% endblock %}
 
 {% macro folder_link(id, icon, title, count) %}
-<li>
+<li class="w-full min-w-0">
     <a href="{{ url_for('admin.files', folder=id, kind=kind or none, unused='1' if only_unused else none) }}"
-       class="flex items-center gap-2 {% if folder_id == id %}active{% endif %}">
+       class="flex items-center gap-2 w-full min-w-0 {% if folder_id == id %}active{% endif %}">
         <span class="material-symbols-outlined icon-sm shrink-0" aria-hidden="true">{{ icon }}</span>
-        <span class="truncate flex-1" title="{{ title }}">{{ title }}</span>
+        <span class="truncate flex-1 min-w-0" title="{{ title }}">{{ title }}</span>
         <span class="badge badge-sm badge-ghost shrink-0">{{ count }}</span>
     </a>
 </li>
 {% endmacro %}
 
 {% block admin_content %}
-<header class="flex flex-wrap items-end justify-between gap-3 mb-5">
+{# На широком экране страница занимает высоту окна: шапка и папки на месте, прокручивается список файлов #}
+<div class="lg:flex lg:flex-col lg:h-[calc(100vh-3rem)]">
+<header class="flex flex-wrap items-end justify-between gap-3 mb-5 shrink-0">
     <div class="min-w-0">
         <h1 class="text-2xl sm:text-3xl font-bold">Файлы квизов</h1>
         <p class="text-sm text-base-content/60">Все картинки и звуки. Один файл можно использовать в нескольких квизах.</p>
@@ -36,7 +38,7 @@
     </div>
 </header>
 
-<section class="card bg-base-100 shadow mb-5" aria-label="Занято места">
+<section class="card bg-base-100 shadow mb-5 shrink-0" aria-label="Занято места">
     <div class="card-body p-4 gap-2">
         <div class="flex flex-wrap items-baseline justify-between gap-2 text-sm">
             <span><b>{{ human_size(used) }}</b> из {{ human_size(limit) }} · {{ m.plural(total_count, 'файл', 'файла', 'файлов') }}</span>
@@ -47,9 +49,9 @@
     </div>
 </section>
 
-<div class="grid lg:grid-cols-[16rem_1fr] gap-5 items-start">
-    <nav aria-label="Папки" class="card bg-base-100 shadow">
-        <ul class="menu menu-sm p-2 gap-0.5 w-full">
+<div class="grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] gap-5 items-start lg:flex-1 lg:min-h-0">
+    <nav aria-label="Папки" class="card bg-base-100 shadow min-w-0 overflow-hidden lg:max-h-full lg:overflow-y-auto">
+        <ul class="menu menu-sm flex-nowrap p-2 gap-0.5 w-full">
             {{ folder_link('all', 'perm_media', 'Все файлы', total_count) }}
             {{ folder_link('none', 'folder_off', 'Без папки', counts.get(none, 0)) }}
             {% for f in folders %}
@@ -61,8 +63,8 @@
         </ul>
     </nav>
 
-    <div class="min-w-0">
-        <div class="flex flex-wrap items-center gap-2 mb-3">
+    <div class="min-w-0 lg:h-full lg:flex lg:flex-col lg:self-stretch">
+        <div class="flex flex-wrap items-center gap-2 mb-3 shrink-0">
             <h2 class="text-lg font-bold truncate mr-auto">
                 {% if current %}{{ folder_title(current) }}{% elif folder_id == 'none' %}Без папки{% else %}Все файлы{% endif %}
             </h2>
@@ -83,7 +85,7 @@
             {% endif %}
         </div>
 
-        <form method="GET" class="flex flex-wrap items-center gap-2 mb-3">
+        <form method="GET" class="flex flex-wrap items-center gap-2 mb-3 shrink-0">
             <input type="hidden" name="folder" value="{{ folder_id }}">
             <input type="hidden" name="kind" value="{{ kind }}">
             <div class="join">
@@ -101,7 +103,7 @@
                    class="input input-bordered input-sm flex-1 min-w-40">
         </form>
 
-        <div id="bulk-bar" class="hidden sticky top-2 z-20 alert shadow mb-3 py-2 flex flex-wrap items-center gap-2">
+        <div id="bulk-bar" class="hidden sticky top-2 lg:static z-20 alert shadow mb-3 py-2 flex flex-wrap items-center gap-2 shrink-0">
             <span class="text-sm font-medium" id="bulk-count"></span>
             <select id="bulk-folder" class="select select-bordered select-sm max-w-xs" aria-label="Папка назначения">
                 <option value="" disabled selected>Переместить в…</option>
@@ -117,6 +119,7 @@
         </div>
 
         {% if items %}
+        <div class="lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:-m-1 lg:p-1 lg:pb-4">
         <ul class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3" id="files-grid">
             {% for f in items %}
             {% set refs = usage.get(f.url, []) %}
@@ -167,6 +170,7 @@
             </li>
             {% endfor %}
         </ul>
+        </div>
         {% else %}
         <div class="card bg-base-100 shadow">
             <div class="card-body items-center text-center py-12">
@@ -177,6 +181,7 @@
         </div>
         {% endif %}
     </div>
+</div>
 </div>
 
 <dialog id="folder-modal" class="modal">
