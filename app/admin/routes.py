@@ -708,6 +708,14 @@ def settings():
     return render_template('admin/settings.html', judges=judges)
 
 
+# ── Help ───────────────────────────────────────────────────────────────────────
+
+@admin_bp.route('/help')
+@admin_required
+def help():
+    return render_template('admin/help.html')
+
+
 # ── Statistics ─────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/quizzes/<quiz_id>/stats')

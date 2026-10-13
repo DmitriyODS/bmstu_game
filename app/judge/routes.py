@@ -266,6 +266,12 @@ def answers_table():
     return jsonify({'answers': result})
 
 
+@judge_bp.route('/help')
+@judge_required
+def help():
+    return render_template('judge/help.html')
+
+
 @judge_bp.route('/results')
 @judge_required
 def results():

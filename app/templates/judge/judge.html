@@ -10,7 +10,7 @@
             <span class="text-sm text-base-content/60 ml-1 truncate">{{ quiz.title }}</span>
         </div>
         <div class="flex-none gap-2">
-            <div class="join">
+            <div class="join" data-tour="j-modes">
                 <button id="btn-tinder" onclick="setMode('tinder')" class="btn btn-sm join-item btn-primary">
                     <span class="material-symbols-outlined icon-sm">style</span>
                     <span class="hidden sm:inline">Карточки</span>
@@ -20,10 +20,18 @@
                     <span class="hidden sm:inline">Таблица</span>
                 </button>
             </div>
-            <button onclick="openResultsModal()" class="btn btn-ghost btn-sm" title="Итоги по турам">
+            <button onclick="openResultsModal()" class="btn btn-ghost btn-sm" title="Итоги по турам" data-tour="j-results">
                 <span class="material-symbols-outlined icon-sm">leaderboard</span>
                 <span class="hidden sm:inline">Итоги</span>
             </button>
+            <button onclick="QuizTour.start('judge')" class="btn btn-ghost btn-sm" title="Ознакомительный тур">
+                <span class="material-symbols-outlined icon-sm">explore</span>
+                <span class="hidden lg:inline">Тур</span>
+            </button>
+            <a href="{{ url_for('judge.help') }}" target="_blank" class="btn btn-ghost btn-sm" title="Справка для судей">
+                <span class="material-symbols-outlined icon-sm">help</span>
+                <span class="hidden lg:inline">Справка</span>
+            </a>
             <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost btn-sm">
                 <span class="material-symbols-outlined icon-sm">logout</span>
                 <span class="hidden sm:inline">Выйти</span>
@@ -32,7 +40,7 @@
     </div>
 
     <!-- Filters -->
-    <div class="flex flex-wrap gap-2 sm:gap-3 mb-4 items-center shrink-0">
+    <div class="flex flex-wrap gap-2 sm:gap-3 mb-4 items-center shrink-0" data-tour="j-filters">
         <select id="filter-tour" class="select select-bordered select-sm" onchange="onFilterChange()">
             <option value="">Все туры</option>
             {% for td in tours_data %}
@@ -139,6 +147,23 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/tour.js') }}"></script>
+<script>
+QuizTour.register('judge', [
+    {title: 'Проверка ответов',
+     text: 'Здесь судьи проверяют ответы команд, пока ведущий ведёт игру. Ответы появляются сами — страницу обновлять не нужно. Покажем, что где находится.'},
+    {sel: '[data-tour="j-modes"]', title: 'Два режима проверки',
+     text: '<b>Карточки</b> — ответы выдаются по одному, каждый судья получает свой, так что несколько судей не мешают друг другу. <b>Таблица</b> — все ответы списком, здесь же можно исправить уже выставленную оценку.'},
+    {sel: '[data-tour="j-filters"]', title: 'Фильтры',
+     text: 'Ограничьте проверку одним туром или вопросом. Флажок «Только непроверенные» скрывает ответы, по которым решение уже принято.'},
+    {sel: '#mode-tinder:not(.hidden) #card-container, #mode-table:not(.hidden)', title: 'Ответ команды',
+     text: 'На карточке — команда, вопрос, ответ и правильный ответ. Нажмите «Верно» (<kbd class="kbd kbd-xs">→</kbd> или <kbd class="kbd kbd-xs">Enter</kbd>) или «Неверно» (<kbd class="kbd kbd-xs">←</kbd>). В поле «Баллы» можно поставить неполный балл. После оценки сразу придёт следующий ответ.'},
+    {sel: '[data-tour="j-results"]', title: 'Итоги',
+     text: 'Текущая таблица результатов: общий зачёт и отдельно по каждому туру. Удобно сверить перед тем, как ведущий выведет итоги на экран.'},
+    {sel: 'a[href$="/judge/help"]', title: 'Справка',
+     text: 'Подробная инструкция для судей — откроется в новой вкладке. Этот тур можно запустить снова кнопкой с компасом.'},
+]);
+</script>
 <script>
 const TOURS_DATA = {{ tours_data | tojson }};
 let mode = localStorage.getItem('judge_mode') || 'tinder';

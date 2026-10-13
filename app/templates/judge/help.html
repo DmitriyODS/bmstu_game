@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Справка для судей — Бауман.Игра{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-3 sm:p-4 max-w-3xl mx-auto">
+    <div class="navbar bg-base-100 rounded-box shadow mb-4">
+        <div class="flex-1 min-w-0">
+            <span class="material-symbols-outlined icon-md text-primary mr-2">help</span>
+            <span class="text-lg font-bold">Справка для судей</span>
+        </div>
+        <a href="{{ url_for('judge.index') }}" class="btn btn-primary btn-sm">
+            <span class="material-symbols-outlined icon-sm">balance</span>
+            К проверке
+        </a>
+    </div>
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-5 sm:p-6 gap-3 leading-relaxed">
+            {% include "_help_judge.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

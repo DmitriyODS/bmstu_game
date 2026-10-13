@@ -13,7 +13,7 @@
         <h1 class="text-2xl font-bold truncate">{{ quiz.title }}</h1>
         <p class="text-sm text-base-content/60" id="quiz-summary"></p>
     </div>
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2" data-tour="b-launch">
         <button onclick="openQuizSettings()" class="btn btn-ghost btn-sm" id="btn-quiz-settings">
             <span class="material-symbols-outlined icon-sm" aria-hidden="true">tune</span>
             Оформление и звуки
@@ -34,7 +34,7 @@
         {% endif %}
     </div>
     {# Те же действия, что в меню «⋯» на странице квизов #}
-    <nav aria-label="Действия с квизом" class="w-full flex flex-wrap items-center gap-1 border-t border-base-200 pt-2">
+    <nav aria-label="Действия с квизом" data-tour="b-actions" class="w-full flex flex-wrap items-center gap-1 border-t border-base-200 pt-2">
         <a href="{{ url_for('admin.teams', quiz_id=quiz.id) }}" class="btn btn-ghost btn-sm">
             <span class="material-symbols-outlined icon-sm" aria-hidden="true">groups</span>Команды
         </a>
@@ -73,7 +73,7 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-[minmax(18rem,24rem)_1fr] gap-4 items-start">
     <!-- Левая панель: структура квиза -->
-    <nav aria-label="Структура квиза"
+    <nav aria-label="Структура квиза" data-tour="b-structure"
          class="card bg-base-100 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] flex flex-col min-h-0">
         <div class="flex items-center justify-between gap-2 px-4 pt-3 pb-2 border-b border-base-200">
             <h2 class="text-xs font-bold uppercase tracking-wider text-base-content/50">Структура</h2>
@@ -83,7 +83,7 @@
         <div id="tours-empty" class="hidden px-4 py-8 text-center text-sm text-base-content/60">
             В квизе пока нет туров.<br>Начните с первого тура.
         </div>
-        <div class="grid grid-cols-2 gap-2 p-2 border-t border-base-200">
+        <div class="grid grid-cols-2 gap-2 p-2 border-t border-base-200" data-tour="b-add">
             <button onclick="addTour()" class="btn btn-sm btn-outline btn-primary">
                 <span class="material-symbols-outlined icon-sm" aria-hidden="true">add</span>
                 Тур
@@ -99,7 +99,7 @@
         class="hidden fixed z-50 menu menu-sm bg-base-100 rounded-box shadow-lg border border-base-200 w-56 p-1"></ul>
 
     <!-- Правая панель: редактор -->
-    <div class="min-w-0">
+    <div class="min-w-0" data-tour="b-editor">
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body p-4 sm:p-6">
 

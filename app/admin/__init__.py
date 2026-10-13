@@ -9,4 +9,6 @@ from app.admin import routes  # noqa
 def inject_active_quiz():
     from app.models import Quiz
     active_quiz = Quiz.query.filter_by(is_active=True).first()
-    return {'active_quiz': active_quiz}
+    # Квиз, на примере которого ознакомительный тур показывает конструктор.
+    tour_quiz = active_quiz or Quiz.query.order_by(Quiz.created_at.desc()).first()
+    return {'active_quiz': active_quiz, 'tour_quiz': tour_quiz}

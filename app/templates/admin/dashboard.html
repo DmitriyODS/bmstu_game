@@ -17,7 +17,7 @@
 </div>
 {% endif %}
 
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8" data-tour="dash-stats">
     <div class="stat bg-base-100 rounded-box shadow">
         <div class="stat-figure text-primary">
             <span class="material-symbols-outlined icon-xl">quiz</span>
@@ -43,7 +43,7 @@
     {% endif %}
 </div>
 
-<div class="flex flex-wrap gap-3">
+<div class="flex flex-wrap gap-3" data-tour="dash-actions">
     <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary">
         <span class="material-symbols-outlined icon-sm">add</span>
         Новый квиз
@@ -62,5 +62,13 @@
         Экспорт Excel
     </a>
     {% endif %}
+    <button type="button" onclick="QuizTour.start('admin')" class="btn btn-outline btn-secondary">
+        <span class="material-symbols-outlined icon-sm">explore</span>
+        Ознакомительный тур
+    </button>
+    <a href="{{ url_for('admin.help') }}" class="btn btn-ghost">
+        <span class="material-symbols-outlined icon-sm">help</span>
+        Справка
+    </a>
 </div>
 {% endblock %}

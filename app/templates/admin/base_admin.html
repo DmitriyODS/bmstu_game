@@ -21,7 +21,7 @@
     </div>
     <div class="drawer-side z-40">
         <label for="drawer-toggle" class="drawer-overlay"></label>
-        <ul class="menu p-4 w-64 min-h-full bg-base-100 text-base-content gap-1 shadow-xl">
+        <ul class="menu p-4 w-64 min-h-full bg-base-100 text-base-content gap-1 shadow-xl" data-tour="nav">
             <!-- Logo -->
             <li class="mb-3">
                 <div class="flex items-center gap-3 px-2 py-1 pointer-events-none">
@@ -37,13 +37,13 @@
                 </a>
             </li>
             <li>
-                <a href="{{ url_for('admin.quizzes') }}" class="flex items-center gap-3 {% if 'quiz' in request.endpoint %}active{% endif %}">
+                <a href="{{ url_for('admin.quizzes') }}" data-tour="nav-quizzes" class="flex items-center gap-3 {% if 'quiz' in request.endpoint %}active{% endif %}">
                     <span class="material-symbols-outlined icon-sm">quiz</span>
                     Квизы
                 </a>
             </li>
             {% if active_quiz %}
-            <li>
+            <li data-tour="nav-active">
                 <details open>
                     <summary class="flex items-center gap-3">
                         <span class="material-symbols-outlined icon-sm">sports_esports</span>
@@ -74,7 +74,7 @@
             {% endif %}
             <div class="divider my-1"></div>
             <li>
-                <a href="{{ url_for('admin.settings') }}" class="flex items-center gap-3 {% if request.endpoint == 'admin.settings' %}active{% endif %}">
+                <a href="{{ url_for('admin.settings') }}" data-tour="nav-settings" class="flex items-center gap-3 {% if request.endpoint == 'admin.settings' %}active{% endif %}">
                     <span class="material-symbols-outlined icon-sm">settings</span>
                     Настройки
                 </a>
@@ -86,6 +86,18 @@
                 </a>
             </li>
             <li>
+                <a href="{{ url_for('admin.help') }}" data-tour="nav-help" class="flex items-center gap-3 {% if request.endpoint == 'admin.help' %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm">help</span>
+                    Справка
+                </a>
+            </li>
+            <li>
+                <button type="button" onclick="QuizTour.start('admin')" data-tour="nav-tour" class="flex items-center gap-3">
+                    <span class="material-symbols-outlined icon-sm">explore</span>
+                    Ознакомительный тур
+                </button>
+            </li>
+            <li>
                 <a href="{{ url_for('auth.logout') }}" class="flex items-center gap-3 text-error">
                     <span class="material-symbols-outlined icon-sm">logout</span>
                     Выйти
@@ -94,4 +106,80 @@
         </ul>
     </div>
 </div>
+
+<script src="{{ url_for('static', filename='js/tour.js') }}"></script>
+<script>
+// Шаги ознакомительного тура по разделам администратора. Конструктор показываем
+// на примере существующего квиза, пульт — только когда идёт игра.
+(function () {
+    const U = {
+        dashboard: {{ url_for('admin.dashboard')|tojson }},
+        quizzes: {{ url_for('admin.quizzes')|tojson }},
+        builder: {{ (url_for('admin.quiz_edit', quiz_id=tour_quiz.id) if tour_quiz else none)|tojson }},
+        control: {{ (url_for('admin.quiz_control', quiz_id=active_quiz.id) if active_quiz else none)|tojson }},
+        settings: {{ url_for('admin.settings')|tojson }},
+        help: {{ url_for('admin.help')|tojson }},
+    };
+    const kbd = (k) => `<kbd class="kbd kbd-xs">${k}</kbd>`;
+    const steps = [
+        {url: U.dashboard, title: 'Добро пожаловать в Бауман.Игру',
+         text: 'За пару минут покажем, где что находится: как собрать квиз, провести игру, проверить ответы и получить результаты. Листайте кнопками или стрелками ' + kbd('←') + ' ' + kbd('→') + ', выйти можно в любой момент — ' + kbd('Esc') + '.'},
+        {url: U.dashboard, sel: '[data-tour="nav"]', title: 'Главное меню',
+         text: 'Отсюда открываются все разделы. На телефоне меню прячется под кнопкой <b>☰</b> в левом верхнем углу.'},
+        {url: U.dashboard, sel: '[data-tour="dash-stats"]', title: 'Дашборд',
+         text: 'Сводка: сколько квизов создано, а во время игры — сколько команд подключилось и сколько туров в активном квизе. Сверху видно, идёт ли сейчас игра.'},
+        {url: U.dashboard, sel: '[data-tour="dash-actions"]', title: 'Быстрые действия',
+         text: 'Создать квиз, открыть список, а во время игры — экран презентации и выгрузку результатов в Excel.'},
+        {url: U.dashboard, sel: '[data-tour="nav-active"]', when: !!U.control, title: 'Активный квиз',
+         text: 'Пока идёт игра, здесь собрано всё для неё: пульт ведущего, конструктор, команды, проверка ответов, статистика и экспорт.'},
+
+        {url: U.quizzes, sel: '[data-tour="quiz-new"]', title: 'Новый квиз',
+         text: 'С этой кнопки начинается любой квиз: введите название и описание — сразу откроется конструктор с первым туром.'},
+        {url: U.quizzes, sel: '[data-tour="quiz-import"]', title: 'Импорт',
+         text: 'Готовый квиз можно загрузить из файла: <b>ZIP</b> — с картинками и звуком, <b>JSON</b> — только структура. Там же лежит шаблон JSON со всеми типами вопросов.'},
+        {url: U.quizzes, sel: '[data-tour="quiz-card"]', when: !!U.builder, title: 'Карточка квиза',
+         text: 'Название, статус (черновик, идёт игра, завершён), число туров, вопросов и команд. Клик по названию открывает конструктор.'},
+        {url: U.quizzes, sel: '[data-tour="quiz-actions"]', when: !!U.builder, title: 'Запуск и другие действия',
+         text: '<b>Запустить</b> делает квиз активным и открывает пульт ведущего. Под кнопкой <b>⋮</b> — команды, статистика, дублирование, выгрузка результатов (Excel) и самого квиза (ZIP, JSON), удаление.'},
+        {url: U.quizzes, when: !U.builder, title: 'Квизов пока нет',
+         text: 'Создайте первый квиз и запустите тур ещё раз — тогда покажем конструктор и пульт ведущего на живом примере. Пошаговая инструкция есть в справке.'},
+
+        {url: U.builder, sel: '[data-tour="b-structure"]', when: !!U.builder, title: 'Конструктор: структура',
+         text: 'Слева — туры, вопросы и слайды в том порядке, в каком они пойдут в игре. Порядок меняется перетаскиванием, тур можно свернуть. Под кнопкой <b>⋮</b> — настройки, перемещение, копия и удаление.'},
+        {url: U.builder, sel: '[data-tour="b-add"]', when: !!U.builder, title: 'Туры и слайды',
+         text: '<b>Тур</b> — группа вопросов с общими итогами. <b>Слайд</b> — произвольный экран между турами: правила, перерыв, спонсоры (текст, картинка, фоновая музыка).'},
+        {url: U.builder, sel: '[data-tour="b-editor"]', when: !!U.builder, title: 'Редактор',
+         text: 'Справа редактируется то, что выбрано слева. У вопроса задаются тип (текст, картинка, аудио…), тип ответа (варианты, текст, сопоставление), время и баллы. Сохранение — кнопкой или ' + kbd('Ctrl') + '+' + kbd('S') + '.'},
+        {url: U.builder, sel: '#btn-quiz-settings', when: !!U.builder, title: 'Оформление и звуки',
+         text: 'Название и описание квиза, картинка заставки и звуки таймера: старт вопроса, предупреждение за несколько секунд до конца и сигнал окончания.'},
+        {url: U.builder, sel: '[data-tour="b-actions"]', when: !!U.builder, title: 'Действия с квизом',
+         text: 'Команды, статистика, копия квиза, выгрузка результатов и самого квиза, удаление — то же, что в меню <b>⋮</b> на странице квизов.'},
+        {url: U.builder, sel: '[data-tour="b-launch"]', when: !!U.builder, title: 'Запуск игры',
+         text: 'Когда квиз готов, нажмите <b>Запустить игру</b>. Одновременно может идти только один квиз. Если игра уже идёт, здесь будет кнопка <b>Пульт ведущего</b>.'},
+
+        {url: U.control, sel: '[data-tour="c-screens"]', when: !!U.control, title: 'Пульт: общие экраны',
+         text: 'Что показать всем сразу: заставку, регистрацию с QR-кодом, список команд, экран ожидания или итоги игры. Экран меняется на проекторе и на телефонах участников одновременно.'},
+        {url: U.control, sel: '[data-tour="c-program"]', when: !!U.control, title: 'Программа игры',
+         text: 'Туры, вопросы и слайды по порядку. Наведите на строку: у тура — «Заставка» и «Итоги», у вопроса — «Показать» и «Ответ», у слайда — «Показать». Текущая строка подсвечена.'},
+        {url: U.control, sel: '[data-tour="c-preview"]', when: !!U.control, title: 'Что сейчас на экране',
+         text: 'Живая копия экрана презентации — видно то же, что видят зрители. «Скрыть» возвращает заставку.'},
+        {url: U.control, sel: '#active-question-card', when: !!U.control, title: 'Вопрос и таймер',
+         text: 'После «Показать» здесь появляется вопрос и таймер: <b>Старт</b>, <b>Пауза</b>, <b>Сброс</b>, <b>Показать ответ</b>. Ответы принимаются, только пока идёт таймер. Клавиши: ' + kbd('Пробел') + ' старт/пауза, ' + kbd('←') + ' ' + kbd('→') + ' вопрос, ' + kbd('Shift') + '+' + kbd('A') + ' ответ.'},
+        {url: U.control, sel: '[data-tour="c-teams"]', when: !!U.control, title: 'Ответы и команды',
+         text: 'Сколько команд уже ответило на текущий вопрос и кто именно (галочка), а также текущие баллы каждой команды — они обновляются по мере работы судей.'},
+        {url: U.control, sel: '[data-tour="c-links"]', when: !!U.control, title: 'Презентация и судьи',
+         text: '<b>Презентация</b> — экран для проектора, откройте его в отдельном окне. <b>Судьи</b> — проверка ответов. В меню <b>⋮</b> — конструктор, статистика, команды и «Завершить игру».'},
+
+        {url: U.settings, sel: '[data-tour="s-creds"]', title: 'Настройки: вход',
+         text: 'Здесь меняются логин и пароль администратора. Сделайте это сразу после установки.'},
+        {url: U.settings, sel: '[data-tour="s-judges"]', title: 'Судьи',
+         text: 'Создайте учётную запись каждому судье. Судья входит под своим логином и попадает сразу на проверку ответов — к конструктору и пульту у него доступа нет.'},
+
+        {url: U.help, sel: '[data-tour="help-toc"]', title: 'Справка',
+         text: (U.control ? '' : 'Пульт ведущего в тур не попал: он доступен только во время игры. Запустите квиз и пройдите тур ещё раз. ')
+             + 'Здесь — подробная инструкция по шагам: от первого квиза до итогов. Тур всегда можно запустить заново из меню.'},
+    ];
+    QuizTour.register('admin', steps.filter((s) => s.when !== false));
+})();
+</script>
 {% endblock %}

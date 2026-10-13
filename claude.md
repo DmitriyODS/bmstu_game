@@ -165,6 +165,11 @@ bmstu_quiz/
 - Цвета темы в кастомном CSS — `oklch(var(--p))` (DaisyUI 4), не `hsl(...)`
 - Локально: `PORT=5050 .venv/bin/python run_dev.py` (порт 5000 на macOS занят AirPlay) и `npx tailwindcss -i ./app/static/css/input.css -o ./app/static/css/output.css --watch=always`
 
+### Справка и ознакомительный тур
+- Справка: `GET /admin/help` (`admin/help.html`) и `GET /judge/help`; раздел для судей общий — `_help_judge.html`. При изменении интерфейса или поведения — обновлять текст справки
+- Тур: движок `app/static/js/tour.js` (`QuizTour.register(name, steps)` / `QuizTour.start(name)`), позиция между страницами — в `sessionStorage`. Шаги админа описаны в `base_admin.html`, судьи — в `judge.html`
+- Элементы для подсветки помечены `data-tour="..."` — при правке вёрстки атрибуты сохранять. Шаги конструктора показываются на `tour_quiz` (активный или последний квиз), шаги пульта — только при активном квизе
+
 ## Docker окружение
 
 ```yaml

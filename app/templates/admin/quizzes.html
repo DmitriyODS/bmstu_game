@@ -6,12 +6,12 @@
 <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl sm:text-3xl font-bold">Квизы</h1>
     <div class="flex gap-2 flex-wrap">
-        <button class="btn btn-ghost btn-sm sm:btn-md"
+        <button class="btn btn-ghost btn-sm sm:btn-md" data-tour="quiz-import"
                 onclick="document.getElementById('import-modal').showModal()">
             <span class="material-symbols-outlined icon-sm">upload</span>
             <span class="hidden sm:inline">Импорт</span>
         </button>
-        <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary btn-sm sm:btn-md">
+        <a href="{{ url_for('admin.quiz_new') }}" class="btn btn-primary btn-sm sm:btn-md" data-tour="quiz-new">
             <span class="material-symbols-outlined icon-sm">add</span>
             Новый квиз
         </a>
@@ -70,7 +70,7 @@ function switchImportTab(tab) {
     {% for quiz in quizzes %}
     {% set regular = quiz.tours|rejectattr('is_slide')|list %}
     {% set n_questions = regular|map(attribute='questions')|map('length')|sum %}
-    <article class="rounded-2xl bg-base-100 shadow-sm hover:shadow-md transition-shadow {% if quiz.is_active %}ring-2 ring-success/40{% endif %}">
+    <article class="rounded-2xl bg-base-100 shadow-sm hover:shadow-md transition-shadow {% if quiz.is_active %}ring-2 ring-success/40{% endif %}"{% if loop.first %} data-tour="quiz-card"{% endif %}>
         <div class="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-3 p-4 sm:p-5">
             <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="flex-1 min-w-0 group text-left">
                 <h2 class="font-bold text-lg leading-tight truncate group-hover:text-primary">{{ quiz.title }}</h2>
@@ -96,7 +96,7 @@ function switchImportTab(tab) {
                 </div>
             </a>
 
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="flex items-center gap-2 shrink-0"{% if loop.first %} data-tour="quiz-actions"{% endif %}>
                 <a href="{{ url_for('admin.quiz_edit', quiz_id=quiz.id) }}" class="btn btn-sm btn-ghost">
                     <span class="material-symbols-outlined icon-sm" aria-hidden="true">edit</span>
                     <span class="hidden sm:inline">Редактировать</span>
