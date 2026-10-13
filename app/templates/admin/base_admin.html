@@ -16,6 +16,15 @@
         </div>
         <!-- Main content -->
         <main class="flex-1 p-4 sm:p-6">
+            {% if storage_full %}
+            <div class="alert alert-error mb-4" role="alert">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">hard_drive</span>
+                <span>Хранилище файлов заполнено — загрузка новых файлов отключена. Удалите ненужные файлы.</span>
+                {% if request.endpoint != 'admin.files' %}
+                <a href="{{ url_for('admin.files', unused='1') }}" class="btn btn-sm">Открыть файлы</a>
+                {% endif %}
+            </div>
+            {% endif %}
             {% block admin_content %}{% endblock %}
         </main>
     </div>
@@ -40,6 +49,12 @@
                 <a href="{{ url_for('admin.quizzes') }}" data-tour="nav-quizzes" class="flex items-center gap-3 {% if 'quiz' in request.endpoint %}active{% endif %}">
                     <span class="material-symbols-outlined icon-sm">quiz</span>
                     Квизы
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('admin.files') }}" data-tour="nav-files" class="flex items-center gap-3 {% if request.endpoint == 'admin.files' %}active{% endif %}">
+                    <span class="material-symbols-outlined icon-sm">perm_media</span>
+                    Файлы квизов
                 </a>
             </li>
             {% if active_quiz %}
@@ -117,6 +132,7 @@
         quizzes: {{ url_for('admin.quizzes')|tojson }},
         builder: {{ (url_for('admin.quiz_edit', quiz_id=tour_quiz.id) if tour_quiz else none)|tojson }},
         control: {{ (url_for('admin.quiz_control', quiz_id=active_quiz.id) if active_quiz else none)|tojson }},
+        files: {{ url_for('admin.files')|tojson }},
         settings: {{ url_for('admin.settings')|tojson }},
         help: {{ url_for('admin.help')|tojson }},
     };
@@ -170,6 +186,8 @@
         {url: U.control, sel: '[data-tour="c-links"]', when: !!U.control, title: 'Презентация и судьи',
          text: '<b>Презентация</b> — экран для проектора, откройте его в отдельном окне. <b>Судьи</b> — проверка ответов. В меню <b>⋮</b> — конструктор, статистика, команды и «Завершить игру».'},
 
+        {url: U.files, sel: '[data-tour="nav-files"]', title: 'Файлы квизов',
+         text: 'Все картинки и звуки в одном месте: папки по квизам, свои папки, контроль занятого места. Один файл можно использовать в нескольких квизах.'},
         {url: U.settings, sel: '[data-tour="s-creds"]', title: 'Настройки: вход',
          text: 'Здесь меняются логин и пароль администратора. Сделайте это сразу после установки.'},
         {url: U.settings, sel: '[data-tour="s-judges"]', title: 'Судьи',

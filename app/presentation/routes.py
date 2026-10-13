@@ -1,7 +1,7 @@
 import io
 from flask import render_template, redirect, url_for, send_file
 from app.presentation import presentation_bp
-from app.models import Quiz, GameState, Team
+from app.models import Quiz, GameState, Team, quiz_background
 
 
 @presentation_bp.route('/screen')
@@ -15,7 +15,7 @@ def screen():
     # Короткий адрес для ручного ввода: /play сам перенаправит на активный квиз.
     join_url = public_base_url().split('://', 1)[-1] + '/play'
     return render_template('presentation/screen.html', quiz=quiz, gs=gs, teams=teams,
-                           join_url=join_url)
+                           join_url=join_url, quiz_bg=quiz_background(quiz))
 
 
 @presentation_bp.route('/api/qr/<quiz_id>')

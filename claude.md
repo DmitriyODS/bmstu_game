@@ -8,7 +8,7 @@
 - **Frontend**: Jinja2 templates + Tailwind CSS + DaisyUI + vanilla JS
 - **Сборка CSS**: Tailwind CLI (через npm/npx, не PostCSS плагин)
 - **Контейнеризация**: Docker + docker-compose
-- **Файлы**: локально в Docker volume (`/app/uploads`)
+- **Файлы**: `app/storage.py` — локально в Docker volume или в S3 (boto3)
 - **Excel-экспорт**: openpyxl
 - **ZIP-экспорт/импорт**: stdlib `zipfile` + `tempfile` + `shutil`
 - **Markdown-рендеринг (фронт)**: marked.js (CDN, подключается только в нужных шаблонах)
@@ -21,6 +21,7 @@ bmstu_quiz/
 │   ├── __init__.py          # create_app(), socketio инициализация
 │   ├── models.py            # SQLAlchemy модели
 │   ├── auth.py              # авторизация (login/logout/decorators)
+│   ├── storage.py           # хранилище файлов: локальный диск / S3, сжатие, лимит
 │   ├── admin/               # Blueprint: конструктор, управление квизом
 │   │   ├── __init__.py
 │   │   ├── routes.py
@@ -130,10 +131,23 @@ bmstu_quiz/
 - Туры можно сворачивать/разворачивать кнопкой `expand_less`/`expand_more`; состояние сохраняется в `localStorage` по ключу `tourCollapsed`
 
 ### Файлы
-- Загрузка через `werkzeug.utils.secure_filename`
-- Хранение: `/app/static/uploads/{quiz_id}/{type}/{filename}`
-- Типы: `images`, `audio`
-- Максимальный размер: настраивается через `MAX_CONTENT_LENGTH`
+- Вся работа с файлами — через `app/storage.py`: `save_upload()` / `store_bytes()`, `get_backend()`, `file_usage()`. Напрямую в `static/uploads` не писать
+- Бэкенд: локальная папка (`STORAGE_DIR`, по умолчанию `app/static/uploads`) или S3, если задан `S3_BUCKET` (`S3_ENDPOINT_URL`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PREFIX`). Перенос на S3: `flask --app wsgi storage-push-s3`
+- В полях квизов хранится адрес `/static/uploads/<ключ>` — одинаковый для обоих бэкендов; отдаёт его роут `storage_file` (S3 проксируется, либо редирект при `S3_PUBLIC_URL`)
+- Ключ: `{quiz_id | library}/{images|audio}/{uuid}.{ext}`; типы только `image` и `audio`
+- Реестр: таблицы `stored_files` и `storage_folders`. Папка квиза (`quiz_id` задан) создаётся автоматически, свои папки — виртуальные (перемещение меняет только `folder_id`)
+- Все картинки при загрузке конвертируются в WebP и ужимаются до 3 МБ (`to_webp`, анимация GIF сохраняется)
+- Старые картинки (не WebP или больше 3 МБ) пережимаются в фоне при старте приложения с заменой ссылок в квизах (`recompress_images`); вручную — `flask --app wsgi storage-recompress`
+- Общий лимит `STORAGE_LIMIT_BYTES` (5 ГБ): при превышении загрузка возвращает 507 с текстом ошибки, в админке — баннер
+- Раздел «Файлы квизов» — `app/admin/files.py`, `admin/files.html`. Файл, на который ссылается квиз, удалить нельзя (`file_usage()`); при добавлении нового поля с файлом — дополнить `file_usage()` и `_ATTACH_TARGETS`
+- «Выбрать из хранилища» в конструкторе: `pickFromStorage(kind, target, field)` → `POST /admin/files/<id>/attach`
+- Удаление квиза: галочка `delete_files` удаляет файлы, которые использовал квиз, кроме занятых другими квизами
+- Максимальный размер одного файла: `MAX_CONTENT_LENGTH`
+
+### Фон слайдов
+- Поля квиза `bg_type` (`none|color|image`), `bg_color`, `bg_image`, `bg_opacity` (непрозрачность 0–100), `bg_blur`, `bg_text_light`; словарь для клиентов — `quiz_background()` в `app/models.py`
+- Слой рисует `app/static/js/quiz-bg.js` (`QuizBg.apply`) — на презентации, у участников и в предпросмотре конструктора; изменения приходят событием `quiz_background`
+- На презентации текст вне карточек красится через `--c-on*`, поля вокруг картинок — `--c-letterbox`
 
 ### Проверка ответов
 - Авто-проверка: только для типа "выбор одного варианта" и "выбор нескольких вариантов"

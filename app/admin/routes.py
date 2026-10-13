@@ -7,18 +7,28 @@ import zipfile
 import tempfile
 import shutil
 from flask import (render_template, redirect, url_for, request, flash,
-                   jsonify, send_file, current_app)
+                   jsonify, send_file)
 from flask_login import current_user
 from app.admin import admin_bp
 from app.auth import admin_required, judge_required
 from app.scoring import rank_scores, question_stats
-from app.models import db, Quiz, Tour, Question, AnswerOption, MatchingItem, Team, TeamAnswer, GameState, User
-from werkzeug.utils import secure_filename
+from app.models import (db, Quiz, Tour, Question, AnswerOption, MatchingItem, Team, TeamAnswer,
+                        GameState, User, StoredFile, quiz_background)
+from app import storage
+from app.storage import StorageError
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
-_IMAGE_EXTS = ('jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'tif')
-_AUDIO_EXTS = ('mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac')
+_HEX_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+
+def _upload(quiz, kind):
+    """Сохранить файл из запроса в папку квиза. Возвращает (файл, ответ-ошибка)."""
+    try:
+        return storage.save_upload(request.files.get('file'), kind, quiz=quiz), None
+    except StorageError as e:
+        db.session.rollback()
+        return None, (jsonify({'error': e.message}), e.status)
 
 
 # ── Dashboard ──────────────────────────────────────────────────────────────────
@@ -91,7 +101,8 @@ def quiz_edit(quiz_id):
             'points': q.points,
         } for q in t.questions],
     } for t in quiz.tours]
-    return render_template('admin/quiz_builder.html', quiz=quiz, tours_data=tours_data)
+    return render_template('admin/quiz_builder.html', quiz=quiz, tours_data=tours_data,
+                           quiz_bg=quiz_background(quiz))
 
 
 @admin_bp.route('/quizzes/<quiz_id>/upload-splash', methods=['POST', 'DELETE'])
@@ -102,20 +113,26 @@ def quiz_upload_splash(quiz_id):
         quiz.splash_image = None
         db.session.commit()
         return jsonify({'ok': True})
-    f = request.files.get('file')
-    if not f:
-        return jsonify({'error': 'No file'}), 400
-    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
-    if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'tif'):
-        return jsonify({'error': 'Invalid file type'}), 400
-    unique_name = f"{uuid.uuid4()}.{ext}"
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', quiz.id, 'images')
-    os.makedirs(upload_dir, exist_ok=True)
-    f.save(os.path.join(upload_dir, unique_name))
-    path = f'/static/uploads/{quiz.id}/images/{unique_name}'
-    quiz.splash_image = path
+    stored, err = _upload(quiz, 'image')
+    if err:
+        return err
+    quiz.splash_image = stored.url
     db.session.commit()
-    return jsonify({'path': path})
+    return jsonify({'path': stored.url})
+
+
+@admin_bp.route('/quizzes/<quiz_id>/upload-background', methods=['POST'])
+@admin_required
+def quiz_upload_background(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    stored, err = _upload(quiz, 'image')
+    if err:
+        return err
+    quiz.bg_image = stored.url
+    quiz.bg_type = 'image'
+    db.session.commit()
+    _broadcast_background(quiz)
+    return jsonify({'path': stored.url})
 
 
 @admin_bp.route('/quizzes/<quiz_id>/delete', methods=['POST'])
@@ -123,11 +140,39 @@ def quiz_upload_splash(quiz_id):
 def quiz_delete(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
     quiz_id_copy = quiz.id
+    quiz_title = quiz.title
     from app.sockets.utils import broadcast
     broadcast('quiz_ended', {}, quiz_id_copy)
+    delete_files = request.form.get('delete_files') == '1'
+    used = [url for url, refs in storage.file_usage().items()
+            if any(r['quiz_id'] == quiz.id for r in refs)] if delete_files else []
+    storage.release_quiz_folder(quiz)
     db.session.delete(quiz)
     db.session.commit()
-    flash('Квиз удалён', 'success')
+    removed = kept = 0
+    if used:
+        # Файл, занятый другим квизом (например, копией), остаётся на месте.
+        still_used = storage.file_usage()
+        for url in used:
+            stored = StoredFile.query.filter_by(storage_key=storage.url_to_key(url)).first()
+            if not stored:
+                continue
+            if url in still_used:
+                kept += 1
+                continue
+            folder = stored.folder
+            storage.delete_stored(stored)
+            removed += 1
+            db.session.flush()
+            if folder and not folder.quiz_id and not folder.files and folder.name == quiz_title:
+                db.session.delete(folder)
+        db.session.commit()
+    msg = 'Квиз удалён'
+    if delete_files:
+        msg += f'. Файлов удалено: {removed}'
+        if kept:
+            msg += f', оставлено (используются в других квизах): {kept}'
+    flash(msg, 'success')
     return redirect(url_for('admin.quizzes'))
 
 
@@ -138,7 +183,8 @@ def quiz_duplicate(quiz_id):
     # Копируется только структура: команды, ответы и состояние игры — нет.
     copy = Quiz(title=_copy_title(src.title))
     for field in ('description', 'splash_image', 'sound_start_path', 'sound_mid_path',
-                  'sound_mid_seconds', 'sound_end_path'):
+                  'sound_mid_seconds', 'sound_end_path', 'bg_type', 'bg_color', 'bg_image',
+                  'bg_opacity', 'bg_blur', 'bg_text_light'):
         setattr(copy, field, getattr(src, field))
     db.session.add(copy)
     db.session.flush()
@@ -298,21 +344,12 @@ def tour_duplicate(tour_id):
 @admin_required
 def tour_upload_splash(tour_id):
     tour = Tour.query.get_or_404(tour_id)
-    f = request.files.get('file')
-    if not f:
-        return jsonify({'error': 'No file'}), 400
-    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
-    if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'tif'):
-        return jsonify({'error': 'Invalid file type'}), 400
-    unique_name = f"{uuid.uuid4()}.{ext}"
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads',
-                               tour.quiz_id, 'images')
-    os.makedirs(upload_dir, exist_ok=True)
-    f.save(os.path.join(upload_dir, unique_name))
-    path = f'/static/uploads/{tour.quiz_id}/images/{unique_name}'
-    tour.splash_image = path
+    stored, err = _upload(tour.quiz, 'image')
+    if err:
+        return err
+    tour.splash_image = stored.url
     db.session.commit()
-    return jsonify({'path': path})
+    return jsonify({'path': stored.url})
 
 
 # Tour audio upload (for custom slides)
@@ -320,21 +357,13 @@ def tour_upload_splash(tour_id):
 @admin_required
 def tour_upload_audio(tour_id):
     tour = Tour.query.get_or_404(tour_id)
-    f = request.files.get('file')
-    if not f:
-        return jsonify({'error': 'No file'}), 400
-    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
-    if ext not in ('mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'):
-        return jsonify({'error': 'Invalid audio type'}), 400
-    unique_name = f"{uuid.uuid4()}.{ext}"
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', tour.quiz_id, 'audio')
-    os.makedirs(upload_dir, exist_ok=True)
-    f.save(os.path.join(upload_dir, unique_name))
-    path = f'/static/uploads/{tour.quiz_id}/audio/{unique_name}'
-    tour.slide_audio_path = path
-    tour.slide_audio_original_name = f.filename or unique_name
+    stored, err = _upload(tour.quiz, 'audio')
+    if err:
+        return err
+    tour.slide_audio_path = stored.url
+    tour.slide_audio_original_name = stored.original_name
     db.session.commit()
-    return jsonify({'path': path, 'original_name': tour.slide_audio_original_name})
+    return jsonify({'path': stored.url, 'original_name': stored.original_name})
 
 
 # Quiz sound upload
@@ -343,17 +372,10 @@ def tour_upload_audio(tour_id):
 def quiz_upload_sound(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
     sound_type = request.form.get('type', 'sound_start')  # sound_start | sound_mid | sound_end
-    f = request.files.get('file')
-    if not f:
-        return jsonify({'error': 'No file'}), 400
-    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
-    if ext not in ('mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'):
-        return jsonify({'error': 'Invalid audio type'}), 400
-    unique_name = f"{uuid.uuid4()}.{ext}"
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', quiz.id, 'audio')
-    os.makedirs(upload_dir, exist_ok=True)
-    f.save(os.path.join(upload_dir, unique_name))
-    path = f'/static/uploads/{quiz.id}/audio/{unique_name}'
+    stored, err = _upload(quiz, 'audio')
+    if err:
+        return err
+    path = stored.url
     field_map = {
         'sound_start': 'sound_start_path',
         'sound_mid': 'sound_mid_path',
@@ -372,8 +394,32 @@ def quiz_settings_update(quiz_id):
     data = request.json or {}
     if 'sound_mid_seconds' in data:
         quiz.sound_mid_seconds = data['sound_mid_seconds']
+    for field in ('sound_start_path', 'sound_mid_path', 'sound_end_path'):
+        if field in data and data[field] is None:
+            setattr(quiz, field, None)
+    if 'background' in data:
+        bg = data['background'] or {}
+        if bg.get('type') not in ('none', 'color', 'image'):
+            return jsonify({'error': 'Неизвестный тип фона'}), 400
+        color = bg.get('color') or None
+        if color and not _HEX_COLOR_RE.match(color):
+            return jsonify({'error': 'Цвет задаётся в формате #RRGGBB'}), 400
+        quiz.bg_type = bg['type']
+        quiz.bg_color = color.lower() if color else None
+        if 'image' in bg and bg['image'] is None:
+            quiz.bg_image = None
+        quiz.bg_opacity = _int_or_default(bg.get('opacity'), 0, 100, 100)
+        quiz.bg_blur = _int_or_default(bg.get('blur'), 0, 40, 0)
+        quiz.bg_text_light = bool(bg.get('text_light'))
+        db.session.commit()
+        _broadcast_background(quiz)
     db.session.commit()
-    return jsonify({'ok': True})
+    return jsonify({'ok': True, 'background': quiz_background(quiz)})
+
+
+def _broadcast_background(quiz):
+    from app.sockets.utils import broadcast
+    broadcast('quiz_background', quiz_background(quiz), quiz.id)
 
 
 # ── Questions API ──────────────────────────────────────────────────────────────
@@ -467,28 +513,10 @@ def question_duplicate(question_id):
 def question_upload(question_id):
     q = Question.query.get_or_404(question_id)
     file_type = request.form.get('type', 'image')  # image | audio | answer_audio | sound_start | sound_mid | sound_end
-    f = request.files.get('file')
-    if not f:
-        return jsonify({'error': 'No file'}), 400
-
-    ext = (f.filename.rsplit('.', 1)[-1].lower() if f.filename and '.' in f.filename else '')
-
-    if file_type == 'image':
-        if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'tif'):
-            return jsonify({'error': 'Invalid image type'}), 400
-        subdir = 'images'
-    else:
-        if ext not in ('mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'):
-            return jsonify({'error': 'Invalid audio type'}), 400
-        subdir = 'audio'
-
-    tour = Tour.query.get(q.tour_id)
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads',
-                               tour.quiz_id, subdir)
-    os.makedirs(upload_dir, exist_ok=True)
-    unique_name = f"{uuid.uuid4()}.{ext}"
-    f.save(os.path.join(upload_dir, unique_name))
-    path = f'/static/uploads/{tour.quiz_id}/{subdir}/{unique_name}'
+    stored, err = _upload(q.tour.quiz, 'image' if file_type == 'image' else 'audio')
+    if err:
+        return err
+    path = stored.url
 
     field_map = {
         'image': 'image_path',
@@ -497,9 +525,9 @@ def question_upload(question_id):
     }
     setattr(q, field_map.get(file_type, 'image_path'), path)
     if file_type == 'audio':
-        q.audio_original_name = f.filename or unique_name
+        q.audio_original_name = stored.original_name
     elif file_type == 'answer_audio':
-        q.answer_audio_original_name = f.filename or unique_name
+        q.answer_audio_original_name = stored.original_name
     db.session.commit()
     original_name = q.answer_audio_original_name if file_type == 'answer_audio' else q.audio_original_name
     return jsonify({'path': path, 'original_name': original_name})
@@ -844,6 +872,7 @@ def quiz_export_json(quiz_id):
     data = {
         'title': quiz.title,
         'description': quiz.description,
+        'background': _background_export(quiz),
         'tours': [],
     }
     for tour in quiz.tours:
@@ -907,6 +936,7 @@ def quiz_import_json():
             title=data.get('title', 'Импортированный квиз'),
             description=data.get('description'),
         )
+        _background_import(quiz, data.get('background'))
         db.session.add(quiz)
         db.session.flush()
 
@@ -983,14 +1013,16 @@ def quiz_export_zip(quiz_id):
         def add_media(path):
             if not path:
                 return None
-            full_path = os.path.join(current_app.root_path, path.lstrip('/'))
-            if not os.path.exists(full_path):
+            key = storage.url_to_key(path)
+            if not key:
                 return None
-            subdir = 'audio' if '/audio/' in path else 'images'
-            filename = os.path.basename(full_path)
-            zip_path = f'media/{subdir}/{filename}'
+            subdir = 'audio' if storage.kind_of(key) == 'audio' else 'images'
+            zip_path = f'media/{subdir}/{os.path.basename(key)}'
             if zip_path not in added_paths:
-                zf.write(full_path, zip_path)
+                content = storage.get_backend().read(key)
+                if content is None:
+                    return None
+                zf.writestr(zip_path, content)
                 added_paths.add(zip_path)
             return zip_path
 
@@ -1003,6 +1035,7 @@ def quiz_export_zip(quiz_id):
             'sound_start': add_media(quiz.sound_start_path),
             'sound_mid': add_media(quiz.sound_mid_path),
             'sound_end': add_media(quiz.sound_end_path),
+            'background': dict(_background_export(quiz), image=add_media(quiz.bg_image)),
             'tours': [],
         }
 
@@ -1086,11 +1119,12 @@ def quiz_import_zip():
         db.session.add(quiz)
         db.session.flush()
 
-        upload_base = os.path.join(current_app.root_path, 'static', 'uploads', quiz.id)
-
         tmp_root = os.path.realpath(tmpdir)
+        # Один файл архива может использоваться в нескольких местах квиза.
+        imported = {}
+        saved_keys = []
 
-        def copy_media(zip_rel_path):
+        def copy_media(zip_rel_path, name=None):
             if not zip_rel_path or not isinstance(zip_rel_path, str):
                 return None
             # quiz.json приходит извне: не даём ссылаться на файлы вне архива
@@ -1098,22 +1132,26 @@ def quiz_import_zip():
             src = os.path.realpath(os.path.join(tmpdir, *zip_rel_path.split('/')))
             if not src.startswith(tmp_root + os.sep) or not os.path.isfile(src):
                 return None
-            parts = zip_rel_path.split('/')
-            subdir = parts[1] if len(parts) >= 2 and parts[1] in ('images', 'audio') else 'images'
-            filename = secure_filename(os.path.basename(zip_rel_path))
-            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-            if ext not in (_IMAGE_EXTS if subdir == 'images' else _AUDIO_EXTS):
+            if src in imported:
+                return imported[src]
+            kind = storage.kind_of(src)
+            if not kind:
                 return None
-            dst_dir = os.path.join(upload_base, subdir)
-            os.makedirs(dst_dir, exist_ok=True)
-            dst = os.path.join(dst_dir, filename)
-            shutil.copy2(src, dst)
-            return f'/static/uploads/{quiz.id}/{subdir}/{filename}'
+            with open(src, 'rb') as mf:
+                stored = storage.store_bytes(mf.read(), os.path.basename(src), kind, quiz=quiz)
+            if name:
+                stored.original_name = str(name)[:512]
+            saved_keys.append(stored.storage_key)
+            imported[src] = stored.url
+            return stored.url
 
         quiz.splash_image = copy_media(data.get('splash_image'))
         quiz.sound_start_path = copy_media(data.get('sound_start'))
         quiz.sound_mid_path = copy_media(data.get('sound_mid'))
         quiz.sound_end_path = copy_media(data.get('sound_end'))
+        bg_data = data.get('background') if isinstance(data.get('background'), dict) else {}
+        _background_import(quiz, bg_data)
+        quiz.bg_image = copy_media(bg_data.get('image'))
 
         for tour_data in data.get('tours', []):
             tour = Tour(
@@ -1127,7 +1165,8 @@ def quiz_import_zip():
             db.session.add(tour)
             db.session.flush()
             tour.splash_image = copy_media(tour_data.get('splash_image'))
-            tour.slide_audio_path = copy_media(tour_data.get('slide_audio'))
+            tour.slide_audio_path = copy_media(tour_data.get('slide_audio'),
+                                                tour_data.get('slide_audio_original_name'))
 
             for q_data in tour_data.get('questions', []):
                 q = Question(
@@ -1148,8 +1187,9 @@ def quiz_import_zip():
                 db.session.add(q)
                 db.session.flush()
                 q.image_path = copy_media(q_data.get('image_path'))
-                q.audio_path = copy_media(q_data.get('audio_path'))
-                q.answer_audio_path = copy_media(q_data.get('answer_audio_path'))
+                q.audio_path = copy_media(q_data.get('audio_path'), q_data.get('audio_original_name'))
+                q.answer_audio_path = copy_media(q_data.get('answer_audio_path'),
+                                                  q_data.get('answer_audio_original_name'))
 
                 for o_data in q_data.get('answer_options', []):
                     db.session.add(AnswerOption(
@@ -1172,7 +1212,11 @@ def quiz_import_zip():
 
     except Exception as e:
         db.session.rollback()
-        flash(f'Ошибка при импорте: {str(e)}', 'error')
+        # Записи откатились — убираем и уже сохранённые файлы, чтобы не копился мусор.
+        for key in locals().get('saved_keys', []):
+            storage.get_backend().delete(key)
+        message = e.message if isinstance(e, StorageError) else str(e)
+        flash(f'Ошибка при импорте: {message}', 'error')
         return redirect(url_for('admin.quizzes'))
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -1208,13 +1252,30 @@ def _int_or_default(value, lo, hi, default):
     return default if v is None else v
 
 
+def _background_export(quiz):
+    bg = quiz_background(quiz)
+    bg.pop('image')
+    return bg
+
+
+def _background_import(quiz, bg):
+    if not isinstance(bg, dict):
+        return
+    quiz.bg_type = bg.get('type') if bg.get('type') in ('none', 'color', 'image') else 'none'
+    color = bg.get('color')
+    quiz.bg_color = color.lower() if isinstance(color, str) and _HEX_COLOR_RE.match(color) else None
+    quiz.bg_opacity = _int_or_default(bg.get('opacity'), 0, 100, 100)
+    quiz.bg_blur = _int_or_default(bg.get('blur'), 0, 40, 0)
+    quiz.bg_text_light = bool(bg.get('text_light'))
+
+
 def _copy_title(title):
     suffix = ' (копия)'
     return title[:256 - len(suffix)] + suffix
 
 
-# Медиафайлы не копируются: копия ссылается на те же пути (файлы при
-# удалении квизов/туров/вопросов не стираются, так что это безопасно).
+# Медиафайлы не копируются: копия ссылается на те же пути. Хранилище не даёт
+# удалить файл, пока на него ссылается хотя бы один квиз.
 def _clone_tour(src, quiz_id, order, title=None):
     tour = Tour(quiz_id=quiz_id, order=order, title=title or src.title)
     for field in ('splash_image', 'is_slide', 'slide_text', 'slide_audio_path',

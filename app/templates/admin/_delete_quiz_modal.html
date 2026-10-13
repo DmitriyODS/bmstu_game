@@ -1,0 +1,30 @@
+{# Подтверждение удаления квиза с выбором: удалять ли его файлы #}
+<dialog id="delete-quiz-modal" class="modal">
+    <form method="POST" class="modal-box">
+        <p class="text-base mb-3" id="delete-quiz-message"></p>
+        <label class="label cursor-pointer justify-start gap-3 items-start">
+            <input type="checkbox" name="delete_files" value="1" class="checkbox checkbox-sm mt-0.5">
+            <span class="label-text">
+                Удалить и файлы квиза (картинки и звуки)
+                <span class="block text-xs text-base-content/60">Файлы, которые используются в других квизах, останутся. Без галочки все файлы сохранятся в разделе «Файлы квизов».</span>
+            </span>
+        </label>
+        <div class="modal-action">
+            <button type="button" class="btn" onclick="this.closest('dialog').close()">Отмена</button>
+            <button class="btn btn-error">Удалить</button>
+        </div>
+    </form>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+<script>
+function askDeleteQuiz(action, title) {
+    const modal = document.getElementById('delete-quiz-modal');
+    const form = modal.querySelector('form');
+    form.action = action;
+    form.reset();
+    document.getElementById('delete-quiz-message').textContent =
+        `Удалить квиз «${title}» вместе с командами и ответами? Это действие нельзя отменить.`;
+    document.querySelectorAll('details.quiz-menu[open]').forEach(d => { d.open = false; });
+    modal.showModal();
+}
+</script>

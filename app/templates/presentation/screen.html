@@ -18,7 +18,20 @@ body { overflow: hidden; background: #f8fafc; }
     --c-muted:     #64748b;
     --c-shadow:    0 2px 12px rgba(0,0,0,0.08);
     --c-shadow-lg: 0 4px 24px rgba(0,0,0,0.10);
+    /* Текст прямо на фоне слайда (не в карточках) и поля вокруг картинок */
+    --c-on:        #111827;
+    --c-on-soft:   #374151;
+    --c-on-muted:  #64748b;
+    --c-letterbox: #000;
 }
+/* Свой фон квиза: вместо чёрных полей виден фон, текст при необходимости светлый */
+#pres-app.has-quiz-bg { --c-letterbox: transparent; }
+#pres-app.quiz-bg-light-text {
+    --c-on:       #ffffff;
+    --c-on-soft:  rgba(255,255,255,0.92);
+    --c-on-muted: rgba(255,255,255,0.78);
+}
+#pres-app.quiz-bg-light-text .match-arrow { color: var(--c-on-muted); }
 
 #pres-app {
     width: 100vw;
@@ -335,7 +348,7 @@ body { overflow: hidden; background: #f8fafc; }
     background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
-    background-color: #000;
+    background-color: var(--c-letterbox);
     z-index: 0;
 }
 #screen-tour_splash > .tour-splash-content {
@@ -408,7 +421,7 @@ body { overflow: hidden; background: #f8fafc; }
 /* ── IMAGE-ONLY QUESTION ──────────────────────────────────────────── */
 #screen-question.image-only-mode {
     padding: 0;
-    background: #000;
+    background: var(--c-letterbox);
 }
 #screen-question.image-only-mode #q-image-pres {
     position: absolute;
@@ -444,7 +457,7 @@ body { overflow: hidden; background: #f8fafc; }
    Подпись — карточка прямо над нижней панелью; шрифт ужимается в fitTextToBox. */
 #screen-question.text-image-mode {
     padding: 0;
-    background: #000;
+    background: var(--c-letterbox);
 }
 #screen-question.text-image-mode #q-image-pres {
     position: absolute;
@@ -506,7 +519,7 @@ body { overflow: hidden; background: #f8fafc; }
 #slide-bg-pres {
     position: absolute; inset: 0;
     background-size: contain; background-position: center;
-    background-repeat: no-repeat; background-color: #000;
+    background-repeat: no-repeat; background-color: var(--c-letterbox);
     z-index: 0; display: none;
 }
 #slide-content-pres {
@@ -517,11 +530,11 @@ body { overflow: hidden; background: #f8fafc; }
 }
 #slide-title-pres {
     font-size: clamp(3rem, 8vw, 7rem);
-    font-weight: 900; color: #111827; line-height: 1.05;
+    font-weight: 900; color: var(--c-on); line-height: 1.05;
 }
 #slide-text-pres {
     font-size: clamp(1.4rem, 2.8vw, 2.5rem);
-    color: #374151; line-height: 1.5; max-width: 80vw;
+    color: var(--c-on-soft); line-height: 1.5; max-width: 80vw;
 }
 #slide-text-pres strong { font-weight: 700; }
 #slide-text-pres em { font-style: italic; }
@@ -588,15 +601,15 @@ body { overflow: hidden; background: #f8fafc; }
     <div id="screen-splash" class="pres-screen text-center">
         {% if quiz.splash_image %}
         <img src="{{ quiz.splash_image }}" alt=""
-             style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;border-radius:0;">
+             style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--c-letterbox);border-radius:0;">
         {% else %}
         <img src="{{ url_for('static', filename='img/logo.svg') }}" alt=""
              style="height:9rem;margin-bottom:3rem;opacity:0.7;">
-        <h1 style="font-size:clamp(4.5rem,10vw,8rem);font-weight:900;color:#111827;line-height:1.05;margin-bottom:2rem;">
+        <h1 style="font-size:clamp(4.5rem,10vw,8rem);font-weight:900;color:var(--c-on);line-height:1.05;margin-bottom:2rem;">
             {{ quiz.title }}
         </h1>
         {% if quiz.description %}
-        <p style="font-size:clamp(1.75rem,3.5vw,2.75rem);color:#64748b;max-width:70vw;">
+        <p style="font-size:clamp(1.75rem,3.5vw,2.75rem);color:var(--c-on-muted);max-width:70vw;">
             {{ quiz.description }}
         </p>
         {% endif %}
@@ -607,20 +620,20 @@ body { overflow: hidden; background: #f8fafc; }
     <div id="screen-registration" class="pres-screen" style="display:none">
         <div class="reg-layout">
             <div style="text-align:center;flex-shrink:0;">
-                <p style="font-size:1.6rem;font-weight:700;color:#64748b;margin-bottom:1.5rem;">
+                <p style="font-size:1.6rem;font-weight:700;color:var(--c-on-muted);margin-bottom:1.5rem;">
                     Сканируйте для участия
                 </p>
                 <div style="background:#fff;border:1.5px solid #e2e8f0;padding:1.25rem;border-radius:1.5rem;display:inline-block;box-shadow:0 4px 16px rgba(0,0,0,0.08);">
                     <img src="/api/qr/{{ quiz.id }}" style="width:500px;height:500px;" alt="QR">
                 </div>
-                <p style="margin-top:1rem;font-size:2rem;font-weight:700;color:#334155;font-family:monospace;">
+                <p style="margin-top:1rem;font-size:2rem;font-weight:700;color:var(--c-on-soft);font-family:monospace;">
                     {{ join_url }}
                 </p>
             </div>
             <div>
-                <h3 style="font-size:clamp(2rem,3.5vw,3rem);font-weight:800;color:#111827;margin-bottom:1.25rem;">
+                <h3 style="font-size:clamp(2rem,3.5vw,3rem);font-weight:800;color:var(--c-on);margin-bottom:1.25rem;">
                     Команды
-                    <span style="color:#64748b;font-weight:500;font-size:0.8em;">
+                    <span style="color:var(--c-on-muted);font-weight:500;font-size:0.8em;">
                         (<span id="teams-count">{{ teams|length }}</span>)
                     </span>
                 </h3>
@@ -635,7 +648,7 @@ body { overflow: hidden; background: #f8fafc; }
 
     <!-- TEAMS -->
     <div id="screen-teams" class="pres-screen" style="display:none">
-        <h2 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;color:#111827;margin-bottom:2rem;">Команды</h2>
+        <h2 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;color:var(--c-on);margin-bottom:2rem;">Команды</h2>
         <div id="all-teams-grid">
             {% for team in teams %}
             <div class="island" data-team-id="{{ team.id }}" style="padding:1.25rem 1.75rem;font-size:1.75rem;font-weight:700;text-align:center;color:#111827;">
@@ -649,10 +662,10 @@ body { overflow: hidden; background: #f8fafc; }
     <div id="screen-tour_splash" class="pres-screen text-center" style="display:none;">
         <div id="tour-splash-bg"></div>
         <div class="tour-splash-content">
-            <p style="font-size:clamp(1.1rem,2vw,1.5rem);font-weight:700;color:#64748b;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:0.75rem;">
+            <p style="font-size:clamp(1.1rem,2vw,1.5rem);font-weight:700;color:var(--c-on-muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:0.75rem;">
                 Тур
             </p>
-            <h2 id="tour-title" style="font-size:clamp(4rem,10vw,8rem);font-weight:900;color:#111827;line-height:1.05;">
+            <h2 id="tour-title" style="font-size:clamp(4rem,10vw,8rem);font-weight:900;color:var(--c-on);line-height:1.05;">
                 —
             </h2>
         </div>
@@ -682,12 +695,12 @@ body { overflow: hidden; background: #f8fafc; }
     <!-- WAITING -->
     <div id="screen-waiting" class="pres-screen text-center" style="display:none">
         <div class="pres-spinner" style="margin-bottom:2rem;"></div>
-        <p style="font-size:clamp(2rem,4vw,3rem);font-weight:600;color:#64748b;">Ожидайте...</p>
+        <p style="font-size:clamp(2rem,4vw,3rem);font-weight:600;color:var(--c-on-muted);">Ожидайте...</p>
     </div>
 
     <!-- TOUR RESULTS -->
     <div id="screen-tour_results" class="pres-screen" style="display:none">
-        <h2 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;color:#111827;margin-bottom:2rem;display:flex;align-items:center;gap:0.75rem;">
+        <h2 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;color:var(--c-on);margin-bottom:2rem;display:flex;align-items:center;gap:0.75rem;">
             <span class="material-symbols-outlined" style="font-size:2.5rem;color:#006CDC;">bar_chart</span>
             Итоги тура
         </h2>
@@ -696,7 +709,7 @@ body { overflow: hidden; background: #f8fafc; }
 
     <!-- GAME RESULTS -->
     <div id="screen-game_results" class="pres-screen" style="display:none">
-        <h2 style="font-size:clamp(2.5rem,5vw,3.75rem);font-weight:900;color:#111827;margin-bottom:2rem;display:flex;align-items:center;gap:0.75rem;">
+        <h2 style="font-size:clamp(2.5rem,5vw,3.75rem);font-weight:900;color:var(--c-on);margin-bottom:2rem;display:flex;align-items:center;gap:0.75rem;">
             <span class="material-symbols-outlined fill-1" style="font-size:3rem;color:#006CDC;">emoji_events</span>
             Итоги игры
         </h2>
@@ -727,9 +740,13 @@ body { overflow: hidden; background: #f8fafc; }
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/quiz-bg.js') }}"></script>
 <script>
 const QUIZ_ID = '{{ quiz.id }}';
 const socket = io('/presentation');
+
+QuizBg.apply(document.getElementById('pres-app'), {{ quiz_bg|tojson }});
+socket.on('quiz_background', (bg) => QuizBg.apply(document.getElementById('pres-app'), bg));
 
 function unlockScreenAudio() {
     document.getElementById('audio-unlock-overlay').style.display = 'none';
@@ -755,6 +772,7 @@ function escHtml(s) {
 const _mediaCache = new Map();
 const _preloadUrls = [
     {% if quiz.splash_image %}{{ quiz.splash_image|tojson }},{% endif %}
+    {% if quiz.bg_type == 'image' and quiz.bg_image %}{{ quiz.bg_image|tojson }},{% endif %}
     {% if quiz.sound_start_path %}{{ quiz.sound_start_path|tojson }},{% endif %}
     {% if quiz.sound_mid_path %}{{ quiz.sound_mid_path|tojson }},{% endif %}
     {% if quiz.sound_end_path %}{{ quiz.sound_end_path|tojson }},{% endif %}

@@ -1,6 +1,13 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Конструктор: {{ quiz.title }}{% endblock %}
 
+{% macro pick_btn(kind, target, field) %}
+<button type="button" class="btn btn-ghost btn-xs self-start mt-1"
+        onclick="pickFromStorage('{{ kind }}', '{{ target }}', '{{ field }}')">
+    <span class="material-symbols-outlined icon-sm" aria-hidden="true">perm_media</span>Выбрать из хранилища
+</button>
+{% endmacro %}
+
 {% block admin_content %}
 <header class="flex flex-wrap items-end justify-between gap-3 mb-5">
     <div class="min-w-0">
@@ -63,13 +70,13 @@
             </ul>
         </details>
         <button type="button" class="btn btn-ghost btn-sm text-error sm:ml-auto"
-                onclick='confirmAndSubmit(document.getElementById("quiz-delete-form"), {{ ("Удалить квиз «" ~ quiz.title ~ "» вместе с командами и ответами? Это действие нельзя отменить.")|tojson }})'>
+                onclick='askDeleteQuiz({{ url_for("admin.quiz_delete", quiz_id=quiz.id)|tojson }}, {{ quiz.title|tojson }})'>
             <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>Удалить квиз
         </button>
         <form method="POST" action="{{ url_for('admin.quiz_duplicate', quiz_id=quiz.id) }}" id="quiz-duplicate-form" class="hidden"></form>
-        <form method="POST" action="{{ url_for('admin.quiz_delete', quiz_id=quiz.id) }}" id="quiz-delete-form" class="hidden"></form>
     </nav>
 </header>
+{% include 'admin/_delete_quiz_modal.html' %}
 
 <div class="grid grid-cols-1 lg:grid-cols-[minmax(18rem,24rem)_1fr] gap-4 items-start">
     <!-- Левая панель: структура квиза -->
@@ -153,11 +160,70 @@
                         <h3 class="label-text font-medium mb-1">Картинка заставки</h3>
                         <p class="text-xs text-base-content/60 mb-2">Показывается на начальном экране презентации вместо логотипа. JPG, PNG, WebP, GIF — загружается сразу после выбора.</p>
                         <input type="file" id="quiz-splash-input" accept="image/*" class="file-input w-full">
-                        <div id="quiz-splash-preview" class="mt-3">
-                            {% if quiz.splash_image %}
-                            <img src="{{ quiz.splash_image }}" class="max-h-48 rounded" alt="Текущая заставка">
-                            <button onclick="removeQuizSplash()" class="btn btn-xs btn-ghost text-error mt-2 block">Убрать заставку</button>
-                            {% endif %}
+                        {{ pick_btn('image', 'quiz', 'splash_image') }}
+                        <div id="quiz-splash-preview" class="mt-3"></div>
+                    </div>
+
+                    <div class="divider text-sm">
+                        <span class="material-symbols-outlined icon-sm" aria-hidden="true">wallpaper</span>
+                        Фон слайдов
+                    </div>
+                    <p class="text-xs text-base-content/60 mb-3">Заменяет светлый фон и чёрные поля вокруг картинок — на презентации и на экранах участников.</p>
+                    <div class="grid sm:grid-cols-[1fr_15rem] gap-4 items-start mb-2" id="bg-settings">
+                        <div class="flex flex-col gap-3 min-w-0">
+                            <div class="join" role="radiogroup" aria-label="Тип фона">
+                                <input class="join-item btn btn-sm" type="radio" name="bg-type" value="none" aria-label="Стандартный">
+                                <input class="join-item btn btn-sm" type="radio" name="bg-type" value="color" aria-label="Цвет">
+                                <input class="join-item btn btn-sm" type="radio" name="bg-type" value="image" aria-label="Картинка">
+                            </div>
+
+                            <div id="bg-color-block" class="hidden">
+                                <div class="flex items-center gap-2">
+                                    <input type="color" id="bg-color-picker" aria-label="Палитра" class="w-10 h-9 p-0 rounded border border-base-300 cursor-pointer bg-transparent">
+                                    <input type="text" id="bg-color-hex" class="input input-bordered input-sm w-28 font-mono" maxlength="7"
+                                           placeholder="#1E3A8A" aria-label="Цвет в формате HEX">
+                                </div>
+                                <div id="bg-presets" class="flex flex-wrap gap-1.5 mt-2" role="group" aria-label="Готовые цвета"></div>
+                            </div>
+
+                            <div id="bg-image-block" class="hidden">
+                                <input type="file" id="bg-image-input" accept="image/*" class="file-input file-input-sm w-full">
+                                <div class="flex flex-wrap gap-1">
+                                    {{ pick_btn('image', 'quiz', 'bg_image') }}
+                                    <button type="button" id="btn-remove-bg-image" onclick="removeBgImage()" class="btn btn-ghost btn-xs text-error mt-1 hidden">
+                                        <span class="material-symbols-outlined icon-sm" aria-hidden="true">hide_image</span>Убрать картинку
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="bg-adjust-block" class="hidden flex flex-col gap-3">
+                                <label class="block">
+                                    <span class="label-text text-sm flex justify-between">Прозрачность <span id="bg-transparency-val" class="text-base-content/60"></span></span>
+                                    <input type="range" id="bg-transparency" min="0" max="100" step="1" class="range range-xs range-primary mt-1">
+                                </label>
+                                <label class="block" id="bg-blur-row">
+                                    <span class="label-text text-sm flex justify-between">Размытие <span id="bg-blur-val" class="text-base-content/60"></span></span>
+                                    <input type="range" id="bg-blur" min="0" max="40" step="1" class="range range-xs range-primary mt-1">
+                                </label>
+                                <label class="label cursor-pointer justify-start gap-3 py-0">
+                                    <input type="checkbox" id="bg-text-light" class="toggle toggle-sm toggle-primary">
+                                    <span class="label-text">Светлый текст поверх фона</span>
+                                </label>
+                            </div>
+
+                            <div class="flex items-center gap-3">
+                                <button type="button" onclick="saveBackground()" class="btn btn-primary btn-sm">Сохранить фон</button>
+                                <span id="bg-status" class="text-sm text-success" role="status"></span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-base-content/60 mb-1">Предпросмотр</div>
+                            <div id="bg-preview" class="relative aspect-video rounded-lg border border-base-300 overflow-hidden" style="background:#f8fafc">
+                                <div class="relative h-full flex flex-col items-center justify-center gap-2 p-3" style="z-index:1">
+                                    <div id="bg-preview-title" class="text-lg font-black leading-none">Тур 1</div>
+                                    <div class="rounded-lg px-3 py-1.5 text-xs font-semibold shadow" style="background:#fff;color:#111827;border:1px solid #e2e8f0">Текст вопроса</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -172,11 +238,8 @@
                             <label class="label-text font-medium text-sm">Старт вопроса</label>
                             <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
                                    onchange="uploadQuizSound(this, 'sound_start')">
-                            <div id="quiz-sound-start-preview" class="mt-2">
-                                {% if quiz.sound_start_path %}
-                                <audio controls src="{{ quiz.sound_start_path }}" class="w-full mt-1"></audio>
-                                {% endif %}
-                            </div>
+                            {{ pick_btn('audio', 'quiz', 'sound_start_path') }}
+                            <div id="quiz-sound-start-preview" class="mt-2"></div>
                         </div>
                         <div class="bg-base-200 rounded-lg p-3">
                             <label class="label-text font-medium text-sm">Предупреждение</label>
@@ -188,21 +251,15 @@
                             </div>
                             <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
                                    onchange="uploadQuizSound(this, 'sound_mid')">
-                            <div id="quiz-sound-mid-preview" class="mt-2">
-                                {% if quiz.sound_mid_path %}
-                                <audio controls src="{{ quiz.sound_mid_path }}" class="w-full mt-1"></audio>
-                                {% endif %}
-                            </div>
+                            {{ pick_btn('audio', 'quiz', 'sound_mid_path') }}
+                            <div id="quiz-sound-mid-preview" class="mt-2"></div>
                         </div>
                         <div class="bg-base-200 rounded-lg p-3">
                             <label class="label-text font-medium text-sm">Конец времени</label>
                             <input type="file" accept="audio/*" class="file-input file-input-bordered file-input-sm w-full mt-2"
                                    onchange="uploadQuizSound(this, 'sound_end')">
-                            <div id="quiz-sound-end-preview" class="mt-2">
-                                {% if quiz.sound_end_path %}
-                                <audio controls src="{{ quiz.sound_end_path }}" class="w-full mt-1"></audio>
-                                {% endif %}
-                            </div>
+                            {{ pick_btn('audio', 'quiz', 'sound_end_path') }}
+                            <div id="quiz-sound-end-preview" class="mt-2"></div>
                         </div>
                     </div>
                 </div>
@@ -245,6 +302,7 @@
                             <div class="flex flex-col gap-2 min-w-0">
                                 <input type="file" id="tour-splash-input" accept="image/*" class="file-input w-full" aria-describedby="tour-splash-help">
                                 <p class="text-xs text-base-content/50" id="tour-splash-help">JPG, PNG, WebP, GIF. Загружается сразу после выбора.</p>
+                                {{ pick_btn('image', 'tour', 'splash_image') }}
                                 <button type="button" onclick="removeTourSplash()" id="btn-remove-tour-splash" class="btn btn-ghost btn-xs text-error self-start hidden">
                                     <span class="material-symbols-outlined icon-sm" aria-hidden="true">hide_image</span>Убрать заставку
                                 </button>
@@ -311,6 +369,7 @@
                         <label class="label"><span class="label-text font-medium">Картинка (фоновое изображение)</span></label>
                         <input type="file" id="slide-image-input" accept="image/*" class="file-input file-input-bordered w-full"
                                onchange="uploadSlideImage()">
+                        {{ pick_btn('image', 'tour', 'splash_image') }}
                         <div id="slide-image-preview" class="mt-2"></div>
                     </div>
 
@@ -319,6 +378,7 @@
                         <p class="text-xs text-base-content/50 mb-2">Воспроизводится автоматически при показе слайда</p>
                         <input type="file" id="slide-audio-input" accept="audio/*" class="file-input file-input-bordered w-full"
                                onchange="uploadSlideAudio()">
+                        {{ pick_btn('audio', 'tour', 'slide_audio_path') }}
                         <div id="slide-audio-preview" class="mt-2"></div>
                     </div>
 
@@ -415,6 +475,7 @@
                     <div id="q-image-block" class="mb-4 hidden">
                         <label class="label"><span class="label-text">Картинка вопроса</span></label>
                         <input type="file" id="q-image-input" accept="image/*" class="file-input file-input-bordered w-full">
+                        {{ pick_btn('image', 'question', 'image_path') }}
                         <div class="flex items-center gap-2 mt-2">
                             <input type="url" id="q-image-url" class="input input-bordered input-sm flex-1"
                                    placeholder="или вставьте ссылку на картинку">
@@ -429,6 +490,7 @@
                     <div id="q-audio-block" class="mb-4 hidden">
                         <label class="label"><span class="label-text">Аудиофайл вопроса</span></label>
                         <input type="file" id="q-audio-input" accept="audio/*" class="file-input file-input-bordered w-full">
+                        {{ pick_btn('audio', 'question', 'audio_path') }}
                         <div id="q-audio-preview" class="mt-2"></div>
                         <div class="mt-3">
                             <label class="label"><span class="label-text text-sm">Аудиофайл при показе ответа <span class="text-base-content/50">(необязательно, иначе повторится вопросный трек)</span></span></label>
@@ -438,6 +500,7 @@
                                     <span class="material-symbols-outlined icon-sm">delete</span>
                                 </button>
                             </div>
+                            {{ pick_btn('audio', 'question', 'answer_audio_path') }}
                             <div id="q-answer-audio-preview" class="mt-2"></div>
                         </div>
                         <div id="q-audio-trim-section" class="mt-3 bg-base-200 rounded-lg p-3 hidden">
@@ -535,10 +598,33 @@
         </div>
     </div>
 </div>
+
+<dialog id="picker-modal" class="modal">
+    <div class="modal-box max-w-4xl flex flex-col max-h-[85vh]">
+        <div class="flex items-center justify-between gap-2 mb-3">
+            <h3 class="font-bold text-lg" id="picker-title">Выбрать из хранилища</h3>
+            <button type="button" class="btn btn-ghost btn-sm btn-square" aria-label="Закрыть" onclick="this.closest('dialog').close()">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">close</span>
+            </button>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-3">
+            <select id="picker-folder" class="select select-bordered select-sm max-w-xs" aria-label="Папка"></select>
+            <input type="search" id="picker-search" class="input input-bordered input-sm flex-1 min-w-40"
+                   placeholder="Поиск по названию" aria-label="Поиск по названию">
+        </div>
+        <div id="picker-list" class="overflow-y-auto min-h-32 flex-1"></div>
+        <p class="text-xs text-base-content/60 mt-3">
+            Файл не копируется: квиз ссылается на тот же файл.
+            <a href="{{ url_for('admin.files') }}" target="_blank" class="link">Открыть «Файлы квизов»</a>
+        </p>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/quiz-bg.js') }}"></script>
 <style>
 .formatted-content .fmt-cols { display: grid; gap: 1rem; }
 .formatted-content .fmt-cols-2 { grid-template-columns: 1fr 1fr; }
@@ -909,15 +995,12 @@ async function uploadTourSplash() {
     if (!input.files[0] || !currentTourId) return;
     const fd = new FormData();
     fd.append('file', input.files[0]);
-    const res = await fetch(`/admin/tours/${currentTourId}/upload-splash`, {method: 'POST', body: fd});
-    const data = await res.json().catch(() => ({}));
+    const data = await uploadFile(`/admin/tours/${currentTourId}/upload-splash`, fd);
     input.value = '';
     syncFilePickers(document.getElementById('tour-editor'));
-    if (data.path) {
+    if (data) {
         setTourSplashPreview(data.path);
         showToast('Заставка сохранена');
-    } else {
-        showToast(res.status === 413 ? 'Файл слишком большой' : 'Не удалось загрузить картинку', 'error');
     }
 }
 
@@ -936,6 +1019,7 @@ function openQuizSettings() {
         currentQuestionId = null;
         highlightActive(null, null);
         showPanel('quiz-settings');
+        renderBgControls();
     });
 }
 
@@ -960,14 +1044,12 @@ async function uploadQuizSound(input, soundType) {
     const fd = new FormData();
     fd.append('file', input.files[0]);
     fd.append('type', soundType);
-    const res = await fetch(`/admin/quizzes/${QUIZ_ID}/upload-sound`, {method: 'POST', body: fd});
-    const data = await res.json();
-    if (data.path) {
-        const previewId = {sound_start:'quiz-sound-start-preview', sound_mid:'quiz-sound-mid-preview', sound_end:'quiz-sound-end-preview'}[soundType];
-        document.getElementById(previewId).innerHTML = `<audio controls src="${data.path}" class="w-full mt-1"></audio>`;
+    const data = await uploadFile(`/admin/quizzes/${QUIZ_ID}/upload-sound`, fd);
+    input.value = '';
+    syncFilePickers(document.getElementById('quiz-settings'));
+    if (data) {
+        setQuizSoundPreview(soundType, data.path);
         showToast('Звук сохранён');
-    } else {
-        showToast('Ошибка загрузки', 'error');
     }
 }
 
@@ -1326,35 +1408,8 @@ async function uploadQuestionFile(file, type) {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('type', type);
-    const res = await fetch(`/admin/questions/${currentQuestionId}/upload`, {method: 'POST', body: fd});
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-        const msg = res.status === 413 ? 'Файл слишком большой' : (data.error || 'Не удалось загрузить файл');
-        showToast(escHtml(msg), 'error');
-        return;
-    }
-    if (type === 'image' && data.path)
-        document.getElementById('q-image-preview').innerHTML = `<img src="${data.path}" class="max-h-32 w-full object-contain rounded">`;
-    if (type === 'audio' && data.path) {
-        const fn = data.original_name || data.path.split('/').pop();
-        document.getElementById('q-audio-preview').innerHTML =
-            `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
-                <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
-                <span class="truncate">${escHtml(fn)}</span>
-            </div>
-            <audio controls src="${data.path}" class="w-full mt-1"></audio>`;
-        initAudioTrim(data.path, 0, null);
-    }
-    if (type === 'answer_audio' && data.path) {
-        const fn = data.original_name || data.path.split('/').pop();
-        document.getElementById('q-answer-audio-preview').innerHTML =
-            `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
-                <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
-                <span class="truncate">${escHtml(fn)}</span>
-            </div>
-            <audio controls src="${data.path}" class="w-full mt-1"></audio>`;
-        document.getElementById('btn-remove-answer-audio').classList.remove('hidden');
-    }
+    const data = await uploadFile(`/admin/questions/${currentQuestionId}/upload`, fd);
+    if (data) showQuestionFile(type, data);
 }
 
 async function removeAnswerAudio() {
@@ -1448,15 +1503,12 @@ async function uploadSlideImage() {
     if (!input.files[0] || !currentTourId) return;
     const fd = new FormData();
     fd.append('file', input.files[0]);
-    const res = await fetch(`/admin/tours/${currentTourId}/upload-splash`, {method: 'POST', body: fd});
-    const data = await res.json();
-    if (data.path) {
-        document.getElementById('slide-image-preview').innerHTML =
-            `<img src="${data.path}" class="max-h-32 rounded mt-1">
-             <button onclick="removeSlideImage()" class="btn btn-xs btn-ghost text-error mt-1 block">Удалить картинку</button>`;
+    const data = await uploadFile(`/admin/tours/${currentTourId}/upload-splash`, fd);
+    input.value = '';
+    syncFilePickers(document.getElementById('slide-editor'));
+    if (data) {
+        setSlideImagePreview(data.path);
         showToast('Картинка сохранена');
-    } else {
-        showToast('Ошибка загрузки', 'error');
     }
 }
 
@@ -1476,20 +1528,12 @@ async function uploadSlideAudio() {
     if (!input.files[0] || !currentTourId) return;
     const fd = new FormData();
     fd.append('file', input.files[0]);
-    const res = await fetch(`/admin/tours/${currentTourId}/upload-audio`, {method: 'POST', body: fd});
-    const data = await res.json();
-    if (data.path) {
-        const fn = data.original_name || data.path.split('/').pop();
-        document.getElementById('slide-audio-preview').innerHTML =
-            `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
-                 <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
-                 <span class="truncate">${escHtml(fn)}</span>
-             </div>
-             <audio controls src="${data.path}" class="w-full mt-1"></audio>
-             <button onclick="removeSlideAudio()" class="btn btn-xs btn-ghost text-error mt-1">Удалить аудио</button>`;
+    const data = await uploadFile(`/admin/tours/${currentTourId}/upload-audio`, fd);
+    input.value = '';
+    syncFilePickers(document.getElementById('slide-editor'));
+    if (data) {
+        setSlideAudioPreview(data.path, data.original_name);
         showToast('Аудио сохранено');
-    } else {
-        showToast('Ошибка загрузки', 'error');
     }
 }
 
@@ -1544,15 +1588,12 @@ async function uploadQuizSplash() {
     if (!input.files[0]) return;
     const fd = new FormData();
     fd.append('file', input.files[0]);
-    const res = await fetch('/admin/quizzes/{{ quiz.id }}/upload-splash', {method: 'POST', body: fd});
-    const data = await res.json();
-    if (data.path) {
-        document.getElementById('quiz-splash-preview').innerHTML =
-            `<img src="${data.path}" class="max-h-48 rounded">
-             <button onclick="removeQuizSplash()" class="btn btn-xs btn-ghost text-error mt-2 block">Удалить</button>`;
+    const data = await uploadFile(`/admin/quizzes/${QUIZ_ID}/upload-splash`, fd);
+    input.value = '';
+    syncFilePickers(document.getElementById('quiz-settings'));
+    if (data) {
+        setQuizSplashPreview(data.path);
         showToast('Картинка сохранена');
-    } else {
-        showToast('Ошибка загрузки', 'error');
     }
 }
 
@@ -1585,11 +1626,280 @@ function showToast(msg, type = 'success') {
     div.className = 'toast toast-end z-50';
     div.innerHTML = `<div class="alert alert-${type} text-sm"><span>${msg}</span></div>`;
     document.body.appendChild(div);
-    setTimeout(() => div.remove(), 2500);
+    setTimeout(() => div.remove(), type === 'error' ? 6000 : 2500);
 }
 
 function escHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Файлы: загрузка и выбор из хранилища ────────────────────────────────
+
+// Загрузка файла; при ошибке показывает причину (тип, размер, лимит хранилища).
+async function uploadFile(url, fd) {
+    let res, data = {};
+    try {
+        res = await fetch(url, {method: 'POST', body: fd});
+        data = await res.json().catch(() => ({}));
+    } catch (_) {
+        showToast('Нет соединения с сервером', 'error');
+        return null;
+    }
+    if (!res.ok || !data.path) {
+        showToast(escHtml(res.status === 413 ? 'Файл слишком большой' : (data.error || 'Не удалось загрузить файл')), 'error');
+        return null;
+    }
+    return data;
+}
+
+function audioPreviewHtml(path, name, removeFn, removeLabel) {
+    return `<div class="flex items-center gap-1 mt-1 text-sm text-base-content/70">
+            <span class="material-symbols-outlined shrink-0" style="font-size:15px">music_note</span>
+            <span class="truncate">${escHtml(name || path.split('/').pop())}</span>
+        </div>
+        <audio controls src="${escHtml(path)}" class="w-full mt-1"></audio>`
+        + (removeFn ? `<button onclick="${removeFn}" class="btn btn-xs btn-ghost text-error mt-1">${removeLabel}</button>` : '');
+}
+
+function setQuizSplashPreview(path) {
+    document.getElementById('quiz-splash-preview').innerHTML = path
+        ? `<img src="${escHtml(path)}" class="max-h-48 rounded" alt="Текущая заставка">
+           <button onclick="removeQuizSplash()" class="btn btn-xs btn-ghost text-error mt-2 block">Убрать заставку</button>`
+        : '';
+}
+
+function setQuizSoundPreview(soundType, path) {
+    document.getElementById(`quiz-${soundType.replace('_', '-')}-preview`).innerHTML = path
+        ? `<audio controls src="${escHtml(path)}" class="w-full mt-1"></audio>
+           <button onclick="removeQuizSound('${soundType}')" class="btn btn-xs btn-ghost text-error mt-1">Убрать звук</button>`
+        : '';
+}
+
+async function removeQuizSound(soundType) {
+    await fetch(`/admin/quizzes/${QUIZ_ID}/settings`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({[`${soundType}_path`]: null})
+    });
+    setQuizSoundPreview(soundType, null);
+}
+
+function setSlideImagePreview(path) {
+    document.getElementById('slide-image-preview').innerHTML = path
+        ? `<img src="${escHtml(path)}" class="max-h-32 rounded mt-1">
+           <button onclick="removeSlideImage()" class="btn btn-xs btn-ghost text-error mt-1 block">Удалить картинку</button>`
+        : '';
+}
+
+function setSlideAudioPreview(path, name) {
+    document.getElementById('slide-audio-preview').innerHTML = path
+        ? audioPreviewHtml(path, name, 'removeSlideAudio()', 'Удалить аудио') : '';
+}
+
+function showQuestionFile(type, data) {
+    if (type === 'image')
+        document.getElementById('q-image-preview').innerHTML = `<img src="${escHtml(data.path)}" class="max-h-32 w-full object-contain rounded">`;
+    if (type === 'audio') {
+        document.getElementById('q-audio-preview').innerHTML = audioPreviewHtml(data.path, data.original_name);
+        initAudioTrim(data.path, 0, null);
+    }
+    if (type === 'answer_audio') {
+        document.getElementById('q-answer-audio-preview').innerHTML = audioPreviewHtml(data.path, data.original_name);
+        document.getElementById('btn-remove-answer-audio').classList.remove('hidden');
+    }
+}
+
+// Что обновить на странице после выбора файла: «цель.поле» → функция.
+const PICK_HANDLERS = {
+    'quiz.splash_image': (d) => setQuizSplashPreview(d.path),
+    'quiz.bg_image': (d) => { BG.image = d.path; BG.type = 'image'; renderBgControls(); },
+    'quiz.sound_start_path': (d) => setQuizSoundPreview('sound_start', d.path),
+    'quiz.sound_mid_path': (d) => setQuizSoundPreview('sound_mid', d.path),
+    'quiz.sound_end_path': (d) => setQuizSoundPreview('sound_end', d.path),
+    'tour.splash_image': (d) => {
+        if (document.getElementById('slide-editor').classList.contains('hidden')) setTourSplashPreview(d.path);
+        else setSlideImagePreview(d.path);
+    },
+    'tour.slide_audio_path': (d) => setSlideAudioPreview(d.path, d.original_name),
+    'question.image_path': (d) => showQuestionFile('image', d),
+    'question.audio_path': (d) => showQuestionFile('audio', d),
+    'question.answer_audio_path': (d) => showQuestionFile('answer_audio', d),
+};
+
+let PICKER = null;
+
+async function pickFromStorage(kind, target, field) {
+    const id = {quiz: QUIZ_ID, tour: currentTourId, question: currentQuestionId}[target];
+    if (!id) return;
+    const list = document.getElementById('picker-list');
+    list.innerHTML = '<div class="flex justify-center py-10"><span class="loading loading-spinner"></span></div>';
+    document.getElementById('picker-title').textContent = kind === 'image' ? 'Выбрать картинку из хранилища' : 'Выбрать звук из хранилища';
+    document.getElementById('picker-search').value = '';
+    document.getElementById('picker-modal').showModal();
+    let data;
+    try {
+        data = await (await fetch(`/admin/files/list?kind=${kind}`)).json();
+    } catch (_) {
+        list.innerHTML = '<p class="text-sm text-error py-6 text-center">Не удалось загрузить список файлов</p>';
+        return;
+    }
+    PICKER = {kind, target, field, id, files: data.files};
+    const select = document.getElementById('picker-folder');
+    select.innerHTML = '<option value="all">Все папки</option><option value="none">Без папки</option>'
+        + data.folders.map(f => `<option value="${escHtml(f.id)}">${escHtml(f.name)}</option>`).join('');
+    renderPicker();
+}
+
+function renderPicker() {
+    if (!PICKER) return;
+    const folder = document.getElementById('picker-folder').value;
+    const search = document.getElementById('picker-search').value.trim().toLowerCase();
+    const files = PICKER.files.filter(f =>
+        (folder === 'all' || (folder === 'none' ? !f.folder_id : f.folder_id === folder))
+        && (!search || f.name.toLowerCase().includes(search)));
+    const list = document.getElementById('picker-list');
+    if (!files.length) {
+        list.innerHTML = '<p class="text-sm text-base-content/60 py-10 text-center">Подходящих файлов нет</p>';
+        return;
+    }
+    list.innerHTML = PICKER.kind === 'image'
+        ? `<ul class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">${files.map(f => `
+            <li><button type="button" data-pick="${escHtml(f.id)}" title="${escHtml(f.name)}"
+                    class="w-full text-left rounded-lg border border-base-300 overflow-hidden hover:border-primary focus-visible:border-primary">
+                <span class="block relative aspect-video bg-base-200"><img src="${escHtml(f.url)}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-contain"></span>
+                <span class="block px-2 py-1 text-xs truncate">${escHtml(f.name)}</span>
+            </button></li>`).join('')}</ul>`
+        : `<ul class="flex flex-col gap-2">${files.map(f => `
+            <li class="flex flex-wrap items-center gap-2 rounded-lg border border-base-300 p-2">
+                <span class="text-sm truncate flex-1 min-w-32" title="${escHtml(f.name)}">${escHtml(f.name)}
+                    <span class="text-base-content/50">· ${escHtml(f.size)}</span></span>
+                <audio controls preload="none" src="${escHtml(f.url)}" class="h-8 max-w-full"></audio>
+                <button type="button" data-pick="${escHtml(f.id)}" class="btn btn-primary btn-sm">Выбрать</button>
+            </li>`).join('')}</ul>`;
+}
+
+async function applyPicked(fileId) {
+    const {target, field, id} = PICKER;
+    const res = await fetch(`/admin/files/${fileId}/attach`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({target, field, id})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.path) {
+        showToast(escHtml(data.error || 'Не удалось выбрать файл'), 'error');
+        return;
+    }
+    document.getElementById('picker-modal').close();
+    PICK_HANDLERS[`${target}.${field}`](data);
+    showToast('Файл выбран');
+}
+
+// ── Фон слайдов ─────────────────────────────────────────────────────────
+
+let BG = {{ quiz_bg|tojson }};
+const BG_PRESETS = ['#0f172a', '#1e3a8a', '#006cdc', '#4c1d95', '#8c2cff', '#831843',
+                    '#7f1d1d', '#14532d', '#134e4a', '#f8fafc', '#fef3c7', '#e0f2fe'];
+
+function renderBgControls() {
+    document.querySelectorAll('input[name="bg-type"]').forEach(r => { r.checked = r.value === BG.type; });
+    document.getElementById('bg-color-block').classList.toggle('hidden', BG.type !== 'color');
+    document.getElementById('bg-image-block').classList.toggle('hidden', BG.type !== 'image');
+    document.getElementById('bg-adjust-block').classList.toggle('hidden', BG.type === 'none');
+    document.getElementById('bg-blur-row').classList.toggle('hidden', BG.type !== 'image');
+    document.getElementById('btn-remove-bg-image').classList.toggle('hidden', !BG.image);
+    if (BG.color) {
+        document.getElementById('bg-color-picker').value = BG.color;
+        if (document.activeElement !== document.getElementById('bg-color-hex'))
+            document.getElementById('bg-color-hex').value = BG.color.toUpperCase();
+    }
+    document.querySelectorAll('#bg-presets button').forEach(b =>
+        b.classList.toggle('ring-2', BG.type === 'color' && b.dataset.color === BG.color));
+    document.getElementById('bg-transparency').value = 100 - BG.opacity;
+    document.getElementById('bg-transparency-val').textContent = `${100 - BG.opacity}%`;
+    document.getElementById('bg-blur').value = BG.blur;
+    document.getElementById('bg-blur-val').textContent = `${BG.blur} px`;
+    document.getElementById('bg-text-light').checked = BG.text_light;
+    const preview = document.getElementById('bg-preview');
+    // Размытие задаётся для экрана 1920 px — в маленьком предпросмотре пропорционально меньше.
+    QuizBg.apply(preview, BG, {scale: (preview.clientWidth || 240) / 1920});
+    document.getElementById('bg-preview-title').style.color = QuizBg.isOn(BG) && BG.text_light ? '#fff' : '#111827';
+    document.getElementById('bg-status').textContent = '';
+}
+
+function setBgColor(color) {
+    BG.color = color.toLowerCase();
+    // Цвет текста подбирается сам; переключатель ниже позволяет поменять.
+    BG.text_light = QuizBg.isDark(BG.color, BG.opacity);
+    renderBgControls();
+}
+
+function initBgControls() {
+    document.getElementById('bg-presets').innerHTML = BG_PRESETS.map(c =>
+        `<button type="button" data-color="${c}" title="${c.toUpperCase()}" aria-label="Цвет ${c.toUpperCase()}"
+                 class="w-7 h-7 rounded-full border border-base-300 ring-primary ring-offset-2 ring-offset-base-100" style="background:${c}"></button>`).join('');
+    document.getElementById('bg-presets').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-color]');
+        if (btn) setBgColor(btn.dataset.color);
+    });
+    document.querySelectorAll('input[name="bg-type"]').forEach(r => r.addEventListener('change', () => {
+        BG.type = r.value;
+        if (BG.type === 'color' && !BG.color) { setBgColor('#1e3a8a'); return; }
+        if (BG.type === 'color') BG.text_light = QuizBg.isDark(BG.color, BG.opacity);
+        renderBgControls();
+    }));
+    document.getElementById('bg-color-picker').addEventListener('input', (e) => setBgColor(e.target.value));
+    document.getElementById('bg-color-hex').addEventListener('input', (e) => {
+        let v = e.target.value.trim();
+        if (v && !v.startsWith('#')) v = '#' + v;
+        if (/^#[0-9a-fA-F]{6}$/.test(v)) setBgColor(v);
+    });
+    document.getElementById('bg-transparency').addEventListener('input', (e) => {
+        BG.opacity = 100 - parseInt(e.target.value);
+        if (BG.type === 'color') BG.text_light = QuizBg.isDark(BG.color, BG.opacity);
+        renderBgControls();
+    });
+    document.getElementById('bg-blur').addEventListener('input', (e) => { BG.blur = parseInt(e.target.value); renderBgControls(); });
+    document.getElementById('bg-text-light').addEventListener('change', (e) => { BG.text_light = e.target.checked; renderBgControls(); });
+    document.getElementById('bg-image-input').addEventListener('change', uploadBgImage);
+    renderBgControls();
+}
+
+async function saveBackground(extra) {
+    const hex = document.getElementById('bg-color-hex').value.trim();
+    if (BG.type === 'color' && !/^#?[0-9a-fA-F]{6}$/.test(hex)) {
+        showToast('Цвет задаётся в формате #RRGGBB, например #1E3A8A', 'error');
+        return;
+    }
+    const res = await fetch(`/admin/quizzes/${QUIZ_ID}/settings`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({background: {type: BG.type, color: BG.color, opacity: BG.opacity,
+                                           blur: BG.blur, text_light: BG.text_light, ...(extra || {})}})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(escHtml(data.error || 'Не удалось сохранить фон'), 'error'); return; }
+    BG = data.background;
+    renderBgControls();
+    document.getElementById('bg-status').textContent = 'Сохранено — экраны обновятся сами';
+}
+
+async function uploadBgImage() {
+    const input = document.getElementById('bg-image-input');
+    if (!input.files[0]) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    const data = await uploadFile(`/admin/quizzes/${QUIZ_ID}/upload-background`, fd);
+    input.value = '';
+    syncFilePickers(document.getElementById('bg-settings'));
+    if (!data) return;
+    BG.image = data.path;
+    BG.type = 'image';
+    renderBgControls();
+    showToast('Фоновая картинка сохранена');
+}
+
+async function removeBgImage() {
+    BG.image = null;
+    BG.type = 'none';
+    await saveBackground({image: null});
 }
 
 // ── Tour collapse ────────────────────────────────────────────────
@@ -1871,6 +2181,17 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSummary();
     document.getElementById('tour-splash-input').addEventListener('change', uploadTourSplash);
     document.getElementById('quiz-splash-input').addEventListener('change', uploadQuizSplash);
+    setQuizSplashPreview({{ quiz.splash_image|tojson }});
+    setQuizSoundPreview('sound_start', {{ quiz.sound_start_path|tojson }});
+    setQuizSoundPreview('sound_mid', {{ quiz.sound_mid_path|tojson }});
+    setQuizSoundPreview('sound_end', {{ quiz.sound_end_path|tojson }});
+    initBgControls();
+    document.getElementById('picker-folder').addEventListener('change', renderPicker);
+    document.getElementById('picker-search').addEventListener('input', renderPicker);
+    document.getElementById('picker-list').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-pick]');
+        if (btn) applyPicked(btn.dataset.pick);
+    });
     initDnD();
     restoreTourCollapseStates();
 });

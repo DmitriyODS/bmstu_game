@@ -1,0 +1,300 @@
+{% extends "admin/base_admin.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Файлы квизов — Бауман.Игра{% endblock %}
+
+{% macro folder_link(id, icon, title, count) %}
+<li>
+    <a href="{{ url_for('admin.files', folder=id, kind=kind or none, unused='1' if only_unused else none) }}"
+       class="flex items-center gap-2 {% if folder_id == id %}active{% endif %}">
+        <span class="material-symbols-outlined icon-sm shrink-0" aria-hidden="true">{{ icon }}</span>
+        <span class="truncate flex-1" title="{{ title }}">{{ title }}</span>
+        <span class="badge badge-sm badge-ghost shrink-0">{{ count }}</span>
+    </a>
+</li>
+{% endmacro %}
+
+{% block admin_content %}
+<header class="flex flex-wrap items-end justify-between gap-3 mb-5">
+    <div class="min-w-0">
+        <h1 class="text-2xl sm:text-3xl font-bold">Файлы квизов</h1>
+        <p class="text-sm text-base-content/60">Все картинки и звуки. Один файл можно использовать в нескольких квизах.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        <form method="POST" action="{{ url_for('admin.files_rescan') }}">
+            <button class="btn btn-ghost btn-sm" title="Найти файлы, которые лежат в хранилище, но не показаны в списке">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">sync</span>Сверить
+            </button>
+        </form>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('folder-modal').showModal()">
+            <span class="material-symbols-outlined icon-sm" aria-hidden="true">create_new_folder</span>Создать папку
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-upload" {% if storage_full %}disabled{% endif %}
+                onclick="document.getElementById('upload-input').click()">
+            <span class="material-symbols-outlined icon-sm" aria-hidden="true">upload</span>Загрузить файлы
+        </button>
+        <input type="file" id="upload-input" multiple accept="image/*,audio/*" data-enhanced="1" class="hidden">
+    </div>
+</header>
+
+<section class="card bg-base-100 shadow mb-5" aria-label="Занято места">
+    <div class="card-body p-4 gap-2">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+            <span><b>{{ human_size(used) }}</b> из {{ human_size(limit) }} · {{ m.plural(total_count, 'файл', 'файла', 'файлов') }}</span>
+            <span class="text-base-content/60">Хранилище: {{ backend_label }}</span>
+        </div>
+        <progress class="progress {% if percent >= 100 %}progress-error{% elif percent >= 85 %}progress-warning{% else %}progress-primary{% endif %} w-full"
+                  value="{{ percent }}" max="100" aria-label="Занято {{ percent }}%"></progress>
+    </div>
+</section>
+
+<div class="grid lg:grid-cols-[16rem_1fr] gap-5 items-start">
+    <nav aria-label="Папки" class="card bg-base-100 shadow">
+        <ul class="menu menu-sm p-2 gap-0.5 w-full">
+            {{ folder_link('all', 'perm_media', 'Все файлы', total_count) }}
+            {{ folder_link('none', 'folder_off', 'Без папки', counts.get(none, 0)) }}
+            {% for f in folders %}
+            {% if loop.first or (f.quiz_id is none) != (loop.previtem.quiz_id is none) %}
+            <li class="menu-title pt-3 pb-1 text-xs">{{ 'Квизы' if f.quiz_id else 'Свои папки' }}</li>
+            {% endif %}
+            {{ folder_link(f.id, 'quiz' if f.quiz_id else 'folder', folder_title(f), counts.get(f.id, 0)) }}
+            {% endfor %}
+        </ul>
+    </nav>
+
+    <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+            <h2 class="text-lg font-bold truncate mr-auto">
+                {% if current %}{{ folder_title(current) }}{% elif folder_id == 'none' %}Без папки{% else %}Все файлы{% endif %}
+            </h2>
+            {% if current and current.quiz_id %}
+            <a href="{{ url_for('admin.quiz_edit', quiz_id=current.quiz_id) }}" class="btn btn-ghost btn-xs">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">edit_note</span>Открыть квиз
+            </a>
+            {% elif current %}
+            <button type="button" class="btn btn-ghost btn-xs" onclick="document.getElementById('rename-modal').showModal()">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">edit</span>Переименовать
+            </button>
+            <form method="POST" action="{{ url_for('admin.files_folder_delete', folder_id=current.id) }}">
+                <button type="button" class="btn btn-ghost btn-xs text-error"
+                        onclick='confirmAndSubmit(this.closest("form"), "Удалить папку? Файлы из неё не удалятся — они перейдут в «Без папки».")'>
+                    <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>Удалить папку
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <form method="GET" class="flex flex-wrap items-center gap-2 mb-3">
+            <input type="hidden" name="folder" value="{{ folder_id }}">
+            <input type="hidden" name="kind" value="{{ kind }}">
+            <div class="join">
+                {% for value, label in [('', 'Все'), ('image', 'Картинки'), ('audio', 'Звуки')] %}
+                <a href="{{ url_for('admin.files', folder=folder_id, kind=value or none, unused='1' if only_unused else none, q=search or none) }}"
+                   class="btn btn-sm join-item {% if kind == value %}btn-active{% endif %}">{{ label }}</a>
+                {% endfor %}
+            </div>
+            <label class="label cursor-pointer gap-2 py-0">
+                <input type="checkbox" name="unused" value="1" class="checkbox checkbox-sm" {% if only_unused %}checked{% endif %}
+                       onchange="this.form.submit()">
+                <span class="label-text">Только неиспользуемые</span>
+            </label>
+            <input type="search" name="q" value="{{ search }}" placeholder="Поиск по названию" aria-label="Поиск по названию"
+                   class="input input-bordered input-sm flex-1 min-w-40">
+        </form>
+
+        <div id="bulk-bar" class="hidden sticky top-2 z-20 alert shadow mb-3 py-2 flex flex-wrap items-center gap-2">
+            <span class="text-sm font-medium" id="bulk-count"></span>
+            <select id="bulk-folder" class="select select-bordered select-sm max-w-xs" aria-label="Папка назначения">
+                <option value="" disabled selected>Переместить в…</option>
+                <option value="none">Без папки</option>
+                {% for f in folders %}
+                <option value="{{ f.id }}">{{ folder_title(f) }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="btn btn-sm btn-ghost text-error" onclick="deleteFiles(selectedIds())">
+                <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>Удалить
+            </button>
+            <button type="button" class="btn btn-sm btn-ghost ml-auto" onclick="clearSelection()">Снять выделение</button>
+        </div>
+
+        {% if items %}
+        <ul class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3" id="files-grid">
+            {% for f in items %}
+            {% set refs = usage.get(f.url, []) %}
+            <li class="card bg-base-100 shadow-sm border border-base-200 overflow-hidden" data-file-id="{{ f.id }}">
+                <div class="relative aspect-video bg-base-200 flex items-center justify-center">
+                    {% if f.kind == 'image' %}
+                    <a href="{{ f.url }}" target="_blank" rel="noopener" class="absolute inset-0" title="Открыть в новой вкладке">
+                        <img src="{{ f.url }}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-contain">
+                    </a>
+                    {% else %}
+                    <span class="material-symbols-outlined text-base-content/30" style="font-size:44px" aria-hidden="true">music_note</span>
+                    {% endif %}
+                    <input type="checkbox" class="checkbox checkbox-sm bg-base-100 absolute top-2 left-2 file-check"
+                           aria-label="Выбрать {{ f.original_name }}" onchange="updateBulk()">
+                </div>
+                <div class="p-2.5 flex flex-col gap-1.5 min-w-0">
+                    <div class="text-sm font-medium truncate" title="{{ f.original_name }}">{{ f.original_name }}</div>
+                    <div class="text-xs text-base-content/60 truncate">
+                        {{ human_size(f.size) }} · {{ f.created_at.strftime('%d.%m.%Y') }}{% if folder_id == 'all' and f.folder %} · {{ folder_title(f.folder) }}{% endif %}
+                    </div>
+                    {% if f.kind == 'audio' %}
+                    <audio controls preload="none" src="{{ f.url }}" class="w-full h-8"></audio>
+                    {% endif %}
+                    <div class="flex items-center justify-between gap-1">
+                        {% if refs %}
+                        <details class="dropdown min-w-0">
+                            <summary class="badge badge-success badge-outline badge-sm cursor-pointer gap-1 max-w-full">
+                                <span class="truncate">Используется: {{ refs|length }}</span>
+                            </summary>
+                            <ul class="dropdown-content bg-base-100 rounded-box shadow-lg border border-base-200 z-30 w-64 p-2 mt-1 text-xs flex flex-col gap-1">
+                                {% for r in refs %}
+                                <li><a class="link link-hover" href="{{ url_for('admin.quiz_edit', quiz_id=r.quiz_id) }}"><b>{{ r.quiz }}</b></a> — {{ r.where }}</li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+                        <span class="btn btn-ghost btn-xs btn-square btn-disabled" title="Файл используется в квизе — сначала уберите его оттуда">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">lock</span>
+                        </span>
+                        {% else %}
+                        <span class="badge badge-ghost badge-sm">Не используется</span>
+                        <button type="button" class="btn btn-ghost btn-xs btn-square text-error" title="Удалить файл"
+                                aria-label="Удалить {{ f.original_name }}" onclick="deleteFiles([{{ f.id|tojson }}])">
+                            <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center py-12">
+                <span class="material-symbols-outlined text-base-content/30" style="font-size:48px" aria-hidden="true">perm_media</span>
+                <p class="font-medium">Здесь пока нет файлов</p>
+                <p class="text-sm text-base-content/60">Загрузите их кнопкой выше или прямо из конструктора квиза.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<dialog id="folder-modal" class="modal">
+    <form method="POST" action="{{ url_for('admin.files_folder_create') }}" class="modal-box">
+        <h3 class="font-bold text-lg mb-3">Новая папка</h3>
+        <input type="text" name="name" required maxlength="256" class="input input-bordered w-full" placeholder="Название папки" aria-label="Название папки">
+        <div class="modal-action">
+            <button type="button" class="btn" onclick="this.closest('dialog').close()">Отмена</button>
+            <button class="btn btn-primary">Создать</button>
+        </div>
+    </form>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+{% if current and not current.quiz_id %}
+<dialog id="rename-modal" class="modal">
+    <form method="POST" action="{{ url_for('admin.files_folder_rename', folder_id=current.id) }}" class="modal-box">
+        <h3 class="font-bold text-lg mb-3">Переименовать папку</h3>
+        <input type="text" name="name" required maxlength="256" value="{{ current.name }}" class="input input-bordered w-full" aria-label="Название папки">
+        <div class="modal-action">
+            <button type="button" class="btn" onclick="this.closest('dialog').close()">Отмена</button>
+            <button class="btn btn-primary">Сохранить</button>
+        </div>
+    </form>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const UPLOAD_FOLDER_ID = {{ (current.id if current else '')|tojson }};
+
+function toast(msg, type = 'success', ms = 4000) {
+    const div = document.createElement('div');
+    div.className = 'toast toast-end z-50';
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} text-sm whitespace-pre-line`;
+    alert.textContent = msg;
+    div.appendChild(alert);
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), ms);
+}
+
+function selectedIds() {
+    return [...document.querySelectorAll('.file-check:checked')].map(c => c.closest('[data-file-id]').dataset.fileId);
+}
+function updateBulk() {
+    const n = selectedIds().length;
+    document.getElementById('bulk-bar').classList.toggle('hidden', !n);
+    document.getElementById('bulk-count').textContent = `Выбрано: ${n}`;
+}
+function clearSelection() {
+    document.querySelectorAll('.file-check:checked').forEach(c => { c.checked = false; });
+    updateBulk();
+}
+
+document.getElementById('bulk-folder').addEventListener('change', async (e) => {
+    const res = await fetch({{ url_for('admin.files_move')|tojson }}, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: selectedIds(), folder_id: e.target.value === 'none' ? null : e.target.value}),
+    });
+    if (res.ok) location.reload();
+    else toast('Не удалось переместить файлы', 'error');
+});
+
+async function deleteFiles(ids) {
+    if (!ids.length) return;
+    const question = ids.length === 1 ? 'Удалить файл? Это действие нельзя отменить.'
+                                      : `Удалить выбранные файлы (${ids.length})? Это действие нельзя отменить.`;
+    if (!await confirmModal(question)) return;
+    const res = await fetch({{ url_for('admin.files_delete')|tojson }}, {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids}),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data) { toast('Не удалось удалить файлы', 'error'); return; }
+    if (data.blocked.length) {
+        toast('Не удалены — используются в квизах:\n'
+            + data.blocked.map(b => `${b.name} (${b.quizzes.join(', ')})`).join('\n'), 'warning', 8000);
+        if (data.deleted) setTimeout(() => location.reload(), 3000);
+    } else {
+        location.reload();
+    }
+}
+
+document.getElementById('upload-input').addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    const btn = document.getElementById('btn-upload');
+    btn.disabled = true;
+    let saved = 0;
+    const errors = [];
+    // По одному файлу: каждый запрос укладывается в лимит размера, виден прогресс.
+    for (const [i, file] of files.entries()) {
+        btn.lastChild.textContent = `Загрузка ${i + 1} из ${files.length}…`;
+        const fd = new FormData();
+        fd.append('files', file);
+        fd.append('folder_id', UPLOAD_FOLDER_ID);
+        try {
+            const res = await fetch({{ url_for('admin.files_upload')|tojson }}, {method: 'POST', body: fd});
+            if (res.status === 413) { errors.push(`${file.name}: файл слишком большой`); continue; }
+            const data = await res.json();
+            saved += data.saved;
+            errors.push(...data.errors);
+        } catch (_) {
+            errors.push(`${file.name}: не удалось загрузить`);
+        }
+    }
+    if (errors.length) {
+        toast(errors.join('\n'), 'error', 8000);
+        setTimeout(() => location.reload(), saved ? 4000 : 8000);
+    } else {
+        location.reload();
+    }
+});
+
+document.addEventListener('click', (e) => {
+    document.querySelectorAll('#files-grid details[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; });
+});
+</script>
+{% endblock %}

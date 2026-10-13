@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from flask import render_template, redirect, url_for, request, flash, session, jsonify, current_app
 from app.participant import participant_bp
-from app.models import db, Quiz, Team, TeamAnswer, GameState, Question
+from app.models import db, Quiz, Team, TeamAnswer, GameState, Question, quiz_background
 from app.scoring import matching_token
 
 
@@ -64,7 +64,8 @@ def play_quiz(quiz_id):
 
     return render_template('participant/play.html',
                            quiz=quiz, gs=gs, team=team,
-                           current_answer=current_answer)
+                           current_answer=current_answer,
+                           quiz_bg=quiz_background(quiz))
 
 
 @participant_bp.route('/play/register', methods=['POST'])

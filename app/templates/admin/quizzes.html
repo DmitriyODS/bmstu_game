@@ -141,19 +141,19 @@ function switchImportTab(tab) {
                             <span>Только структура <span class="text-base-content/50">· JSON</span></span></a></li>
                         <li class="border-t border-base-200 mt-1 pt-1">
                             <button type="button" class="text-error"
-                                    onclick='confirmAndSubmit(document.getElementById("delete-{{ quiz.id }}"), {{ ("Удалить квиз «" ~ quiz.title ~ "» вместе с командами и ответами? Это действие нельзя отменить.")|tojson }})'>
+                                    onclick='askDeleteQuiz({{ url_for("admin.quiz_delete", quiz_id=quiz.id)|tojson }}, {{ quiz.title|tojson }})'>
                                 <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>Удалить квиз
                             </button>
                         </li>
                     </ul>
                 </details>
-                <form method="POST" action="{{ url_for('admin.quiz_delete', quiz_id=quiz.id) }}" id="delete-{{ quiz.id }}" class="hidden"></form>
                 <form method="POST" action="{{ url_for('admin.quiz_duplicate', quiz_id=quiz.id) }}" id="duplicate-{{ quiz.id }}" class="hidden"></form>
             </div>
         </div>
     </article>
     {% endfor %}
 </div>
+{% include 'admin/_delete_quiz_modal.html' %}
 <script>
 // Меню на <details>: закрываем при клике мимо, Esc и открытии соседнего.
 document.addEventListener('click', (e) => {

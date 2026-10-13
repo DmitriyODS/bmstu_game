@@ -10,6 +10,15 @@
 #correct-answer-text em { font-style: italic; }
 #correct-question-text p { margin-bottom: 0.3em; }
 #correct-question-text p:last-child { margin-bottom: 0; }
+/* Свой фон квиза: текст прямо на фоне светлеет, в карточках остаётся обычным */
+html { --bc-orig: var(--bc); }
+/* Фон body перекрыл бы слой с z-index -1 — подложку рисует сам слой. */
+body.has-quiz-bg { background-color: transparent; }
+body.quiz-bg-light-text #app { --bc: 100% 0 0; color: oklch(var(--bc)); }
+body.quiz-bg-light-text #app :is(.card, .alert, .sticky, .collapse, .bg-base-100, .bg-base-200) {
+    --bc: var(--bc-orig);
+    color: oklch(var(--bc));
+}
 </style>
 {% endblock %}
 
@@ -214,6 +223,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/quiz-bg.js') }}"></script>
 <script>
 const QUIZ_ID = {{ quiz.id|tojson }};
 const TEAM_ID = {{ (team.id if team else '')|tojson }};
@@ -225,6 +235,11 @@ let timerStarted = false;
 
 const socket = io('/participant');
 watchConnection(socket);
+
+// z-index -1: слой лежит под содержимым страницы.
+const applyQuizBg = (bg) => QuizBg.apply(document.body, bg, {fixed: true, zIndex: -1, base: 'oklch(var(--b2))'});
+applyQuizBg({{ quiz_bg|tojson }});
+socket.on('quiz_background', applyQuizBg);
 
 function escHtml(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')

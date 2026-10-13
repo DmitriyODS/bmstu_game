@@ -93,6 +93,9 @@ def create_app():
     with app.app_context():
         _init_db(app)
 
+    from app.storage import init_storage
+    init_storage(app)
+
     # Фоновой sweeper отпускает протухшие блокировки судей независимо от
     # того, дёргает ли кто-нибудь /judge/next-card.
     from app.judge.locks import start_sweeper

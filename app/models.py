@@ -40,6 +40,13 @@ class Quiz(db.Model):
     sound_mid_path = db.Column(db.String(512))
     sound_mid_seconds = db.Column(db.Integer)
     sound_end_path = db.Column(db.String(512))
+    # Фон слайдов: none | color | image. bg_opacity — непрозрачность слоя, 0..100.
+    bg_type = db.Column(db.String(8), nullable=False, default='none')
+    bg_color = db.Column(db.String(7))
+    bg_image = db.Column(db.String(512))
+    bg_opacity = db.Column(db.Integer, nullable=False, default=100)
+    bg_blur = db.Column(db.Integer, nullable=False, default=0)
+    bg_text_light = db.Column(db.Boolean, nullable=False, default=False)
 
     tours = db.relationship('Tour', backref='quiz', cascade='all, delete-orphan',
                             order_by='Tour.order')
@@ -168,3 +175,44 @@ class GameState(db.Model):
 
     current_tour = db.relationship('Tour', foreign_keys=[current_tour_id])
     current_question = db.relationship('Question', foreign_keys=[current_question_id])
+
+
+class StorageFolder(db.Model):
+    __tablename__ = 'storage_folders'
+
+    id = db.Column(db.String(36), primary_key=True, default=gen_uuid)
+    name = db.Column(db.String(256), nullable=False)
+    # Папка квиза создаётся автоматически; у пользовательских папок quiz_id пуст.
+    quiz_id = db.Column(db.String(36), db.ForeignKey('quizzes.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    quiz = db.relationship('Quiz')
+    files = db.relationship('StoredFile', backref='folder')
+
+
+class StoredFile(db.Model):
+    __tablename__ = 'stored_files'
+
+    id = db.Column(db.String(36), primary_key=True, default=gen_uuid)
+    folder_id = db.Column(db.String(36), db.ForeignKey('storage_folders.id', ondelete='SET NULL'), nullable=True)
+    kind = db.Column(db.String(8), nullable=False)  # image | audio
+    original_name = db.Column(db.String(512), nullable=False)
+    # Ключ не зависит от папки: перемещение между папками не трогает сам файл.
+    storage_key = db.Column(db.String(512), unique=True, nullable=False)
+    size = db.Column(db.BigInteger, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    @property
+    def url(self):
+        return '/static/uploads/' + self.storage_key
+
+
+def quiz_background(quiz):
+    return {
+        'type': quiz.bg_type or 'none',
+        'color': quiz.bg_color,
+        'image': quiz.bg_image,
+        'opacity': quiz.bg_opacity if quiz.bg_opacity is not None else 100,
+        'blur': quiz.bg_blur or 0,
+        'text_light': bool(quiz.bg_text_light),
+    }
