@@ -158,7 +158,7 @@
                         {% else %}
                         <span class="badge badge-ghost badge-sm">Не используется</span>
                         <button type="button" class="btn btn-ghost btn-xs btn-square text-error" title="Удалить файл"
-                                aria-label="Удалить {{ f.original_name }}" onclick="deleteFiles([{{ f.id|tojson }}])">
+                                aria-label="Удалить {{ f.original_name }}" onclick='deleteFiles([{{ f.id|tojson }}])'>
                             <span class="material-symbols-outlined icon-sm" aria-hidden="true">delete</span>
                         </button>
                         {% endif %}
